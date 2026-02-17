@@ -1,0 +1,184 @@
+companies:
+  # ── Greenhouse ──────────────────────────────────────────────────────────────
+  - name: Ada
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/ada18/jobs
+    enabled: true
+  - name: Shakepay
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/shakepay/jobs
+    enabled: true
+  - name: StackAdapt
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/stackadapt/jobs
+    enabled: true
+  - name: Robinhood
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/robinhood/jobs
+    enabled: true
+  - name: Reddit
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/reddit/jobs
+    enabled: true
+  - name: Lyft
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/lyft/jobs
+    enabled: true
+  - name: Braze
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/braze/jobs
+    enabled: true
+  - name: Deepmind
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/deepmind/jobs
+    enabled: true
+  - name: Tenstorrent
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/tenstorrent/jobs
+    enabled: true
+  - name: Motive
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/motive/jobs
+    enabled: true
+  - name: Grammarly
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/grammarly/jobs
+    enabled: true
+  - name: Hootsuite
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/hootsuite/jobs
+    enabled: true
+  - name: AbCellera Biologics
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/abcellera/jobs
+    enabled: true
+  - name: Vidyard
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/vidyard/jobs
+    enabled: true
+  - name: Anthropic
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/anthropic/jobs
+    enabled: true
+  - name: Databricks
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/databricks/jobs
+    enabled: true
+  - name: Waymo
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/waymo/jobs
+    enabled: true
+
+  # ── Lever ────────────────────────────────────────────────────────────────────
+  - name: Wealthsimple
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/wealthsimple
+    enabled: true
+  - name: Fullscript
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/fullscript
+    enabled: true
+  - name: Sanctuary AI
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/sanctuary
+    enabled: true
+  - name: Waabi
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/waabi
+    enabled: true
+  - name: BenchSci
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/benchsci
+    enabled: true
+  - name: PointClickCare
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/pointclickcare
+    enabled: true
+  - name: Caseware
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/caseware
+    enabled: true
+  - name: Achievers
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/achievers
+    enabled: true
+  - name: OSEDEA
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/osedea
+    enabled: true
+  - name: Kogniz
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/kogniz
+    enabled: true
+  - name: Plusgrade
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/plusgrade
+    enabled: true
+  - name: Kabam
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/kabam
+    enabled: true
+  - name: Mistplay
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/mistplay
+    enabled: true
+  - name: AltaML
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/altaml
+    enabled: true
+  - name: Deep Genomics
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/deepgenomics
+    enabled: true
+  - name: Cruxocm
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/cruxocm
+    enabled: true
+
+  # ── Ashby ────────────────────────────────────────────────────────────────────
+  - name: Cohere
+    ats_type: ashby
+    ats_url: https://jobs.ashbyhq.com/cohere
+    enabled: true
+  - name: Neo Financial
+    ats_type: ashby
+    ats_url: https://jobs.ashbyhq.com/neofinancial
+    enabled: true
+  - name: Jobber
+    ats_type: ashby
+    ats_url: https://jobs.ashbyhq.com/jobber
+    enabled: true
+  - name: Klue
+    ats_type: ashby
+    ats_url: https://jobs.ashbyhq.com/klue
+    enabled: true
+  - name: BlueDot
+    ats_type: ashby
+    ats_url: https://jobs.ashbyhq.com/bluedot
+    enabled: true
+  - name: SkyWatch
+    ats_type: ashby
+    ats_url: https://jobs.ashbyhq.com/skywatch
+    enabled: true
+  - name: Mistral
+    ats_type: ashby
+    ats_url: https://jobs.ashbyhq.com/mistral
+    enabled: true
+  - name: Perplexity AI
+    ats_type: ashby
+    ats_url: https://jobs.ashbyhq.com/perplexity-ai
+    enabled: true
+  - name: Anyscale
+    ats_type: ashby
+    ats_url: https://jobs.ashbyhq.com/anyscale
+    enabled: true
+
+  # ── Workable ─────────────────────────────────────────────────────────────────
+  - name: Mila
+    ats_type: workable
+    ats_url: https://apply.workable.com/api/v3/accounts/mila-2/jobs
+    enabled: true
+  - name: Hugging Face
+    ats_type: workable
+    ats_url: https://apply.workable.com/api/v3/accounts/huggingface/jobs
+    enabled: true
