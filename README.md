@@ -363,10 +363,11 @@ uv run python eval/eval.py report
 | `meta-llama/llama-4-scout` | $0.08 | $0.30 |
 | `openai/gpt-5.2` *(teacher)* | $1.75 | $14.00 |
 
-**Scoring:**
+**Scoring (14 fields, equal-weight mean):**
 - Categorical (partial credit): `work_mode`, `canada_eligible`, `seniority`, `role_family`, `visa_sponsorship`
 - List fields (F1 + Precision/Recall): `must_have_skills`, `nice_to_have_skills`, `tech_stack`, `red_flags`
-- Overall = equal-weight mean across all 9 fields
+- Numeric (ordinal tolerance ±1yr=0.75): `years_exp_min`, `years_exp_max`
+- Salary (pct tolerance + unit normalization): `salary_min`, `salary_max`, `salary_currency`
 - Skill normalization: aliases (`js→javascript`, `k8s→kubernetes`, etc.) + parenthetical stripping
 
 **Report output:** field × model accuracy table · list field P/R diagnostics · `canada_eligible` confusion matrix · per-segment breakdown

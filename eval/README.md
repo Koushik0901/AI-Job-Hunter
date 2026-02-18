@@ -75,11 +75,16 @@ uv run python eval/eval.py run                    # all 7 student models, full d
 uv run python eval/eval.py run --subset 5         # quick sanity check (5 jobs)
 uv run python eval/eval.py run --models google/gemma-3-12b-it mistralai/mistral-small-3.2-24b-instruct
 uv run python eval/eval.py run --teacher openai/gpt-4o
+uv run python eval/eval.py run --workers 1        # serial requests — use if hitting rate limits
 ```
 
-Runs teacher first (conservative concurrency — GPT-5.2 has rate limits), then each student model
-sequentially (jobs within a model run concurrently). Saves results to
+Runs teacher first (max 2 concurrent requests), then each student model sequentially (jobs within
+each model run concurrently at `--workers`, default 3). Saves results to
 `eval/results/<timestamp>_<teacher>_<N>models.json`.
+
+**Rate limit handling:** HTTP 429 responses trigger exponential backoff (5s, 10s, 20s, 40s) before
+retrying — up to 4 attempts per job per attempt. If all retries fail, the job is marked `failed`
+and skipped in scoring. Lower `--workers` to reduce how often rate limits are hit.
 
 Requires `OPENROUTER_API_KEY` in `.env`.
 
@@ -91,7 +96,7 @@ uv run python eval/eval.py report eval/results/foo.json  # specific file
 ```
 
 Prints:
-1. **Field × model accuracy table** — all 9 scored fields, models ranked by overall score, `*` = best in column
+1. **Field × model accuracy table** — all 14 scored fields, models ranked by overall score, `*` = best in column
 2. **List field diagnostics** — F1, Precision, Recall per list field for the best model, with `hallucinates` / `under-extracts` notes
 3. **`canada_eligible` confusion matrix** — 3×3 (yes/no/unknown) for the best model
 4. **Per-segment breakdown** — overall score by segment for the best model
@@ -133,15 +138,42 @@ the diagnostics section:
 - Low precision → model **hallucinates** items the teacher didn't list
 - Low recall → model **under-extracts**, missing items the teacher found
 
+### Numeric fields — ordinal tolerance
+
+| Field | Scoring |
+|-------|---------|
+| `years_exp_min` | Exact=1.0 · off-by-1=0.75 · off-by-2=0.5 · off-by-3=0.25 · ≥4=0.0 |
+| `years_exp_max` | Same as above |
+
+Both null → 1.0 (both agree: not mentioned). One null → 0.0.
+
+### Salary fields — percentage tolerance + unit normalization
+
+`salary_min` and `salary_max` are scored with a tolerance band after normalizing for the common
+`$150k → 150` vs `150000` ambiguity: if one value is <1000 and the other ≥10000 with a ~1000×
+ratio, the smaller is scaled up before comparison.
+
+| Relative difference | Score |
+|--------------------|-------|
+| ≤5% | 1.0 |
+| ≤15% | 0.75 |
+| ≤30% | 0.5 |
+| ≤50% | 0.25 |
+| >50% | 0.0 |
+
+`salary_currency` is an exact match categorical (CAD / USD / null) — no partial credit.
+
+Both null → 1.0. One null → 0.0.
+
 ### Overall
 
-Simple mean across all 9 scored fields — each field contributes equally.
+Simple mean across all **14 scored fields** — each field contributes equally.
 Reflects general extraction quality rather than any field's specific business impact.
 
 ### Not scored
 
-`remote_geo`, `years_exp_min/max`, `salary_min/max/currency` — too numeric or free-form to
-reliably compare against a teacher.
+`remote_geo` — genuinely free-form string. Teacher might output `"North America"`, student might
+output `"US and Canada"` — semantically identical, but no reliable automatic comparison.
 
 ---
 
@@ -153,8 +185,8 @@ challenges. Priority order — first match wins:
 | Priority | Segment | Detection signal |
 |----------|---------|-----------------|
 | 1 | `seniority_extreme` | Title contains intern/junior/entry OR staff/principal |
-| 2 | `red_flag` | Description mentions US work auth, citizenship, clearance, or "must reside in" |
-| 3 | `remote_geo_edge` | Location: "remote us/usa", US state name, "north america", "americas" |
+| 2 | `red_flag` | Description mentions US work auth, citizenship, clearance, negative sponsorship, or "must reside in" |
+| 3 | `remote_geo_edge` | Location contains "remote" + US qualifier (us/usa/united states/state names) via any separator, or "north america/americas" |
 | 4 | `salary_disclosed` | Description matches `$\d{2,3}[,k\d]` |
 | 5 | `sparse` | Description under 800 characters |
 | 6 | `core` | Everything else |
@@ -167,7 +199,7 @@ challenges. Priority order — first match wins:
 | `remote_geo_edge` | 30 | Ambiguous "Remote US" postings — challenges `canada_eligible` and `work_mode` |
 | `red_flag` | 20 | US-restricted roles — tests `canada_eligible = "no"` and `red_flags` extraction |
 | `seniority_extreme` | 20 | Interns, staff, and principals — levels rare in Canada-filtered prod set |
-| `salary_disclosed` | 20 | Roles with explicit compensation — tests salary parsing |
+| `salary_disclosed` | 150 | Roles with explicit compensation — US pay transparency laws make this very common |
 | `sparse` | 10 | Thin descriptions — tests graceful degradation with limited signal |
 
 `crawl` and `build` print `<-- LOW` next to any segment below 50% of its target.
@@ -245,9 +277,20 @@ Saved to `eval/results/<timestamp>_<teacher>_<N>models.json`:
           "scores": {
             "work_mode": 1.0,
             "canada_eligible": 1.0,
+            "seniority": 0.75,
+            "role_family": 1.0,
+            "visa_sponsorship": 0.25,
             "must_have_skills": 0.74,
             "must_have_skills__p": 0.80,
             "must_have_skills__r": 0.69,
+            "nice_to_have_skills": 0.50,
+            "tech_stack": 0.82,
+            "red_flags": 1.0,
+            "years_exp_min": 0.75,
+            "years_exp_max": 1.0,
+            "salary_min": 1.0,
+            "salary_max": 1.0,
+            "salary_currency": 1.0,
             "overall": 0.83
           }
         }
@@ -258,10 +301,21 @@ Saved to `eval/results/<timestamp>_<teacher>_<N>models.json`:
     "google/gemma-3-12b-it": {
       "work_mode": 0.94,
       "canada_eligible": 0.81,
+      "seniority": 0.88,
+      "role_family": 0.91,
+      "visa_sponsorship": 0.72,
       "must_have_skills": 0.62,
       "must_have_skills__p": 0.71,
       "must_have_skills__r": 0.55,
-      "overall": 0.76
+      "nice_to_have_skills": 0.48,
+      "tech_stack": 0.70,
+      "red_flags": 0.85,
+      "years_exp_min": 0.79,
+      "years_exp_max": 0.81,
+      "salary_min": 0.88,
+      "salary_max": 0.87,
+      "salary_currency": 0.95,
+      "overall": 0.80
     }
   }
 }

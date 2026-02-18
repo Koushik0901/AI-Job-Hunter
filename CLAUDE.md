@@ -127,11 +127,13 @@ Measures general LLM extraction quality for AI/ML roles. Compares student models
 - `run [--models ...] [--teacher MODEL] [--subset N]` — runs teacher then students, saves results JSON
 - `report [file]` — field-by-field table + list diagnostics + confusion matrix + per-segment breakdown
 
-**Scoring:**
-- Categorical fields (partial credit): `work_mode`, `canada_eligible`, `seniority`, `role_family`, `visa_sponsorship`
+**Scoring (14 fields, equal-weight mean):**
+- Categorical (partial credit): `work_mode`, `canada_eligible`, `seniority`, `role_family`, `visa_sponsorship`
 - List fields (F1 + Precision/Recall): `must_have_skills`, `nice_to_have_skills`, `tech_stack`, `red_flags`
-- Overall = simple mean of all 9 fields (equal weight — measures general extraction quality)
+- Numeric (ordinal tolerance ±1yr=0.75): `years_exp_min`, `years_exp_max`
+- Salary (pct tolerance + unit normalization): `salary_min`, `salary_max`, `salary_currency`
 - Skill normalization: aliases (`js→javascript`, `k8s→kubernetes`, etc.) + parenthetical stripping
+- Not scored: `remote_geo` (free-form string, no reliable automatic comparison)
 
 **Segments** (6): `core`, `remote_geo_edge`, `red_flag`, `seniority_extreme`, `salary_disclosed`, `sparse`
 

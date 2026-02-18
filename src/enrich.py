@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import logging
+import time
+import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Any, Literal, Optional
@@ -15,6 +17,14 @@ from typing import Any, Literal, Optional
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
+
+# LangChain attaches a `parsed` field to raw response objects for internal bookkeeping;
+# Pydantic complains it doesn't match the schema. The warning is cosmetic — data is correct.
+warnings.filterwarnings(
+    "ignore",
+    message=".*PydanticSerializationUnexpectedValue.*",
+    category=UserWarning,
+)
 
 from db import save_enrichment
 
@@ -118,6 +128,33 @@ def build_enrichment_prompt(job: dict[str, Any], simplified: bool = False) -> st
 # LangChain / LLM helpers
 # ---------------------------------------------------------------------------
 
+def _is_rate_limit(e: Exception) -> bool:
+    """Return True if the exception signals a rate limit (HTTP 429)."""
+    msg = str(e).lower()
+    return "429" in msg or "rate limit" in msg or "too many requests" in msg
+
+
+def _invoke_with_retry(chain, messages, max_retries: int = 4, base_delay: float = 5.0):
+    """Invoke a LangChain chain with exponential backoff on rate limit errors.
+
+    Delays: 5s, 10s, 20s, 40s (base_delay * 2^attempt).
+    Non-rate-limit errors are re-raised immediately on the first occurrence.
+    """
+    for attempt in range(max_retries):
+        try:
+            return chain.invoke(messages)
+        except Exception as e:
+            if _is_rate_limit(e) and attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt)
+                logger.warning(
+                    "Rate limit (attempt %d/%d), retrying in %.0fs: %s",
+                    attempt + 1, max_retries, delay, e,
+                )
+                time.sleep(delay)
+            else:
+                raise
+
+
 def _make_chain(api_key: str, model: str):
     """Create a LangChain structured-output chain for JobEnrichment."""
     llm = ChatOpenAI(
@@ -172,7 +209,7 @@ def enrich_one_job(job: dict[str, Any], api_key: str, model: str) -> dict[str, A
             SystemMessage(content=_SYSTEM_PROMPT),
             HumanMessage(content=build_enrichment_prompt(job, simplified=False)),
         ]
-        enrichment: JobEnrichment = chain.invoke(messages)
+        enrichment: JobEnrichment = _invoke_with_retry(chain, messages)
         return _enrichment_to_dict(enrichment, url, model, now)
     except Exception as e:
         logger.warning("First enrichment attempt failed for %s: %s", url, e)
@@ -183,7 +220,7 @@ def enrich_one_job(job: dict[str, Any], api_key: str, model: str) -> dict[str, A
             SystemMessage(content=_SYSTEM_PROMPT),
             HumanMessage(content=build_enrichment_prompt(job, simplified=True)),
         ]
-        enrichment = chain.invoke(messages)
+        enrichment = _invoke_with_retry(chain, messages)
         return _enrichment_to_dict(enrichment, url, model, now)
     except Exception as e:
         logger.error("Second enrichment attempt failed for %s: %s", url, e)

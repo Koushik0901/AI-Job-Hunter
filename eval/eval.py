@@ -80,7 +80,9 @@ PRICING_FALLBACK = {"input": 1.00, "output": 4.00}  # conservative unknown model
 
 CATEGORICAL_FIELDS = ["work_mode", "canada_eligible", "seniority", "role_family", "visa_sponsorship"]
 LIST_FIELDS        = ["must_have_skills", "nice_to_have_skills", "tech_stack", "red_flags"]
-SCORED_FIELDS      = CATEGORICAL_FIELDS + LIST_FIELDS
+NUMERIC_FIELDS     = ["years_exp_min", "years_exp_max"]
+SALARY_FIELDS      = ["salary_min", "salary_max", "salary_currency"]
+SCORED_FIELDS      = CATEGORICAL_FIELDS + LIST_FIELDS + NUMERIC_FIELDS + SALARY_FIELDS
 
 # Ordinal rank for seniority partial-credit scoring
 _SENIORITY_RANK = {"intern": 0, "junior": 1, "mid": 2, "senior": 3, "staff": 4, "principal": 5}
@@ -171,6 +173,49 @@ def _categorical_score(field: str, t: str, s: str) -> float:
     return 0.0
 
 
+def _numeric_score(t, s) -> float:
+    """Ordinal-tolerance scoring for integer fields (years_exp).
+    Exact=1.0, off-by-1=0.75, off-by-2=0.5, off-by-3=0.25, ≥4=0.0.
+    Both null→1.0 (both agree: not mentioned). One null→0.0."""
+    if t is None and s is None:
+        return 1.0
+    if t is None or s is None:
+        return 0.0
+    try:
+        diff = abs(int(t) - int(s))
+    except (TypeError, ValueError):
+        return 0.0
+    return max(0.0, 1.0 - diff * 0.25)
+
+
+def _salary_score(t, s) -> float:
+    """Percentage-tolerance scoring for salary integers, with unit normalization.
+    Handles the '$150k' ambiguity: one model may output 150, another 150000.
+    If one value is <1000 and the other ≥10000 with ratio ≈1000, scale up the smaller.
+    Tolerance bands: ≤5%→1.0, ≤15%→0.75, ≤30%→0.5, ≤50%→0.25, >50%→0.0.
+    Both null→1.0. One null→0.0."""
+    if t is None and s is None:
+        return 1.0
+    if t is None or s is None:
+        return 0.0
+    try:
+        a, b = int(t), int(s)
+    except (TypeError, ValueError):
+        return 0.0
+    lo, hi = min(a, b), max(a, b)
+    # Unit normalization: if one looks like thousands ($150k→150) and other is full dollars
+    if lo > 0 and lo < 1_000 and hi >= 10_000 and hi / lo >= 500:
+        lo *= 1_000
+    if hi == 0:
+        return 1.0
+    ratio = (hi - lo) / hi
+    if ratio <= 0.05:   return 1.0
+    if ratio <= 0.15:   return 0.75
+    if ratio <= 0.30:   return 0.5
+    if ratio <= 0.50:   return 0.25
+    return 0.0
+
+
 def f1_score(t_set: set, s_set: set) -> float:
     """F1 between two sets. Both empty → 1.0 (both agree: nothing here)."""
     if not t_set and not s_set:
@@ -216,6 +261,23 @@ def score_job(teacher: dict, student: dict) -> dict[str, float]:
         p, r = precision_recall(t_set, s_set)
         scores[f"{field}__p"] = p
         scores[f"{field}__r"] = r
+
+    for field in NUMERIC_FIELDS:
+        scores[field] = _numeric_score(teacher.get(field), student.get(field))
+
+    for field in SALARY_FIELDS:
+        t = teacher.get(field)
+        s = student.get(field)
+        if field == "salary_currency":
+            # Exact match — CAD vs USD is a definitive error, no partial credit
+            if t is None and s is None:
+                scores[field] = 1.0
+            elif t is None or s is None:
+                scores[field] = 0.0
+            else:
+                scores[field] = 1.0 if str(t).upper() == str(s).upper() else 0.0
+        else:
+            scores[field] = _salary_score(t, s)
 
     scores["overall"] = sum(scores[f] for f in SCORED_FIELDS) / len(SCORED_FIELDS)
     return scores
@@ -294,14 +356,37 @@ def _save_eval_jobs(conn, jobs: list[dict]) -> tuple[int, int]:
 
 
 _RED_FLAG_PHRASES = [
-    "authorized to work in the united states", "us work authorization",
-    "us citizenship", "us citizen", "security clearance", "secret clearance",
-    "top secret", "must be located in", "must reside in",
+    # Explicit US work-auth restrictions
+    "authorized to work in the united states",
+    "must be authorized to work in the us",
+    "must be legally authorized",
+    "legally authorized to work in the us",
+    "eligible to work in the us",
+    "eligible to work in the united states",
+    "us work authorization",
+    "work authorization in the us",
+    "us citizenship", "us citizen",
+    # Security clearance
+    "security clearance", "secret clearance", "top secret",
+    # Location restrictions
+    "must be located in", "must reside in", "must be based in the us",
+    "must be based in the united states",
+    # Negative sponsorship statements
+    "does not sponsor", "unable to sponsor", "cannot sponsor",
+    "not able to sponsor", "sponsorship is not available",
+    "no visa sponsorship", "not provide visa sponsorship",
+    "not offer visa sponsorship", "does not offer sponsorship",
 ]
 _REMOTE_GEO_US_STATES = [
     "california", "new york", "texas", "washington", "massachusetts",
     "illinois", "colorado", "georgia", "florida",
 ]
+# Regex for "remote" + any punctuation/whitespace + US qualifier (or reversed)
+_REMOTE_US_RE = re.compile(
+    r"\bremote[\s,\-–]*(us|usa|united\s*states)\b"
+    r"|\b(us|usa|united\s*states)[\s,\-–]*remote\b",
+    re.IGNORECASE,
+)
 
 
 def tag_segment(job: dict) -> str:
@@ -318,9 +403,9 @@ def tag_segment(job: dict) -> str:
     if any(phrase in desc for phrase in _RED_FLAG_PHRASES):
         return "red_flag"
 
-    # 3. remote_geo_edge
+    # 3. remote_geo_edge — "Remote - United States", "Remote, USA", "Remote US", etc.
     if "remote" in loc:
-        if re.search(r"\bremote\s*(us|usa)\b|\bremote\s*united\s*states\b|\b(us|usa)\s*remote\b", loc):
+        if _REMOTE_US_RE.search(loc):
             return "remote_geo_edge"
         if any(state in loc for state in _REMOTE_GEO_US_STATES):
             return "remote_geo_edge"
@@ -344,7 +429,7 @@ _SEGMENT_TARGETS = {
     "remote_geo_edge": 30,
     "red_flag": 20,
     "seniority_extreme": 20,
-    "salary_disclosed": 20,
+    "salary_disclosed": 150,  # US jobs routinely disclose salary (pay transparency laws)
     "sparse": 10,
 }
 
@@ -516,22 +601,24 @@ def cmd_run(args) -> None:
         jobs = jobs[:args.subset]
         print(f"Subset mode: using {len(jobs)} of {total} jobs")
 
+    workers = args.workers
     n = len(student_models)
     print(f"\nRunning eval on {len(jobs)} jobs")
-    print(f"  Teacher : {teacher_model}")
+    print(f"  Teacher : {teacher_model}  (workers=2)")
     for m in student_models:
         print(f"  Student : {m}")
+    print(f"  Workers : {workers} per student model")
     print()
 
-    # Run teacher first (conservative concurrency -- gpt-5.2 has rate limits)
+    # Run teacher first (conservative concurrency -- gpt-5.2 has strict rate limits)
     print(f"[1/{n+1}] Running teacher ({teacher_model})...")
-    teacher_results = _run_model(jobs, api_key, teacher_model, max_workers=3)
+    teacher_results = _run_model(jobs, api_key, teacher_model, max_workers=min(2, workers))
 
     # Run each student model sequentially (jobs within each model run concurrently)
     all_student_results: dict[str, dict[str, dict]] = {}
     for i, model in enumerate(student_models, 2):
         print(f"\n[{i}/{n+1}] Running {model}...")
-        all_student_results[model] = _run_model(jobs, api_key, model, max_workers=5)
+        all_student_results[model] = _run_model(jobs, api_key, model, max_workers=workers)
 
     # Score each model against teacher
     job_records = []
@@ -714,7 +801,7 @@ def _report_multi(data: dict, results_path: Path) -> None:
     print(f"  Jobs    : {data['total_jobs']} total")
     print(f"  Models  : {len(sorted_models)} students evaluated")
     print(f"  Run at  : {data['run_at']}")
-    print(f"  Scoring : categoricals=partial-credit  lists=F1  overall=equal-weight\n")
+    print(f"  Scoring : categoricals=partial-credit  lists=F1  numeric=ordinal-tolerance  salary=pct-tolerance  overall=equal-weight\n")
 
     # ── Main field × model table ─────────────────────────────────────────────
     FIELD_W = 26
@@ -905,6 +992,9 @@ def main() -> None:
     p_run.add_argument("--teacher", default=DEFAULT_TEACHER, metavar="MODEL")
     p_run.add_argument("--subset", type=int, default=None, metavar="N",
                        help="Run on first N jobs only")
+    p_run.add_argument("--workers", type=int, default=3, metavar="N",
+                       help="Concurrent requests per student model (default: 3). "
+                            "Lower if hitting rate limits.")
 
     p_rep = sub.add_parser("report", help="Print comparison report")
     p_rep.add_argument("results_file", nargs="?", default=None,
