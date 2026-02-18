@@ -15,3 +15,6 @@ wheels/
 
 # IDE / local tooling
 .claude/settings.local.json
+
+# Eval results (large JSON files, not tracked)
+eval/results/

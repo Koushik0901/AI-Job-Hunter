@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -84,6 +85,28 @@ TITLE_EXCLUDE = [
 ]
 
 # ---------------------------------------------------------------------------
+# Canadian geography — used by the location filter below
+# ---------------------------------------------------------------------------
+
+# Full province/territory names
+_CA_PROVINCES = [
+    "ontario", "british columbia", "alberta", "quebec", "nova scotia",
+    "new brunswick", "prince edward island", "newfoundland", "labrador",
+    "newfoundland and labrador", "manitoba", "saskatchewan",
+    "northwest territories", "yukon", "nunavut",
+]
+
+# Province/territory abbreviations — checked as whole tokens (not substrings)
+# so "BC" doesn't match "ABC" and "ON" doesn't match "London"
+_CA_ABBREVS = {"bc", "ab", "on", "qc", "ns", "nb", "pei", "nl", "mb", "sk", "nt", "yt", "nu"}
+
+# Unambiguous Canadian cities ("london" omitted — clashes with London, UK)
+_CA_CITIES = [
+    "vancouver", "toronto", "calgary", "edmonton", "montreal", "ottawa",
+    "winnipeg", "halifax", "victoria", "waterloo", "kitchener",
+]
+
+# ---------------------------------------------------------------------------
 # Title / location filters
 # ---------------------------------------------------------------------------
 
@@ -98,24 +121,40 @@ def passes_location_filter(location: str) -> bool:
     """
     Accept if:
     - location is empty/null (unknown → let through)
-    - contains 'canada'
-    - contains 'remote' with no restrictive country qualifier (or with CA/US qualifier)
-    - common remote-friendly patterns
+    - contains 'canada' or a recognizable Canadian province/city
+    - contains 'remote' with no restrictive country qualifier
+    - contains 'anywhere'
     """
     if not location:
         return True
 
     loc = location.lower().strip()
 
+    # Explicit "Canada" mention
     if "canada" in loc:
         return True
 
+    # Canadian province/territory full names
+    if any(prov in loc for prov in _CA_PROVINCES):
+        return True
+
+    # Major Canadian cities
+    if any(city in loc for city in _CA_CITIES):
+        return True
+
+    # Province/territory abbreviations — split on punctuation/whitespace so we
+    # check whole tokens: "Vancouver, BC" → {"vancouver", "bc"} ✓
+    #                     "ABC Corp"      → {"abc", "corp"} — no match ✓
+    tokens = set(re.split(r"[\s,;|()/\-]+", loc))
+    if tokens & _CA_ABBREVS:
+        return True
+
     if "remote" in loc:
-        blocked_countries = [
+        blocked = [
             "uk", "united kingdom", "europe", "eu ", "germany", "france",
             "australia", "india", "brazil", "japan", "singapore", "mexico",
         ]
-        if any(bc in loc for bc in blocked_countries):
+        if any(b in loc for b in blocked):
             return False
         return True
 
@@ -190,7 +229,9 @@ def scrape_all(
     companies: list[dict[str, Any]],
     apply_location_filter: bool = True,
     enrich: bool = True,
+    title_filter_fn=None,      # callable(title) -> bool; defaults to passes_title_filter
 ) -> list[dict[str, Any]]:
+    _title_ok = title_filter_fn if title_filter_fn is not None else passes_title_filter
     results: list[dict[str, Any]] = []
     seen_urls: set[str] = set()
     raw_map: dict[str, dict[str, Any]] = {}
@@ -237,7 +278,7 @@ def scrape_all(
                 if ats_type == "lever":
                     raw_map[url] = raw
 
-            if not passes_title_filter(job["title"]):
+            if not _title_ok(job["title"]):
                 continue
 
             if apply_location_filter and not passes_location_filter(job["location"]):

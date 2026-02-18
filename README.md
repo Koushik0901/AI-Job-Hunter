@@ -7,10 +7,11 @@ A daily ML/AI/Data Science job scraper that monitors 38+ company career pages, s
 - Scrapes **Greenhouse, Lever, Ashby, and Workable** ATS platforms
 - Filters jobs by **title keywords** (ML, AI, Data Science, NLP, LLM, etc.) and **location** (Canada + Remote)
 - Fetches **full job descriptions** concurrently (ThreadPoolExecutor)
-- **LLM enrichment** via OpenRouter — extracts seniority, work mode, skills, salary, visa sponsorship, and more
+- **LLM enrichment** via OpenRouter — extracts seniority, work mode, skills, salary, visa sponsorship, and whether the role allows working from Canada (`canada_eligible`). Uses **LangChain** + **Pydantic** for structured output validation
 - Stores all jobs in **SQLite Cloud** (or a local SQLite file as fallback) with deduplication
 - Sends **Telegram notifications** grouped by 🇨🇦 Canada / 🌐 USA & Remote / 🌍 Other
 - Runs **daily via GitHub Actions** (free) or Windows Task Scheduler
+- **Eval framework** — compare N enrichment models side-by-side against a teacher model
 
 ---
 
@@ -145,6 +146,10 @@ ai-job-hunter/
 │   ├── db.py               # SQLite persistence (jobs + job_enrichments tables)
 │   ├── notify.py           # Telegram notifications
 │   └── enrich.py           # LLM enrichment pipeline (OpenRouter)
+├── eval/
+│   ├── eval.py             # Eval framework: build / cost / run / report
+│   ├── dataset.yaml        # Curated dataset (auto-generated + manual jobs)
+│   └── results/            # JSON results files (git-ignored)
 ├── companies.yaml          # List of companies to scrape
 ├── pyproject.toml          # Python project config and dependencies
 ├── uv.lock                 # Locked dependency versions
@@ -201,6 +206,19 @@ for row in conn.execute('SELECT first_seen, company, title, location FROM jobs O
     print(row)
 "
 
+# Remote US jobs and whether they allow working from Canada
+uv run python -c "
+import sqlite3
+conn = sqlite3.connect('jobs.db')
+for row in conn.execute('''
+    SELECT j.company, j.title, j.location, e.canada_eligible, e.remote_geo
+    FROM jobs j JOIN job_enrichments e ON j.url = e.url
+    WHERE j.location LIKE \"%remote%\"
+    ORDER BY e.canada_eligible DESC, j.company
+''').fetchall():
+    print(row)
+"
+
 # Enriched jobs with salary info
 uv run python -c "
 import sqlite3
@@ -235,7 +253,8 @@ for row in conn.execute('''
 |--------|-------------|
 | `url` | Foreign key → `jobs.url` |
 | `work_mode` | `remote` / `hybrid` / `onsite` |
-| `remote_geo` | e.g. `"Canada only"`, `"North America"` |
+| `remote_geo` | e.g. `"Canada only"`, `"North America"`, `"US only"` |
+| `canada_eligible` | `yes` / `no` / `unknown` — can you work from Canada? |
 | `seniority` | `intern` / `junior` / `mid` / `senior` / `staff` / `principal` |
 | `role_family` | `data scientist` / `ml engineer` / `mlops engineer` / etc. |
 | `years_exp_min` | Minimum years experience required |
@@ -266,12 +285,104 @@ Edit `TITLE_INCLUDE` and `TITLE_EXCLUDE` at the top of `scrape.py` to customise.
 
 ---
 
+## Location Filter
+
+The location filter runs on the raw ATS location string before any LLM call.
+
+**Accepted:**
+- Any location containing "canada"
+- Canadian province or territory names ("ontario", "british columbia", "alberta", etc.)
+- Canadian province abbreviations as whole tokens ("BC", "AB", "ON", "QC", etc.) — checked by splitting on punctuation so "ABC Corp" doesn't match
+- Major Canadian cities ("Vancouver", "Toronto", "Calgary", "Edmonton", "Montreal", "Ottawa", etc.)
+- Any "Remote ..." location — including "Remote US" and "Remote USA" — since US-based remote roles often allow Canadian workers (verified by the `canada_eligible` enrichment field)
+- "Anywhere"
+- Empty/unknown locations (let through)
+
+**Rejected:**
+- Non-remote US locations ("United States", "New York, NY", "San Francisco, CA", etc.)
+- Remote roles explicitly restricted to: UK, Europe, Germany, France, Australia, India, Brazil, Japan, Singapore, Mexico
+
+For "Remote US" jobs, the `canada_eligible` field extracted by the LLM from the full job description provides the definitive answer about whether you can actually work from Canada.
+
+---
+
+## LLM Enrichment
+
+Each new job's full description is sent to an LLM via OpenRouter to extract structured metadata.
+Uses **LangChain** (`ChatOpenAI`) for the API call and **Pydantic** (`JobEnrichment` model) for
+output validation — invalid enum values, wrong types, and missing required fields are caught
+automatically before the result is stored.
+
+Two attempts are made per job: first with the full schema, then with a simplified prompt if the
+first fails. `enrich_one_job()` never raises — it always returns a dict with `enrichment_status`
+set to `ok`, `failed`, or `skipped`.
+
+The enrichment is the **second check** for Canada eligibility: `canada_eligible` is extracted from
+phrases like "must be authorized to work in the US" (→ `no`), "open to North America" (→ `yes`),
+or no mention (→ `unknown`).
+
+---
+
+## Eval Framework
+
+`eval/eval.py` measures general LLM extraction quality for AI/ML roles by comparing student models
+against a high-quality teacher (default: `openai/gpt-5.2`). Uses a dedicated crawl DB
+(`eval_jobs.db`) built without a location filter, covering a broader range of roles and geographies
+than the production scraper sees.
+
+```bash
+# 1. Crawl jobs into eval_jobs.db (no location filter, broader title filter)
+uv run python eval/eval.py crawl
+
+# 2. Tag segments, write dataset.yaml
+uv run python eval/eval.py build
+
+# 3. Estimate cost before running
+uv run python eval/eval.py cost
+
+# 4. Quick sanity check (5 jobs)
+uv run python eval/eval.py run --subset 5
+
+# 5. Full eval — all 7 student models
+uv run python eval/eval.py run
+
+# 6. Print report with field-by-field breakdown
+uv run python eval/eval.py report
+```
+
+**Default student models:**
+
+| Model | Input $/M | Output $/M |
+|-------|-----------|------------|
+| `google/gemma-3-12b-it` | $0.04 | $0.13 |
+| `google/gemma-3-27b-it` | $0.04 | $0.15 |
+| `openai/gpt-oss-120b` | $0.039 | $0.19 |
+| `nvidia/nemotron-3-nano-30b-a3b` | $0.05 | $0.20 |
+| `mistralai/mistral-small-3.2-24b-instruct` | $0.06 | $0.18 |
+| `qwen/qwen3-30b-a3b-thinking-2507` | $0.051 | $0.34 |
+| `meta-llama/llama-4-scout` | $0.08 | $0.30 |
+| `openai/gpt-5.2` *(teacher)* | $1.75 | $14.00 |
+
+**Scoring:**
+- Categorical (partial credit): `work_mode`, `canada_eligible`, `seniority`, `role_family`, `visa_sponsorship`
+- List fields (F1 + Precision/Recall): `must_have_skills`, `nice_to_have_skills`, `tech_stack`, `red_flags`
+- Overall = equal-weight mean across all 9 fields
+- Skill normalization: aliases (`js→javascript`, `k8s→kubernetes`, etc.) + parenthetical stripping
+
+**Report output:** field × model accuracy table · list field P/R diagnostics · `canada_eligible` confusion matrix · per-segment breakdown
+
+See `eval/README.md` for full details.
+
+---
+
 ## Dependencies
 
 | Package | Purpose |
 |---------|---------|
-| `requests` | HTTP calls to ATS APIs, OpenRouter, and Telegram |
-| `pyyaml` | Parse `companies.yaml` |
+| `langchain-openai` | LLM calls via OpenRouter (ChatOpenAI) + structured output |
+| `pydantic` | Output schema validation (`JobEnrichment` model) — pulled in by langchain-openai |
+| `requests` | HTTP calls to ATS APIs and Telegram |
+| `pyyaml` | Parse `companies.yaml` and `eval/dataset.yaml` |
 | `rich` | Terminal table output |
 | `sqlitecloud` | SQLite Cloud connection (falls back to stdlib `sqlite3` locally) |
 

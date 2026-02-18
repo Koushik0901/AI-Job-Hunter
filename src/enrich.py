@@ -2,6 +2,7 @@
 enrich.py — LLM enrichment pipeline via OpenRouter.
 
 Extracts structured metadata from job descriptions using a cheap LLM.
+Uses LangChain (ChatOpenAI) for API calls and Pydantic for output validation.
 """
 from __future__ import annotations
 
@@ -9,13 +10,17 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal, Optional
 
-import requests
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
 
 from db import save_enrichment
 
 logger = logging.getLogger(__name__)
+
+_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 _SYSTEM_PROMPT = (
     "You are a precise structured data extractor. "
@@ -27,6 +32,7 @@ _SCHEMA_DESCRIPTION = """\
 {
   "work_mode":           "remote" | "hybrid" | "onsite" | null,
   "remote_geo":          string | null,
+  "canada_eligible":     "yes" | "no" | "unknown",
   "seniority":           "intern" | "junior" | "mid" | "senior" | "staff" | "principal" | null,
   "role_family":         "data scientist" | "ml engineer" | "mlops engineer" | "data engineer" | "research scientist" | "analyst" | "other",
   "years_exp_min":       integer | null,
@@ -39,18 +45,56 @@ _SCHEMA_DESCRIPTION = """\
   "salary_currency":     "CAD" | "USD" | null,
   "visa_sponsorship":    "yes" | "no" | "unknown",
   "red_flags":           [strings]
-}"""
+}
+
+canada_eligible rules:
+  "yes"     — role is open to candidates in Canada (e.g. remote North America, worldwide remote, explicitly mentions Canada)
+  "no"      — requires US work authorization, US residency/citizenship, or a fixed non-Canadian office location
+  "unknown" — description does not mention work location or authorization requirements"""
 
 _SIMPLIFIED_SCHEMA_DESCRIPTION = """\
 {
   "work_mode":        "remote" | "hybrid" | "onsite" | null,
+  "canada_eligible":  "yes" | "no" | "unknown",
   "seniority":        "intern" | "junior" | "mid" | "senior" | "staff" | "principal" | null,
   "role_family":      "data scientist" | "ml engineer" | "mlops engineer" | "data engineer" | "research scientist" | "analyst" | "other",
   "visa_sponsorship": "yes" | "no" | "unknown",
   "must_have_skills": [strings],
   "tech_stack":       [strings]
-}"""
+}
 
+canada_eligible: "yes" if open to Canada-based candidates, "no" if US work auth required, "unknown" if not mentioned."""
+
+
+# ---------------------------------------------------------------------------
+# Pydantic output schema
+# ---------------------------------------------------------------------------
+
+class JobEnrichment(BaseModel):
+    """Structured metadata extracted from a job posting."""
+    work_mode: Optional[Literal["remote", "hybrid", "onsite"]] = None
+    remote_geo: Optional[str] = None
+    canada_eligible: Literal["yes", "no", "unknown"] = "unknown"
+    seniority: Optional[Literal["intern", "junior", "mid", "senior", "staff", "principal"]] = None
+    role_family: Literal[
+        "data scientist", "ml engineer", "mlops engineer",
+        "data engineer", "research scientist", "analyst", "other"
+    ] = "other"
+    years_exp_min: Optional[int] = None
+    years_exp_max: Optional[int] = None
+    must_have_skills: list[str] = Field(default_factory=list)
+    nice_to_have_skills: list[str] = Field(default_factory=list)
+    tech_stack: list[str] = Field(default_factory=list)
+    salary_min: Optional[int] = None
+    salary_max: Optional[int] = None
+    salary_currency: Optional[Literal["CAD", "USD"]] = None
+    visa_sponsorship: Literal["yes", "no", "unknown"] = "unknown"
+    red_flags: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Prompt builder (also used by eval.py for token estimation)
+# ---------------------------------------------------------------------------
 
 def build_enrichment_prompt(job: dict[str, Any], simplified: bool = False) -> str:
     """Build the user message for the enrichment LLM call."""
@@ -70,45 +114,38 @@ def build_enrichment_prompt(job: dict[str, Any], simplified: bool = False) -> st
     )
 
 
-def call_openrouter(prompt: str, api_key: str, model: str) -> dict[str, Any]:
-    """POST to OpenRouter chat completions. Returns parsed JSON dict or raises ValueError."""
-    resp = requests.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": model,
-            "messages": [
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.0,
-        },
-        timeout=60,
+# ---------------------------------------------------------------------------
+# LangChain / LLM helpers
+# ---------------------------------------------------------------------------
+
+def _make_chain(api_key: str, model: str):
+    """Create a LangChain structured-output chain for JobEnrichment."""
+    llm = ChatOpenAI(
+        model=model,
+        api_key=api_key,
+        base_url=_OPENROUTER_BASE_URL,
+        temperature=0,
     )
-    resp.raise_for_status()
-    content = resp.json()["choices"][0]["message"]["content"].strip()
+    return llm.with_structured_output(JobEnrichment)
 
-    # Strip markdown code fences if present
-    if content.startswith("```"):
-        lines = content.splitlines()
-        lines = lines[1:] if lines[0].startswith("```") else lines
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        content = "\n".join(lines)
 
-    try:
-        result = json.loads(content)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"JSON parse failed: {e}\nRaw content: {content[:200]}") from e
-
-    if not isinstance(result, dict):
-        raise ValueError(f"Expected JSON object, got {type(result).__name__}")
-
+def _enrichment_to_dict(enrichment: JobEnrichment, url: str, model: str, now: str) -> dict[str, Any]:
+    """Convert a validated JobEnrichment to a flat dict ready for DB storage."""
+    result = enrichment.model_dump()
+    # Serialize list fields to JSON strings for SQLite TEXT columns
+    for field in ("must_have_skills", "nice_to_have_skills", "tech_stack", "red_flags"):
+        if isinstance(result.get(field), list):
+            result[field] = json.dumps(result[field])
+    result["url"] = url
+    result["enriched_at"] = now
+    result["enrichment_status"] = "ok"
+    result["enrichment_model"] = model
     return result
 
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def enrich_one_job(job: dict[str, Any], api_key: str, model: str) -> dict[str, Any]:
     """
@@ -119,7 +156,6 @@ def enrich_one_job(job: dict[str, Any], api_key: str, model: str) -> dict[str, A
     url = job.get("url", "")
     now = datetime.now(timezone.utc).isoformat()
 
-    # Skip jobs with no description
     if not (job.get("description") or "").strip():
         return {
             "url": url,
@@ -128,34 +164,27 @@ def enrich_one_job(job: dict[str, Any], api_key: str, model: str) -> dict[str, A
             "enrichment_model": model,
         }
 
+    chain = _make_chain(api_key, model)
+
     # First attempt: full schema
     try:
-        prompt = build_enrichment_prompt(job, simplified=False)
-        result = call_openrouter(prompt, api_key, model)
-        result["url"] = url
-        result["enriched_at"] = now
-        result["enrichment_status"] = "ok"
-        result["enrichment_model"] = model
-        # Serialize list fields to JSON strings for storage
-        for field in ("must_have_skills", "nice_to_have_skills", "tech_stack", "red_flags"):
-            if isinstance(result.get(field), list):
-                result[field] = json.dumps(result[field])
-        return result
+        messages = [
+            SystemMessage(content=_SYSTEM_PROMPT),
+            HumanMessage(content=build_enrichment_prompt(job, simplified=False)),
+        ]
+        enrichment: JobEnrichment = chain.invoke(messages)
+        return _enrichment_to_dict(enrichment, url, model, now)
     except Exception as e:
         logger.warning("First enrichment attempt failed for %s: %s", url, e)
 
-    # Second attempt: simplified schema
+    # Second attempt: simplified schema (shorter prompt, fewer fields)
     try:
-        prompt = build_enrichment_prompt(job, simplified=True)
-        result = call_openrouter(prompt, api_key, model)
-        result["url"] = url
-        result["enriched_at"] = now
-        result["enrichment_status"] = "ok"
-        result["enrichment_model"] = model
-        for field in ("must_have_skills", "nice_to_have_skills", "tech_stack", "red_flags"):
-            if isinstance(result.get(field), list):
-                result[field] = json.dumps(result[field])
-        return result
+        messages = [
+            SystemMessage(content=_SYSTEM_PROMPT),
+            HumanMessage(content=build_enrichment_prompt(job, simplified=True)),
+        ]
+        enrichment = chain.invoke(messages)
+        return _enrichment_to_dict(enrichment, url, model, now)
     except Exception as e:
         logger.error("Second enrichment attempt failed for %s: %s", url, e)
 

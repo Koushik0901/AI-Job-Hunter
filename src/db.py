@@ -33,6 +33,7 @@ def init_db(db_url: str) -> Any:
             url                  TEXT PRIMARY KEY REFERENCES jobs(url),
             work_mode            TEXT,
             remote_geo           TEXT,
+            canada_eligible      TEXT,
             seniority            TEXT,
             role_family          TEXT,
             years_exp_min        INTEGER,
@@ -50,6 +51,12 @@ def init_db(db_url: str) -> Any:
             enrichment_model     TEXT
         )
     """)
+    # Migration: add canada_eligible to existing DBs that predate this column
+    try:
+        conn.execute("ALTER TABLE job_enrichments ADD COLUMN canada_eligible TEXT")
+        conn.commit()
+    except Exception:
+        pass  # column already exists
     conn.commit()
     return conn
 
@@ -132,18 +139,19 @@ def save_enrichment(conn: Any, url: str, enrichment: dict[str, Any]) -> None:
     conn.execute(
         """
         INSERT OR REPLACE INTO job_enrichments (
-            url, work_mode, remote_geo, seniority, role_family,
+            url, work_mode, remote_geo, canada_eligible, seniority, role_family,
             years_exp_min, years_exp_max,
             must_have_skills, nice_to_have_skills, tech_stack,
             salary_min, salary_max, salary_currency,
             visa_sponsorship, red_flags,
             enriched_at, enrichment_status, enrichment_model
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             url,
             enrichment.get("work_mode"),
             enrichment.get("remote_geo"),
+            enrichment.get("canada_eligible"),
             enrichment.get("seniority"),
             enrichment.get("role_family"),
             enrichment.get("years_exp_min"),
