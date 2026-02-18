@@ -1,12 +1,17 @@
 """
-scrape.py — Standalone ATS job scraper for ML/AI/Data Science roles.
+scrape.py — Daily ML/AI/Data Science job scraper with Telegram notifications.
 
-Scrapes Greenhouse, Lever, Ashby, and Workable from a companies.yaml config
-and outputs a Rich table filtered to Canada/Remote roles.
+Scrapes Greenhouse, Lever, Ashby, and Workable from a companies.yaml config,
+filters to Canada/Remote roles, fetches full descriptions, stores results in
+SQLite, and sends Telegram notifications for new postings grouped by country.
 
 Usage:
-    python scrape.py
-    python scrape.py --no-location-filter --limit 100
+    python scrape.py                         # standard daily run
+    python scrape.py --no-location-filter    # show all title-matched jobs worldwide
+    python scrape.py --no-enrich             # skip description fetching (faster)
+    python scrape.py --no-notify             # skip Telegram notification
+    python scrape.py --check cohere          # discover which ATS a company uses
+    python scrape.py --db /path/to/jobs.db   # use a custom database path
     python scrape.py --config /path/to/companies.yaml
 """
 from __future__ import annotations
@@ -688,9 +693,13 @@ def _probe_job_count(resp: requests.Response, ats_name: str) -> int:
 # Section G — SQLite persistence
 # ---------------------------------------------------------------------------
 
-def init_db(db_path: Path) -> sqlite3.Connection:
-    """Create (or open) the jobs database and ensure the schema exists."""
-    conn = sqlite3.connect(str(db_path))
+def init_db(db_url: str) -> Any:
+    """Open the jobs database (local SQLite file or SQLite Cloud URL) and ensure the schema exists."""
+    if db_url.startswith("sqlitecloud://"):
+        import sqlitecloud  # type: ignore[import]
+        conn = sqlitecloud.connect(db_url)
+    else:
+        conn = sqlite3.connect(db_url)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS jobs (
             url         TEXT PRIMARY KEY,
@@ -970,7 +979,7 @@ def main() -> None:
         "--db",
         default=None,
         metavar="PATH",
-        help="Path to SQLite database file (default: jobs.db next to this script)",
+        help="Local SQLite file path (default: jobs.db). Ignored if SQLITECLOUD_URL is set.",
     )
     parser.add_argument(
         "--no-enrich",
@@ -1032,13 +1041,22 @@ def main() -> None:
 
     render_table(jobs, limit=args.limit)
 
-    # Persist to SQLite
-    db_path = Path(args.db) if args.db else Path(__file__).parent / "jobs.db"
-    conn = init_db(db_path)
+    # Persist to database — SQLite Cloud if env var set, otherwise local file
+    cloud_url = os.getenv("SQLITECLOUD_URL", "")
+    if cloud_url:
+        db_url = cloud_url
+        db_label = "SQLite Cloud"
+    elif args.db:
+        db_url = args.db
+        db_label = args.db
+    else:
+        db_url = str(Path(__file__).parent / "jobs.db")
+        db_label = db_url
+    conn = init_db(db_url)
     new_count, updated_count, new_jobs = save_jobs(conn, jobs)
     conn.close()
     console.print(
-        f"\n[bold]Database:[/bold] {db_path}  "
+        f"\n[bold]Database:[/bold] {db_label}  "
         f"[green]{new_count} new[/green], [dim]{updated_count} updated[/dim]"
     )
 

@@ -15,18 +15,9 @@ jobs:
 
       - uses: astral-sh/setup-uv@v5
 
-      # Restore the jobs DB from the previous run so deduplication works.
-      # The key changes every run so a fresh save is always created;
-      # restore-keys finds the most recent previous cache on cache miss.
-      - name: Restore jobs database
-        uses: actions/cache@v4
-        with:
-          path: jobs.db
-          key: jobs-db-${{ github.run_id }}
-          restore-keys: jobs-db-
-
       - name: Run scraper
         env:
+          SQLITECLOUD_URL: ${{ secrets.SQLITECLOUD_URL }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: uv run python scrape.py
