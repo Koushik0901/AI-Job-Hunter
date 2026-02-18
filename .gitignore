@@ -11,4 +11,7 @@ wheels/
 
 # Secrets and local data
 .env
-jobs.db
+*.db
+
+# IDE / local tooling
+.claude/settings.local.json

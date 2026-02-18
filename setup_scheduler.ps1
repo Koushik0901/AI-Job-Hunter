@@ -23,7 +23,7 @@ if (-not $uvPath) {
 
 $action = New-ScheduledTaskAction `
     -Execute $uvPath `
-    -Argument "run python scrape.py" `
+    -Argument "run python src/scrape.py" `
     -WorkingDirectory $scriptDir
 
 $trigger = New-ScheduledTaskTrigger -Daily -At $runAt

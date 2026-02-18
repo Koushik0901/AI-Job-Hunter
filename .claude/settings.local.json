@@ -8,7 +8,9 @@
       "Bash(curl:*)",
       "WebFetch(domain:docs.sqlitecloud.io)",
       "WebFetch(domain:sqlitecloud.io)",
-      "WebFetch(domain:www.sqlite.ai)"
+      "WebFetch(domain:www.sqlite.ai)",
+      "Bash(uv sync:*)",
+      "Bash(test:*)"
     ]
   }
 }

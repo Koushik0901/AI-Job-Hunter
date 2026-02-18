@@ -20,4 +20,5 @@ jobs:
           SQLITECLOUD_URL: ${{ secrets.SQLITECLOUD_URL }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: uv run python scrape.py
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: uv run python src/scrape.py

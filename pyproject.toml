@@ -1,6 +1,6 @@
 [project]
 name = "ai-job-hunter"
-version = "2.0.0"
+version = "3.0.0"
 description = "Daily ML/AI/Data Science job scraper with SQLite storage and Telegram notifications"
 readme = "README.md"
 requires-python = ">=3.12"
