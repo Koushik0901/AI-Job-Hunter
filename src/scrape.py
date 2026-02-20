@@ -36,11 +36,14 @@ from fetchers import (
     enrich_descriptions,
     fetch_ashby,
     fetch_greenhouse,
+    fetch_hn_jobs,
     fetch_lever,
+    fetch_smartrecruiters,
     fetch_workable,
     normalize_ashby,
     normalize_greenhouse,
     normalize_lever,
+    normalize_smartrecruiters,
     normalize_workable,
 )
 from notify import _load_dotenv, notify_new_jobs
@@ -172,10 +175,11 @@ def passes_location_filter(location: str) -> bool:
 # ---------------------------------------------------------------------------
 
 FETCHERS = {
-    "greenhouse": (fetch_greenhouse, normalize_greenhouse),
-    "lever":      (fetch_lever,      normalize_lever),
-    "ashby":      (fetch_ashby,      normalize_ashby),
-    "workable":   (fetch_workable,   normalize_workable),
+    "greenhouse":      (fetch_greenhouse,      normalize_greenhouse),
+    "lever":           (fetch_lever,           normalize_lever),
+    "ashby":           (fetch_ashby,           normalize_ashby),
+    "workable":        (fetch_workable,        normalize_workable),
+    "smartrecruiters": (fetch_smartrecruiters, normalize_smartrecruiters),
 }
 
 
@@ -190,6 +194,12 @@ def _extract_slug(ats_url: str, ats_type: str) -> str:
     if ats == "workable":
         if "accounts" in parts:
             idx = parts.index("accounts")
+            if idx + 1 < len(parts):
+                return parts[idx + 1]
+    if ats == "smartrecruiters":
+        # https://api.smartrecruiters.com/v1/companies/{slug}/postings
+        if "companies" in parts:
+            idx = parts.index("companies")
             if idx + 1 < len(parts):
                 return parts[idx + 1]
     return parts[-1]
@@ -269,6 +279,9 @@ def scrape_all(
             elif ats_type == "workable":
                 job["_account_slug"] = slug
                 job["_shortcode"] = str(raw.get("shortcode", ""))
+            elif ats_type == "smartrecruiters":
+                job["_company_slug"] = slug
+                job["_job_id"] = str(raw.get("id", ""))
 
             url = job.get("url", "")
             if url and url in seen_urls:
@@ -286,6 +299,26 @@ def scrape_all(
 
             results.append(job)
 
+    # HN "Who is Hiring" (no credentials needed — always runs)
+    try:
+        hn_jobs = fetch_hn_jobs()
+        hn_added = 0
+        for job in hn_jobs:
+            if not _title_ok(job["title"]):
+                continue
+            if apply_location_filter and not passes_location_filter(job["location"]):
+                continue
+            url = job.get("url", "")
+            if url and url in seen_urls:
+                continue
+            if url:
+                seen_urls.add(url)
+            results.append(job)
+            hn_added += 1
+        console.print(f"  [green]HN Who is Hiring: {hn_added} jobs added[/green]")
+    except Exception as e:
+        console.print(f"  [yellow]HN fetch failed (skipping): {e}[/yellow]")
+
     results.sort(key=lambda j: j.get("posted") or "", reverse=True)
 
     if enrich and results:
@@ -293,6 +326,257 @@ def scrape_all(
         enrich_descriptions(results, raw_map)
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Bulk company import (--import-companies)
+# ---------------------------------------------------------------------------
+
+# Three complementary sources:
+# 1. pittcsc internships list: HTML table, many ATS URLs per row (company name in <strong>)
+# 2. j-delaney easy-application: plain markdown, fewer ATS URLs but cleaner context
+# 3. SimplifyJobs New Grad: HTML table, includes SmartRecruiters links
+_IMPORT_SOURCES = [
+    ("pittcsc", "https://raw.githubusercontent.com/pittcsc/Summer2024-Internships/dev/README.md"),
+    ("j-delaney", "https://raw.githubusercontent.com/j-delaney/easy-application/master/README.md"),
+    ("simplify", "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/README.md"),
+]
+
+SIMPLIFY_NEWGRAD_URL = "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/README.md"
+
+
+def _slug_to_ats_url(slug: str, ats_type: str) -> str:
+    if ats_type == "greenhouse":
+        return f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
+    if ats_type == "lever":
+        return f"https://api.lever.co/v0/postings/{slug}"
+    if ats_type == "smartrecruiters":
+        return f"https://api.smartrecruiters.com/v1/companies/{slug}/postings"
+    raise ValueError(f"Unknown ats_type: {ats_type}")
+
+
+def _parse_companies_from_html_table(text: str) -> list[tuple[str, str, str]]:
+    """
+    Parse (company_name, ats_type, slug) from HTML table format used by pittcsc.
+    Handles: job-boards.greenhouse.io/SLUG/jobs/ID and jobs.lever.co/SLUG
+    """
+    results: list[tuple[str, str, str]] = []
+    seen_slugs: set[str] = set()
+    for row_match in re.finditer(r'<tr>(.*?)</tr>', text, re.DOTALL):
+        row = row_match.group(1)
+        name_m = re.search(r'<strong><a[^>]*>([^<]+)</a></strong>', row)
+        if not name_m:
+            continue
+        company_name = name_m.group(1).strip()
+        # Greenhouse: job-boards.greenhouse.io/SLUG/ or boards.greenhouse.io/SLUG
+        gh_m = re.search(
+            r'(?:job-boards|boards(?:-api)?)\.greenhouse\.io/([A-Za-z0-9_-]+)', row
+        )
+        if gh_m:
+            slug = gh_m.group(1)
+            if slug not in seen_slugs:
+                seen_slugs.add(slug)
+                results.append((company_name, "greenhouse", slug))
+        # Lever
+        lv_m = re.search(r'jobs\.lever\.co/([A-Za-z0-9_-]+)', row)
+        if lv_m:
+            slug = lv_m.group(1)
+            if slug not in seen_slugs:
+                seen_slugs.add(slug)
+                results.append((company_name, "lever", slug))
+    return results
+
+
+def _parse_companies_from_simplify(text: str) -> list[tuple[str, str, str]]:
+    """
+    Parse (company_name, ats_type, slug) from the SimplifyJobs New-Grad-Positions README.
+    Handles Greenhouse, Lever, and SmartRecruiters links; handles '↳' sub-row continuation.
+    """
+    results: list[tuple[str, str, str]] = []
+    seen_slugs: set[str] = set()
+    last_company: str = ""
+
+    for row_match in re.finditer(r'<tr>(.*?)</tr>', text, re.DOTALL):
+        row = row_match.group(1)
+        # Determine company name — strong tag or continuation arrow
+        name_m = re.search(r'<strong>(?:<a[^>]*>)?([^<]+)(?:</a>)?</strong>', row)
+        if name_m:
+            company_name = name_m.group(1).strip()
+            last_company = company_name
+        else:
+            # Check for continuation sub-row (↳)
+            if "↳" in row or "&#8618;" in row:
+                company_name = last_company
+            else:
+                # Try plain <a> tag in first cell
+                cell_m = re.search(r'<td[^>]*>\s*<a[^>]*>([^<]{1,60})</a>', row)
+                company_name = cell_m.group(1).strip() if cell_m else ""
+                if company_name:
+                    last_company = company_name
+
+        if not company_name:
+            continue
+
+        # Greenhouse
+        gh_m = re.search(r'(?:job-boards|boards(?:-api)?)\.greenhouse\.io/([A-Za-z0-9_-]+)', row)
+        if gh_m:
+            slug = gh_m.group(1)
+            if slug not in seen_slugs:
+                seen_slugs.add(slug)
+                results.append((company_name, "greenhouse", slug))
+
+        # Lever
+        lv_m = re.search(r'jobs\.lever\.co/([A-Za-z0-9_-]+)', row)
+        if lv_m:
+            slug = lv_m.group(1)
+            if slug not in seen_slugs:
+                seen_slugs.add(slug)
+                results.append((company_name, "lever", slug))
+
+        # SmartRecruiters
+        sr_m = re.search(r'apply\.smartrecruiters\.com/([A-Za-z0-9_-]+)/', row)
+        if sr_m:
+            slug = sr_m.group(1)
+            if slug not in seen_slugs:
+                seen_slugs.add(slug)
+                results.append((company_name, "smartrecruiters", slug))
+
+    return results
+
+
+def _parse_companies_from_markdown(text: str) -> list[tuple[str, str, str]]:
+    """
+    Parse (company_name, ats_type, slug) from plain markdown format used by j-delaney.
+    Guesses company name from surrounding markdown link labels.
+    """
+    results: list[tuple[str, str, str]] = []
+    seen_slugs: set[str] = set()
+    gh_pat = re.compile(r'([^\n]*boards\.greenhouse\.io/([A-Za-z0-9_-]+)[^\n]*)')
+    lv_pat = re.compile(r'([^\n]*jobs\.lever\.co/([A-Za-z0-9_-]+)[^\n]*)')
+    for pat, ats_type in ((gh_pat, "greenhouse"), (lv_pat, "lever")):
+        for m in pat.finditer(text):
+            ctx, slug = m.group(1), m.group(2)
+            if slug in seen_slugs:
+                continue
+            seen_slugs.add(slug)
+            name_m = re.search(r'\[([^\]]{1,60})\]', ctx)
+            name = name_m.group(1).strip() if name_m else slug.replace("-", " ").title()
+            results.append((name, ats_type, slug))
+    return results
+
+
+def cmd_import_companies(config_path: Path, dry_run: bool = False) -> None:
+    """Fetch community GitHub lists of Greenhouse/Lever/SmartRecruiters companies and append new entries."""
+    console = Console()
+
+    # 1. Fetch all sources and collect (company_name, ats_type, slug, source) candidates
+    all_candidates: list[tuple[str, str, str, str]] = []
+    for source_label, source_url in _IMPORT_SOURCES:
+        console.print(f"[dim]Fetching ({source_label})[/dim] {source_url}")
+        try:
+            resp = requests.get(source_url, timeout=30)
+            resp.raise_for_status()
+            text = resp.text
+        except requests.RequestException as e:
+            console.print(f"  [yellow]Skipped (fetch failed): {e}[/yellow]")
+            continue
+        # Choose parser based on source label / content
+        if source_label == "simplify":
+            parsed = _parse_companies_from_simplify(text)
+        elif "<tr>" in text:
+            parsed = _parse_companies_from_html_table(text)
+        else:
+            parsed = _parse_companies_from_markdown(text)
+        console.print(f"  [dim]Found {len(parsed)} companies[/dim]")
+        all_candidates.extend((name, ats, slug, source_label) for name, ats, slug in parsed)
+
+    if not all_candidates:
+        console.print("[yellow]No companies found from any source.[/yellow]")
+        return
+
+    # 2. Load existing companies.yaml — deduplicate by slug
+    if config_path.exists():
+        with config_path.open("r", encoding="utf-8") as f:
+            existing_data = yaml.safe_load(f) or {}
+    else:
+        existing_data = {"companies": []}
+
+    existing_companies = existing_data.get("companies", [])
+    existing_urls: set[str] = {c.get("ats_url", "") for c in existing_companies}
+    existing_slugs: set[str] = set()
+    for c in existing_companies:
+        url = c.get("ats_url", "")
+        if url:
+            parts = [p for p in urlparse(url).path.strip("/").split("/") if p]
+            # For greenhouse: boards-api.greenhouse.io/v1/boards/SLUG/jobs → parts[-2] = SLUG
+            for p in parts:
+                existing_slugs.add(p.lower())
+
+    # 3. Build new entries — deduplicate across sources as we go
+    new_entries: list[dict[str, Any]] = []
+    skipped_dupe = 0
+    seen_import_slugs: set[str] = set()
+    for company_name, ats_type, slug, source_label in all_candidates:
+        if slug.lower() in existing_slugs or slug.lower() in seen_import_slugs:
+            skipped_dupe += 1
+            continue
+        try:
+            ats_url = _slug_to_ats_url(slug, ats_type)
+        except ValueError:
+            continue
+        if ats_url in existing_urls:
+            skipped_dupe += 1
+            continue
+        seen_import_slugs.add(slug.lower())
+        new_entries.append({
+            "name": company_name,
+            "ats_type": ats_type,
+            "ats_url": ats_url,
+            "enabled": True,
+            "_source": source_label,
+        })
+
+    console.print(
+        f"\n[bold]Import summary:[/bold] "
+        f"[green]{len(new_entries)} new[/green], "
+        f"[dim]{skipped_dupe} already present / duplicate[/dim]"
+    )
+
+    if not new_entries:
+        console.print("[dim]Nothing to add.[/dim]")
+        return
+
+    # 4. Print preview table
+    from rich.table import Table as RichTable
+    preview = RichTable(title=f"Companies to import ({len(new_entries)})", show_header=True)
+    preview.add_column("Name", style="cyan")
+    preview.add_column("ATS", style="green")
+    preview.add_column("Slug")
+    preview.add_column("Source", style="dim")
+    for entry in new_entries:
+        # Extract slug from constructed ats_url for display
+        parts = [p for p in urlparse(entry["ats_url"]).path.strip("/").split("/") if p]
+        slug_display = parts[-2] if entry["ats_type"] == "greenhouse" and len(parts) >= 2 else parts[-1]
+        preview.add_row(entry["name"], entry["ats_type"], slug_display, entry.get("_source", ""))
+    console.print(preview)
+
+    if dry_run:
+        console.print("[yellow]Dry run — not writing to companies.yaml[/yellow]")
+        return
+
+    # 5. Append to companies.yaml
+    with config_path.open("a", encoding="utf-8") as f:
+        f.write("\n  # ── Imported via --import-companies ──────────────────────────────────────\n")
+        for entry in new_entries:
+            f.write(f"  - name: {entry['name']}\n")
+            f.write(f"    ats_type: {entry['ats_type']}\n")
+            f.write(f"    ats_url: {entry['ats_url']}\n")
+            f.write(f"    enabled: true\n")
+
+    console.print(
+        f"[bold green]Done.[/bold green] "
+        f"Appended {len(new_entries)} companies to {config_path}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -323,6 +607,12 @@ _ATS_PROBES: list[tuple[str, str, str, Any]] = [
         "https://apply.workable.com/api/v3/accounts/{slug}/jobs",
         "POST",
         lambda r: r.status_code == 200,
+    ),
+    (
+        "smartrecruiters",
+        "https://api.smartrecruiters.com/v1/companies/{slug}/postings?limit=1",
+        "GET",
+        lambda r: r.status_code == 200 and "content" in r.json(),
     ),
 ]
 
@@ -372,6 +662,8 @@ def _probe_job_count(resp: requests.Response, ats_name: str) -> int:
             return len(data) if isinstance(data, list) else 0
         if ats_name == "workable":
             return len(data.get("results", [])) if isinstance(data, dict) else 0
+        if ats_name == "smartrecruiters":
+            return data.get("totalFound", len(data.get("content", [])))
     except Exception:
         pass
     if ats_name == "ashby":
@@ -479,6 +771,16 @@ def main() -> None:
         action="store_true",
         help="Enrich all unenriched/failed jobs in the DB, then exit (no scraping)",
     )
+    parser.add_argument(
+        "--import-companies",
+        action="store_true",
+        help="Fetch AI/ML company lists from GitHub and append new entries to companies.yaml",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="With --import-companies: print what would be added without writing",
+    )
     args = parser.parse_args()
 
     # Load .env from the current working directory (project root)
@@ -486,6 +788,14 @@ def main() -> None:
 
     if args.check:
         check_company(args.check)
+        return
+
+    if args.import_companies:
+        if args.config:
+            config_path = Path(args.config)
+        else:
+            config_path = Path.cwd() / "companies.yaml"
+        cmd_import_companies(config_path, dry_run=args.dry_run)
         return
 
     # Resolve DB URL

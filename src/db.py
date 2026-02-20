@@ -51,12 +51,13 @@ def init_db(db_url: str) -> Any:
             enrichment_model     TEXT
         )
     """)
-    # Migration: add canada_eligible to existing DBs that predate this column
-    try:
-        conn.execute("ALTER TABLE job_enrichments ADD COLUMN canada_eligible TEXT")
-        conn.commit()
-    except Exception:
-        pass  # column already exists
+    # Migrations: add new columns to existing DBs (try/except — column may already exist)
+    for col in ("canada_eligible TEXT", "required_skills TEXT", "preferred_skills TEXT"):
+        try:
+            conn.execute(f"ALTER TABLE job_enrichments ADD COLUMN {col}")
+            conn.commit()
+        except Exception:
+            pass  # column already exists
     conn.commit()
     return conn
 
@@ -141,11 +142,11 @@ def save_enrichment(conn: Any, url: str, enrichment: dict[str, Any]) -> None:
         INSERT OR REPLACE INTO job_enrichments (
             url, work_mode, remote_geo, canada_eligible, seniority, role_family,
             years_exp_min, years_exp_max,
-            must_have_skills, nice_to_have_skills, tech_stack,
+            required_skills, preferred_skills,
             salary_min, salary_max, salary_currency,
             visa_sponsorship, red_flags,
             enriched_at, enrichment_status, enrichment_model
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             url,
@@ -156,9 +157,8 @@ def save_enrichment(conn: Any, url: str, enrichment: dict[str, Any]) -> None:
             enrichment.get("role_family"),
             enrichment.get("years_exp_min"),
             enrichment.get("years_exp_max"),
-            enrichment.get("must_have_skills"),
-            enrichment.get("nice_to_have_skills"),
-            enrichment.get("tech_stack"),
+            enrichment.get("required_skills"),
+            enrichment.get("preferred_skills"),
             enrichment.get("salary_min"),
             enrichment.get("salary_max"),
             enrichment.get("salary_currency"),

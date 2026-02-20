@@ -182,3 +182,759 @@ companies:
     ats_type: workable
     ats_url: https://apply.workable.com/api/v3/accounts/huggingface/jobs
     enabled: true
+
+  # ── SmartRecruiters ──────────────────────────────────────────────────────────
+  - name: Unity Technologies
+    ats_type: smartrecruiters
+    ats_url: https://api.smartrecruiters.com/v1/companies/UnityTechnologies/postings
+    enabled: true
+  - name: Ubisoft
+    ats_type: smartrecruiters
+    ats_url: https://api.smartrecruiters.com/v1/companies/Ubisoft2/postings
+    enabled: true
+
+  # ── Imported via --import-companies ──────────────────────────────────────
+  - name: Scopely
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/scopely/jobs
+    enabled: true
+  - name: Critical Mass
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/criticalmass/jobs
+    enabled: true
+  - name: Dark Wolf Solutions
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/darkwolfsolutions/jobs
+    enabled: true
+  - name: Schonfeld
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/schonfeld/jobs
+    enabled: true
+  - name: ACLU Kentucky
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/acluinternships/jobs
+    enabled: true
+  - name: Woven
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/woven-by-toyota
+    enabled: true
+  - name: Gelber Group
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/gelberhandshake/jobs
+    enabled: true
+  - name: LaunchDarkly
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/launchdarkly/jobs
+    enabled: true
+  - name: Strata Decision Technology
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/stratacareers/jobs
+    enabled: true
+  - name: Field AI
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/field-ai
+    enabled: true
+  - name: Sigma Computing
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/sigmacomputing/jobs
+    enabled: true
+  - name: True Anomaly
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/trueanomalyinc/jobs
+    enabled: true
+  - name: HeartFlow
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/heartflowinc/jobs
+    enabled: true
+  - name: Atlas Energy Solutions
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/atlassand/jobs
+    enabled: true
+  - name: Twilio
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/twilio/jobs
+    enabled: true
+  - name: Voyager Technologies
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/voyagertechnologiesinc/jobs
+    enabled: true
+  - name: Impinj
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/impinjexternal/jobs
+    enabled: true
+  - name: Samsung Research America
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/samsungresearchamericainternship/jobs
+    enabled: true
+  - name: GoDaddy
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/eventsandinterns/jobs
+    enabled: true
+  - name: OTR Solutions
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/otrcapital1/jobs
+    enabled: true
+  - name: Redwood Materials
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/redwoodmaterials/jobs
+    enabled: true
+  - name: Wade Trim
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/wadetrim
+    enabled: true
+  - name: Medical Informatics Engineering
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/medicalinformaticsengineering/jobs
+    enabled: true
+  - name: Veeva Systems
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/veeva
+    enabled: true
+  - name: Verkada
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/verkada/jobs
+    enabled: true
+  - name: Apptronik
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/apptronik/jobs
+    enabled: true
+  - name: Alo Yoga
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/aloyoga/jobs
+    enabled: true
+  - name: Box
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/boxinc/jobs
+    enabled: true
+  - name: Virtru
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/virtru/jobs
+    enabled: true
+  - name: Magnet Forensics
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/magnetforensics
+    enabled: true
+  - name: Two Six Technologies
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/twosixtechnologies/jobs
+    enabled: true
+  - name: National Information Solutions Cooperative (NISC)
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/testnisc/jobs
+    enabled: true
+  - name: EQ Bank
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/eqbank
+    enabled: true
+  - name: National Information Solutions Cooperative (NISC)
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/nisc/jobs
+    enabled: true
+  - name: BambooHR
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/bamboohr17/jobs
+    enabled: true
+  - name: Kairos Power
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/kairospower/jobs
+    enabled: true
+  - name: Klaviyo
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/klaviyocampus/jobs
+    enabled: true
+  - name: Garda Capital Partners
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/gardacp/jobs
+    enabled: true
+  - name: Dropbox
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/embed/jobs
+    enabled: true
+  - name: GlossGenius
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/glossgenius/jobs
+    enabled: true
+  - name: PMG
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/pmg/jobs
+    enabled: true
+  - name: SK hynix
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/skhynixamerica/jobs
+    enabled: true
+  - name: Verisign
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/verisign/jobs
+    enabled: true
+  - name: Zoox
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/zoox
+    enabled: true
+  - name: Astranis
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/astranis/jobs
+    enabled: true
+  - name: STR
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/systemstechnologyresearch/jobs
+    enabled: true
+  - name: Nex
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/nex/jobs
+    enabled: true
+  - name: DRW Holdings
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/drweng/jobs
+    enabled: true
+  - name: SteerBridge
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/steerbridge
+    enabled: true
+  - name: MCG Health
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/mcghealth/jobs
+    enabled: true
+  - name: SuccessKPI
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/successkpiinc/jobs
+    enabled: true
+  - name: Lasko Products
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/laskoproducts/jobs
+    enabled: true
+  - name: SupplyHouse.com
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/supplyhouse/jobs
+    enabled: true
+  - name: Health-E Commerce
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/fsastorecom/jobs
+    enabled: true
+  - name: Tenstorrent
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/tenstorrentuniversity/jobs
+    enabled: true
+  - name: SALT XC
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/saltxc/jobs
+    enabled: true
+  - name: The Weather Company
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/theweathercompany/jobs
+    enabled: true
+  - name: The Trade Desk
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/thetradedesk/jobs
+    enabled: true
+  - name: Galileo Financial Technologies
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/galileofinancialtechnologies/jobs
+    enabled: true
+  - name: SharkNinja
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/sharkninjaoperatingllc/jobs
+    enabled: true
+  - name: Elf Beauty
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/elfbeauty
+    enabled: true
+  - name: Commvault
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/commvault/jobs
+    enabled: true
+  - name: Kensington
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/kensingtontours/jobs
+    enabled: true
+  - name: Oura
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/oura/jobs
+    enabled: true
+  - name: Stand Together
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/standtogether
+    enabled: true
+  - name: Arcellx
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/arcellx/jobs
+    enabled: true
+  - name: Aypa Power
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/aypapower/jobs
+    enabled: true
+  - name: Mercury
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/mercury/jobs
+    enabled: true
+  - name: Appen
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/appen-2
+    enabled: true
+  - name: Toyota Research Institute
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/tri
+    enabled: true
+  - name: Applied Intuition
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/appliedintuition/jobs
+    enabled: true
+  - name: AgWest Farm Credit
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/agwestfarmcredit/jobs
+    enabled: true
+  - name: Prolaio
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/prolaio/jobs
+    enabled: true
+  - name: Ad Council
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/adcouncil/jobs
+    enabled: true
+  - name: IVX Health
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/ivxhealth/jobs
+    enabled: true
+  - name: Muon Space
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/muonspace/jobs
+    enabled: true
+  - name: Conner Strong & Buckelew
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/connerstrongbuckelew/jobs
+    enabled: true
+  - name: Astera Labs
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/asteraearlycareer2026/jobs
+    enabled: true
+  - name: OceanX
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/oceanx/jobs
+    enabled: true
+  - name: Haven Studios
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/haven/jobs
+    enabled: true
+  - name: Legend Biotech
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/legendcareers/jobs
+    enabled: true
+  - name: Sony Interactive Entertainment
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/sonyinteractiveentertainmentglobal/jobs
+    enabled: true
+  - name: Pure Storage
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/purestorage/jobs
+    enabled: true
+  - name: Quantum Workplace
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/QuantumWorkplace
+    enabled: true
+  - name: Spotify
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/spotify
+    enabled: true
+  - name: Cresta
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/cresta/jobs
+    enabled: true
+  - name: Sila Nanotechnologies
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/silananotechnologies/jobs
+    enabled: true
+  - name: Four Hands
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/fourhands/jobs
+    enabled: true
+  - name: Checkr
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/checkr/jobs
+    enabled: true
+  - name: MEMIC
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/memic/jobs
+    enabled: true
+  - name: Samsung
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/samsungsemiconductor/jobs
+    enabled: true
+  - name: Flagship Pioneering
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/flagshippioneeringinc/jobs
+    enabled: true
+  - name: Analytic Partners
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/analyticpartners
+    enabled: true
+  - name: GSD&M
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/gsdm/jobs
+    enabled: true
+  - name: Olsson
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/olsson/jobs
+    enabled: true
+  - name: Geotab
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/internshiplist2000/jobs
+    enabled: true
+  - name: Audax Group
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/audaxgroup/jobs
+    enabled: true
+  - name: Visier Solutions
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/visiersolutionsinc/jobs
+    enabled: true
+  - name: Fehr & Peers
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/fehrandpeers
+    enabled: true
+  - name: Axsome Therapeutics Inc
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/axsometherapeutics/jobs
+    enabled: true
+  - name: Together AI
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/togetherai/jobs
+    enabled: true
+  - name: Bandwidth
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/bandwidth/jobs
+    enabled: true
+  - name: Lucid Bots
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/lucidbots/jobs
+    enabled: true
+  - name: Amp Robotics
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/ampsortation/jobs
+    enabled: true
+  - name: Parallel Wireless
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/parallelwireless
+    enabled: true
+  - name: Skyways
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/skyways
+    enabled: true
+  - name: Harbinger Motors
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/harbingermotors/jobs
+    enabled: true
+  - name: Rugged Robotics
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/ruggedrobotics/jobs
+    enabled: true
+  - name: Pivotal Software
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/pivotal
+    enabled: true
+  - name: DiDi Global
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/didi/jobs
+    enabled: true
+  - name: Ultima Genomics
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/ultimagenomics/jobs
+    enabled: true
+  - name: Rocket Lab USA
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/rocketlab/jobs
+    enabled: true
+  - name: Carousell
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/carousell/jobs
+    enabled: true
+  - name: Hart, Inc.
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/hart/jobs
+    enabled: true
+  - name: Metromile
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/metromile/jobs
+    enabled: true
+  - name: Brigade
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/brigade
+    enabled: true
+  - name: Carbon
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/carbon
+    enabled: true
+  - name: Chexology
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/chexology
+    enabled: true
+  - name: Codefights
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/codefights
+    enabled: true
+  - name: Fictiv
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/fictiv
+    enabled: true
+  - name: Lever
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/lever
+    enabled: true
+  - name: Paytm Labs
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/paytm
+    enabled: true
+  - name: Axon
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/axon/jobs
+    enabled: true
+  - name: Clearer.io
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/Clearer
+    enabled: true
+  - name: Latitude AI
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/latitude/jobs
+    enabled: true
+  - name: Anduril
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/andurilindustries/jobs
+    enabled: true
+  - name: Captivation
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/captivation/jobs
+    enabled: true
+  - name: Flexport
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/flexport/jobs
+    enabled: true
+  - name: Revefi
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/revefi
+    enabled: true
+  - name: Loop
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/loop/jobs
+    enabled: true
+  - name: Perpay
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/perpay/jobs
+    enabled: true
+  - name: Higher Logic
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/higherlogic/jobs
+    enabled: true
+  - name: mthree
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/mthreerecruitingportal/jobs
+    enabled: true
+  - name: Affirm
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/affirm/jobs
+    enabled: true
+  - name: Flex
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/flex/jobs
+    enabled: true
+  - name: Underdog Fantasy
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/underdogfantasy/jobs
+    enabled: true
+  - name: Twitch
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/twitch/jobs
+    enabled: true
+  - name: SpruceID
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/sprucesystems
+    enabled: true
+  - name: Pattern Data
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/patterndata/jobs
+    enabled: true
+  - name: Oklo
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/oklo/jobs
+    enabled: true
+  - name: TrueBuilt
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/applytotruebuilt/jobs
+    enabled: true
+  - name: Uare.ai
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/uareai/jobs
+    enabled: true
+  - name: AppLovin
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/applovin/jobs
+    enabled: true
+  - name: Warp
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/warp/jobs
+    enabled: true
+  - name: Palantir
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/palantir
+    enabled: true
+  - name: Whoop
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/whoop
+    enabled: true
+  - name: Wyetech
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/wyetechllc
+    enabled: true
+  - name: Divergent Technologies
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/divergent/jobs
+    enabled: true
+  - name: Fireworks AI
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/fireworksai/jobs
+    enabled: true
+  - name: DoorDash
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/doordashcanada/jobs
+    enabled: true
+  - name: TRM Labs
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/trmlabs/jobs
+    enabled: true
+  - name: WeRide
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/weride
+    enabled: true
+  - name: Scale AI
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/scaleai/jobs
+    enabled: true
+  - name: Glean
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/gleanwork/jobs
+    enabled: true
+  - name: Latitude
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/latitudeinc
+    enabled: true
+  - name: Open Farm Pet
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/openfarminc/jobs
+    enabled: true
+  - name: Saviynt
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/saviynt
+    enabled: true
+  - name: Artefact
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/artefactus/jobs
+    enabled: true
+  - name: Cribl
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/cribl/jobs
+    enabled: true
+  - name: Sayari
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/sayari/jobs
+    enabled: true
+  - name: Alpha FMC
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/alphafmcroles/jobs
+    enabled: true
+  - name: NewsBreak
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/newsbreak/jobs
+    enabled: true
+  - name: Goodnotes
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/goodnotes/jobs
+    enabled: true
+  - name: Datalab USA
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/datalabusa
+    enabled: true
+  - name: Tucows Domains
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/domains/jobs
+    enabled: true
+  - name: 🔥 SpaceX
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/spacex/jobs
+    enabled: true
+  - name: Freeform
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/freeformfuturecorp/jobs
+    enabled: true
+  - name: Synthesis Health
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/synthesishealth/jobs
+    enabled: true
+  - name: Brex
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/brex/jobs
+    enabled: true
+  - name: Launch
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/launch2/jobs
+    enabled: true
+  - name: Narvar
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/narvar/jobs
+    enabled: true
+  - name: Robots and Pencils
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/robotsandpencils/jobs
+    enabled: true
+  - name: Dark Horse Emergency
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/darkhorseemergency/jobs
+    enabled: true
+  - name: Orennia
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/orennia/jobs
+    enabled: true
+  - name: Lantern Studios
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/lanternstudiosinc/jobs
+    enabled: true
+  - name: Speechify
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/speechify/jobs
+    enabled: true
+  - name: Global Relay
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/globalrelay/jobs
+    enabled: true
+  - name: Later
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/later/jobs
+    enabled: true
+  - name: Pantheon
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/pantheon/jobs
+    enabled: true
+  - name: Aspect Biosystems
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/aspectbiosystems/jobs
+    enabled: true
+  - name: Beacon Software
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/beaconsoftware/jobs
+    enabled: true
+  - name: Carta
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/carta/jobs
+    enabled: true
+  - name: Modus Create
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/moduscreate/jobs
+    enabled: true
+  - name: Clutch
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/clutch/jobs
+    enabled: true
+  - name: AlayaCare
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/alayacare/jobs
+    enabled: true
+  - name: Wavelo
+    ats_type: greenhouse
+    ats_url: https://boards-api.greenhouse.io/v1/boards/wavelo/jobs
+    enabled: true

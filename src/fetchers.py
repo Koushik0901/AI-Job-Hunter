@@ -215,6 +215,8 @@ def enrich_descriptions(
 
     def fetch_one(job: dict[str, Any]) -> tuple[str, str]:
         url = job.get("url", "")
+        if job.get("description"):          # already provided (e.g. Adzuna)
+            return url, job["description"]
         ats = job.get("ats", "")
         try:
             if ats == "lever":
@@ -231,6 +233,11 @@ def enrich_descriptions(
                 return url, fetch_workable_description(
                     job.get("_account_slug", ""), job.get("_shortcode", "")
                 )
+            elif ats == "smartrecruiters":
+                slug = job.get("_company_slug", "")
+                job_id = job.get("_job_id", "")
+                if slug and job_id:
+                    return url, fetch_smartrecruiters_description(slug, job_id)
         except Exception as e:
             logger.warning("Failed to fetch description for %s: %s", url, e)
         return url, ""
@@ -348,4 +355,165 @@ def normalize_workable(raw: dict[str, Any], company: str) -> dict[str, Any]:
         "url": url,
         "posted": _normalize_datetime(raw.get("published")),
         "ats": "workable",
+    }
+
+
+# ---------------------------------------------------------------------------
+# SmartRecruiters API
+# ---------------------------------------------------------------------------
+
+@retry_with_backoff(max_attempts=3)
+def fetch_smartrecruiters(company_slug: str) -> list[dict[str, Any]]:
+    url = f"https://api.smartrecruiters.com/v1/companies/{company_slug}/postings"
+    resp = requests.get(url, params={"limit": 100, "offset": 0}, timeout=30)
+    resp.raise_for_status()
+    return resp.json().get("content", [])
+
+
+def normalize_smartrecruiters(raw: dict[str, Any], company: str) -> dict[str, Any]:
+    loc = raw.get("location") or {}
+    city = str(loc.get("city") or "").strip()
+    region = str(loc.get("region") or "").strip()
+    country = str(loc.get("country") or "").strip()
+    remote = loc.get("remote", False)
+    loc_parts = [p for p in [city, region, country] if p]
+    if remote:
+        location = "Remote, " + ", ".join(loc_parts) if loc_parts else "Remote"
+    else:
+        location = ", ".join(loc_parts)
+    return {
+        "company": company,
+        "title": raw.get("name", ""),
+        "location": location,
+        "url": raw.get("ref", ""),
+        "posted": _normalize_datetime(raw.get("releasedDate", "")),
+        "ats": "smartrecruiters",
+        "_job_id": str(raw.get("id", "")),
+    }
+
+
+@retry_with_backoff(max_attempts=2)
+def fetch_smartrecruiters_description(company_slug: str, job_id: str) -> str:
+    url = f"https://api.smartrecruiters.com/v1/companies/{company_slug}/postings/{job_id}"
+    resp = requests.get(url, timeout=30)
+    resp.raise_for_status()
+    data = resp.json()
+    sections = (data.get("jobAd") or {}).get("sections") or {}
+    parts: list[str] = []
+    for key in ("companyDescription", "jobDescription", "otherDetails"):
+        html = sections.get(key, {})
+        if isinstance(html, dict):
+            html = html.get("text", "") or html.get("html", "") or ""
+        if html:
+            text = strip_html(str(html))
+            if text:
+                parts.append(text)
+    return "\n\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# HN "Who is Hiring" via Algolia API
+# ---------------------------------------------------------------------------
+
+_HN_ML_KEYWORDS = frozenset([
+    "machine learning", "data scientist", "data science", "ai engineer",
+    "ml engineer", "nlp", "llm", "deep learning", "mlops", "data engineer",
+    "artificial intelligence",
+])
+
+
+def _find_hn_hiring_thread() -> int | None:
+    """Return the objectID of the most recent 'Ask HN: Who is Hiring?' thread."""
+    try:
+        resp = requests.get(
+            "https://hn.algolia.com/api/v1/search",
+            params={
+                "query": "Ask HN Who is hiring",
+                "tags": "story",
+                "hitsPerPage": 5,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        for hit in resp.json().get("hits", []):
+            if hit.get("author") == "whoishiring" and "Who is Hiring?" in (hit.get("title") or ""):
+                return int(hit["objectID"])
+    except Exception as e:
+        logger.warning("HN thread lookup failed: %s", e)
+    return None
+
+
+def fetch_hn_jobs() -> list[dict[str, Any]]:
+    """Fetch ML/AI job comments from the latest HN 'Who is Hiring?' thread."""
+    thread_id = _find_hn_hiring_thread()
+    if thread_id is None:
+        logger.warning("HN: could not find 'Who is Hiring?' thread")
+        return []
+
+    jobs: list[dict[str, Any]] = []
+    page = 0
+    while True:
+        try:
+            resp = requests.get(
+                "https://hn.algolia.com/api/v1/search",
+                params={
+                    "tags": f"comment,story_{thread_id}",
+                    "hitsPerPage": 1000,
+                    "page": page,
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            logger.warning("HN page %d fetch failed: %s", page, e)
+            break
+
+        hits = data.get("hits", [])
+        for hit in hits:
+            text = (hit.get("comment_text") or "").lower()
+            if any(kw in text for kw in _HN_ML_KEYWORDS):
+                jobs.append(normalize_hn(hit))
+
+        nb_pages = data.get("nbPages", 1)
+        page += 1
+        if page >= nb_pages:
+            break
+
+    return jobs
+
+
+def normalize_hn(raw: dict[str, Any]) -> dict[str, Any]:
+    """Normalize an HN comment into a standard job dict."""
+    text = (raw.get("comment_text") or "").strip()
+    first_line = text.split("\n")[0] if text else ""
+    # Strip HTML tags from first line (Algolia returns HTML-encoded comments)
+    first_line_plain = strip_html(first_line)
+    segments = [s.strip() for s in first_line_plain.split("|")]
+
+    company = segments[0] if segments else "Unknown"
+    if not company:
+        company = "Unknown"
+
+    location = ""
+    title = first_line_plain[:120] if first_line_plain else ""
+    # Try to find a location segment and a title/role segment
+    for seg in segments[1:]:
+        seg_lower = seg.lower()
+        if not location and any(kw in seg_lower for kw in (
+            "remote", "canada", "us", "usa", "new york", "san francisco", "toronto",
+            "vancouver", "montreal", "london", "berlin", "hybrid",
+        )):
+            location = seg
+        elif any(kw in seg_lower for kw in _HN_ML_KEYWORDS):
+            title = seg[:120]
+
+    return {
+        "company": company,
+        "title": title,
+        "location": location,
+        "url": f"https://news.ycombinator.com/item?id={raw['objectID']}",
+        "posted": (raw.get("created_at") or "")[:10],
+        "ats": "hn_hiring",
+        "description": strip_html(text),
     }

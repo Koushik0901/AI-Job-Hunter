@@ -21,23 +21,30 @@ import os
 import re
 import sqlite3 as _sqlite3
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+import time
+import warnings
+from concurrent.futures import CancelledError, ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
 
+# Suppress cosmetic LangChain/Pydantic serialization warnings (data is correct)
+warnings.filterwarnings("ignore", message=".*PydanticSerializationUnexpectedValue.*", category=UserWarning)
+
 # Allow importing from src/
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from enrich import build_enrichment_prompt, enrich_one_job
+from enrich import RateLimitSignal, build_enrichment_prompt, enrich_one_job
 from notify import _load_dotenv
 
 _load_dotenv(Path.cwd() / ".env")
 
-EVAL_DIR     = Path(__file__).parent
-DATASET_FILE = EVAL_DIR / "dataset.yaml"
-RESULTS_DIR  = EVAL_DIR / "results"
+EVAL_DIR         = Path(__file__).parent
+DATASET_FILE     = EVAL_DIR / "dataset.yaml"
+RESULTS_DIR      = EVAL_DIR / "results"
+CHECKPOINT_FILE  = RESULTS_DIR / "checkpoint.json"
 EVAL_DB_PATH = EVAL_DIR / "eval_jobs.db"
 
 DEFAULT_TEACHER = "openai/gpt-5.2"
@@ -66,20 +73,17 @@ EVAL_TITLE_EXCLUDE = [          # same as prod but WITHOUT "principal staff"
 
 # Pricing ($/M tokens) -- update if OpenRouter prices change
 PRICING = {
-    "google/gemma-3-12b-it":                    {"input": 0.040, "output": 0.13},
     "google/gemma-3-27b-it":                    {"input": 0.040, "output": 0.15},
     "openai/gpt-oss-120b":                      {"input": 0.039, "output": 0.19},
-    "nvidia/nemotron-3-nano-30b-a3b":           {"input": 0.050, "output": 0.20},
     "mistralai/mistral-small-3.2-24b-instruct": {"input": 0.060, "output": 0.18},
     "qwen/qwen3-30b-a3b-thinking-2507":         {"input": 0.051, "output": 0.34},
     "meta-llama/llama-4-scout":                 {"input": 0.080, "output": 0.30},
     "openai/gpt-5.2":                           {"input": 1.750, "output": 14.00},
-    "openai/gpt-4o":                            {"input": 2.500, "output": 10.00},
 }
 PRICING_FALLBACK = {"input": 1.00, "output": 4.00}  # conservative unknown model estimate
 
 CATEGORICAL_FIELDS = ["work_mode", "canada_eligible", "seniority", "role_family", "visa_sponsorship"]
-LIST_FIELDS        = ["must_have_skills", "nice_to_have_skills", "tech_stack", "red_flags"]
+LIST_FIELDS        = ["required_skills", "preferred_skills", "red_flags"]
 NUMERIC_FIELDS     = ["years_exp_min", "years_exp_max"]
 SALARY_FIELDS      = ["salary_min", "salary_max", "salary_currency"]
 SCORED_FIELDS      = CATEGORICAL_FIELDS + LIST_FIELDS + NUMERIC_FIELDS + SALARY_FIELDS
@@ -94,6 +98,10 @@ _SKILL_ALIASES: dict[str, str] = {
     "k8s":      "kubernetes",
     "postgres": "postgresql",
     "torch":    "pytorch",
+    "tf":       "tensorflow",
+    "gcp":      "google cloud",
+    "aws":      "amazon web services",
+    "azure":    "microsoft azure",
 }
 
 
@@ -114,11 +122,14 @@ def load_dataset() -> list[dict]:
     return db_jobs + manual_jobs
 
 
+_SYSTEM_PROMPT_TOKENS = 45   # "You are a structured data extraction engine..." (~180 chars)
+_OUTPUT_TOKENS_PER_JOB = 500 # realistic for full JobEnrichment JSON via tool_call format
+                              # (schema fields + skill lists + JSON structure overhead)
+
 def estimate_tokens(job: dict) -> tuple[int, int]:
     prompt = build_enrichment_prompt(job)
-    input_tokens  = len(prompt) // 4
-    output_tokens = 300  # conservative fixed estimate for JSON response
-    return input_tokens, output_tokens
+    input_tokens  = _SYSTEM_PROMPT_TOKENS + len(prompt) // 4
+    return input_tokens, _OUTPUT_TOKENS_PER_JOB
 
 
 def model_cost(model: str, input_tok: int, output_tok: int) -> float:
@@ -286,7 +297,11 @@ def score_job(teacher: dict, student: dict) -> dict[str, float]:
 def latest_results_file() -> Path | None:
     if not RESULTS_DIR.exists():
         return None
-    files = sorted(RESULTS_DIR.glob("*.json"), reverse=True)
+    # Exclude checkpoint.json — it sorts after timestamped files alphabetically (c > 2)
+    files = sorted(
+        (f for f in RESULTS_DIR.glob("*.json") if f.name != "checkpoint.json"),
+        reverse=True,
+    )
     return files[0] if files else None
 
 
@@ -537,53 +552,141 @@ def cmd_cost(args) -> None:
         total_input  += inp
         total_output += out
 
+    avg_input  = total_input  // len(jobs)
+    avg_output = total_output // len(jobs)
+
     all_models = [teacher] + student_models
 
-    print(f"\nDataset: {len(jobs)} jobs  ({total_input:,} input tokens, {total_output:,} output tokens estimated)\n")
+    print(f"\nDataset : {len(jobs)} jobs")
+    print(f"Per job : ~{avg_input:,} input tokens, ~{avg_output:,} output tokens")
+    print(f"Total   : {total_input:,} input tokens, {total_output:,} output tokens\n")
+    print(f"  (output estimate: {_OUTPUT_TOKENS_PER_JOB} tok/job fixed; "
+          f"input from full description, no truncation)\n")
 
     W = 50
-    header = f"  {'Model':<{W}} {'Input $/M':>10} {'Output $/M':>11} {'Est. Cost':>10}"
-    sep = "  " + "-" * (W + 35)
+    header = f"  {'Model':<{W}} {'$/M in':>8} {'$/M out':>8} {'Input $':>9} {'Output $':>9} {'Total $':>9}"
+    sep = "  " + "-" * (W + 48)
     print(header)
     print(sep)
 
     grand_total = 0.0
     for model in all_models:
         prices = PRICING.get(model, PRICING_FALLBACK)
-        cost = model_cost(model, total_input, total_output)
+        in_cost  = total_input  * prices["input"]  / 1_000_000
+        out_cost = total_output * prices["output"] / 1_000_000
+        cost = in_cost + out_cost
         grand_total += cost
         label = model + ("  [teacher]" if model == teacher else "")
-        flag = "  (*unknown price)" if model not in PRICING else ""
-        print(f"  {label:<{W}} ${prices['input']:>8.3f}   ${prices['output']:>8.2f}   ${cost:>8.4f}{flag}")
+        flag = " *" if model not in PRICING else "  "
+        print(f"  {label:<{W}} {prices['input']:>7.3f}  {prices['output']:>7.2f}  "
+              f"${in_cost:>8.4f}  ${out_cost:>8.4f}  ${cost:>8.4f}{flag}")
 
     print(sep)
     n = len(all_models)
-    print(f"  {'TOTAL (' + str(n) + ' models)':<{W}} {'':>10} {'':>11} ${grand_total:>8.4f}\n")
+    print(f"  {'TOTAL (' + str(n) + ' models)':<{W}} {'':>8} {'':>8}  {'':>9}  {'':>9}  ${grand_total:>8.4f}")
+    unknown = [m for m in all_models if m not in PRICING]
+    if unknown:
+        print(f"  (* price not in PRICING table — using fallback ${PRICING_FALLBACK['input']:.2f}/${PRICING_FALLBACK['output']:.2f} per M)")
+    print()
 
     if grand_total < 1.00:
-        print("  Cost is negligible -- recommend running on the full dataset.")
+        print("  Cost is negligible — recommend running on the full dataset.")
     elif grand_total < 5.00:
-        print(f"  Reasonable cost. Consider --subset N if you want a cheaper smoke test first.")
+        print(f"  Reasonable. Use --subset N for a cheaper smoke test first.")
     else:
-        print(f"  Cost is significant. Use --subset N to run on a subset first.")
+        print(f"  Significant cost. Use --subset N to run on a subset first.")
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint helpers
+# ---------------------------------------------------------------------------
+
+_checkpoint_lock = threading.Lock()
+
+
+def _load_checkpoint() -> dict | None:
+    if CHECKPOINT_FILE.exists():
+        try:
+            return json.loads(CHECKPOINT_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+    return None
+
+
+def _save_checkpoint(cp: dict) -> None:
+    """Write checkpoint to disk, serialized with a lock (Windows-safe)."""
+    with _checkpoint_lock:
+        RESULTS_DIR.mkdir(exist_ok=True)
+        tmp = CHECKPOINT_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(cp, ensure_ascii=False), encoding="utf-8")
+        # Retry loop: Windows antivirus/indexer can hold a brief lock on the
+        # newly written .tmp file, causing os.replace() to fail with WinError 5.
+        for attempt in range(6):
+            try:
+                tmp.replace(CHECKPOINT_FILE)
+                break
+            except PermissionError:
+                if attempt < 5:
+                    time.sleep(0.2 * (attempt + 1))
+                else:
+                    raise
 
 
 # ---------------------------------------------------------------------------
 # Subcommand: run
 # ---------------------------------------------------------------------------
 
-def _run_model(jobs: list[dict], api_key: str, model: str, max_workers: int) -> dict[str, dict]:
-    """Run enrichment for a single model across all jobs. Returns {job_id: result}."""
-    results: dict[str, dict] = {}
+def _run_model(
+    jobs: list[dict],
+    api_key: str,
+    model: str,
+    max_workers: int,
+    existing_results: dict | None = None,
+    on_result=None,   # callback(job_id, result) called after each completed job
+    provider_order: list[str] | None = None,
+) -> tuple[dict[str, dict], bool]:
+    """
+    Run enrichment for one model. Skips jobs already in existing_results.
+    Returns ({job_id: result}, rate_limited).
+    Calls on_result(job_id, result) after each job so the caller can checkpoint immediately.
+    """
+    results: dict[str, dict] = dict(existing_results or {})
+    jobs_to_run = [j for j in jobs if j["id"] not in results]
+    total = len(jobs)
+
+    if len(jobs_to_run) < total:
+        print(f"  Resuming: {total - len(jobs_to_run)} already done, {len(jobs_to_run)} remaining.")
+
+    stop_event = threading.Event()
+
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futures = {ex.submit(enrich_one_job, job, api_key, model): job for job in jobs}
-        for i, future in enumerate(as_completed(futures), 1):
+        futures = {
+            ex.submit(enrich_one_job, job, api_key, model, stop_event, provider_order): job
+            for job in jobs_to_run
+        }
+        done = total - len(jobs_to_run)  # count already-done jobs in the progress display
+        for future in as_completed(futures):
             job = futures[future]
-            result = future.result()
+            try:
+                result = future.result()
+            except (RateLimitSignal, CancelledError):
+                if not stop_event.is_set():
+                    stop_event.set()
+                    for f in futures:
+                        f.cancel()
+                    print(f"\n  Rate limit hit — {done}/{total} jobs done for this model.")
+                continue
+            except Exception as e:
+                print(f"  [{done+1:3d}/{total}] error    {job['company']} -- {e}")
+                continue
+            done += 1
             results[job["id"]] = result
+            if on_result:
+                on_result(job["id"], result)
             status = result.get("enrichment_status", "?")
-            print(f"  [{i:3d}/{len(jobs)}] {status:7s}  {job['company']} -- {job['title'][:50]}")
-    return results
+            print(f"  [{done:3d}/{total}] {status:7s}  {job['company']} -- {job['title'][:50]}")
+
+    return results, stop_event.is_set()
 
 
 def cmd_run(args) -> None:
@@ -602,31 +705,119 @@ def cmd_run(args) -> None:
         print(f"Subset mode: using {len(jobs)} of {total} jobs")
 
     workers = args.workers
+    provider_order = args.provider_order or None
     n = len(student_models)
+    job_ids = [j["id"] for j in jobs]
+
+    # ── Checkpoint: load or create ──────────────────────────────────────────
+    cp: dict = {
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "teacher": teacher_model,
+        "student_models": student_models,
+        "job_ids": job_ids,
+        "teacher_results": {},
+        "student_results": {m: {} for m in student_models},
+    }
+
+    if args.resume:
+        saved = _load_checkpoint()
+        if saved is None:
+            print("No checkpoint found — starting fresh.")
+        elif saved.get("teacher") != teacher_model:
+            print("Checkpoint is for a different teacher — starting fresh.")
+        elif saved.get("job_ids") != job_ids:
+            print("Dataset changed since checkpoint — starting fresh.")
+        else:
+            cp = saved
+            # Allow a different (e.g. smaller) models list on resume — useful for skipping a
+            # rate-limited model without losing all prior checkpoint progress.
+            for m in student_models:
+                if m not in cp["student_results"]:
+                    cp["student_results"][m] = {}
+            if saved.get("student_models") != student_models:
+                skipped = [m for m in saved.get("student_models", []) if m not in student_models]
+                if skipped:
+                    print(f"  Note: skipping {skipped} (not in --models list)")
+            print(f"Resuming from checkpoint saved at {cp['created_at']}\n")
+
     print(f"\nRunning eval on {len(jobs)} jobs")
     print(f"  Teacher : {teacher_model}  (workers=2)")
     for m in student_models:
-        print(f"  Student : {m}")
+        done = len(cp["student_results"].get(m, {}))
+        tag  = f" ({done}/{len(jobs)} done)" if done else ""
+        print(f"  Student : {m}{tag}")
     print(f"  Workers : {workers} per student model")
     print()
 
-    # Run teacher first (conservative concurrency -- gpt-5.2 has strict rate limits)
-    print(f"[1/{n+1}] Running teacher ({teacher_model})...")
-    teacher_results = _run_model(jobs, api_key, teacher_model, max_workers=min(2, workers))
+    # ── Teacher ────────────────────────────────────────────────────────────
+    teacher_done = len(cp["teacher_results"])
+    if teacher_done == len(jobs):
+        print(f"[1/{n+1}] Teacher ({teacher_model}) — already complete, skipping.")
+        teacher_results = cp["teacher_results"]
+    else:
+        print(f"[1/{n+1}] Running teacher ({teacher_model})...")
 
-    # Run each student model sequentially (jobs within each model run concurrently)
+        def _on_teacher(job_id, result):
+            cp["teacher_results"][job_id] = result
+            _save_checkpoint(cp)
+
+        teacher_results, teacher_rl = _run_model(
+            jobs, api_key, teacher_model,
+            max_workers=min(2, workers),
+            existing_results=cp["teacher_results"],
+            on_result=_on_teacher,
+            provider_order=provider_order,
+        )
+        cp["teacher_results"] = teacher_results
+        _save_checkpoint(cp)
+
+        if teacher_rl:
+            print(f"\nCheckpoint saved to: {CHECKPOINT_FILE}")
+            print("Resume with:  uv run python eval/eval.py run --resume")
+            return
+
+    # ── Student models ─────────────────────────────────────────────────────
     all_student_results: dict[str, dict[str, dict]] = {}
+    rate_limited = False
     for i, model in enumerate(student_models, 2):
-        print(f"\n[{i}/{n+1}] Running {model}...")
-        all_student_results[model] = _run_model(jobs, api_key, model, max_workers=workers)
+        existing = cp["student_results"].get(model, {})
+        if len(existing) == len(jobs):
+            print(f"[{i}/{n+1}] {model} — already complete, skipping.")
+            all_student_results[model] = existing
+            continue
 
-    # Score each model against teacher
+        print(f"\n[{i}/{n+1}] Running {model}...")
+
+        def _on_student(job_id, result, _model=model):
+            cp["student_results"][_model][job_id] = result
+            _save_checkpoint(cp)
+
+        model_results, model_rl = _run_model(
+            jobs, api_key, model,
+            max_workers=workers,
+            existing_results=existing,
+            on_result=_on_student,
+            provider_order=provider_order,
+        )
+        cp["student_results"][model] = model_results
+        all_student_results[model] = model_results
+        _save_checkpoint(cp)
+
+        if model_rl:
+            rate_limited = True
+            print(f"  Rate limit exhausted for {model} — skipping it, continuing with remaining models.")
+            print(f"  Checkpoint saved. Resume this model later with:")
+            print(f"    uv run python eval/eval.py run --resume --models {model}")
+
+    # Score only models that have results (partial run due to rate limit is fine)
+    scored_models = list(all_student_results.keys())
+
     job_records = []
     for job in jobs:
         jid = job["id"]
         t = teacher_results.get(jid, {})
         students = {}
-        for model in student_models:
+        for model in scored_models:
             s = all_student_results[model].get(jid, {})
             scores = {}
             if t.get("enrichment_status") == "ok" and s.get("enrichment_status") == "ok":
@@ -644,7 +835,7 @@ def cmd_run(args) -> None:
 
     # Aggregate per model
     aggregate: dict[str, dict[str, float]] = {}
-    for model in student_models:
+    for model in scored_models:
         scoreable = [r for r in job_records if r["students"][model].get("scores")]
         if scoreable:
             model_agg: dict[str, float] = {}
@@ -662,21 +853,26 @@ def cmd_run(args) -> None:
                     model_agg[key] = sum(vals) / len(vals) if vals else 0.0
             aggregate[model] = model_agg
 
+    partial_note = f" (partial — {len(scored_models)}/{n} student models completed)" if rate_limited else ""
     output = {
         "run_at": datetime.now(timezone.utc).isoformat(),
         "teacher_model": teacher_model,
-        "student_models": student_models,
+        "student_models": scored_models,
         "total_jobs": len(jobs),
+        "partial": rate_limited,
         "jobs": job_records,
         "aggregate": aggregate,
     }
 
     RESULTS_DIR.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_file = RESULTS_DIR / f"{ts}_{model_slug(teacher_model)}_{n}models.json"
+    out_file = RESULTS_DIR / f"{ts}_{model_slug(teacher_model)}_{len(scored_models)}models.json"
     out_file.write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    print(f"\nResults saved to: {out_file}")
+    print(f"\nResults saved to: {out_file}{partial_note}")
+    if rate_limited:
+        print(f"Checkpoint at:   {CHECKPOINT_FILE}")
+        print("To retry rate-limited models: uv run python eval/eval.py run --resume --models <model>")
 
     # Quick summary: overall score per model, sorted best first
     if aggregate:
@@ -992,9 +1188,14 @@ def main() -> None:
     p_run.add_argument("--teacher", default=DEFAULT_TEACHER, metavar="MODEL")
     p_run.add_argument("--subset", type=int, default=None, metavar="N",
                        help="Run on first N jobs only")
+    p_run.add_argument("--resume", action="store_true",
+                       help="Resume from eval/results/checkpoint.json (skip already-done jobs)")
     p_run.add_argument("--workers", type=int, default=3, metavar="N",
                        help="Concurrent requests per student model (default: 3). "
                             "Lower if hitting rate limits.")
+    p_run.add_argument("--provider-order", nargs="+", default=[], metavar="PROVIDER",
+                       help="OpenRouter provider preference order, e.g. --provider-order DeepInfra. "
+                            "Applied to all models. Falls back to other providers if unavailable.")
 
     p_rep = sub.add_parser("report", help="Print comparison report")
     p_rep.add_argument("results_file", nargs="?", default=None,

@@ -1,0 +1,123 @@
+# prompts.yaml — All LLM prompts used in this project
+# -------------------------------------------------------
+# To change a prompt, edit here and update the corresponding
+# string in src/enrich.py (_SYSTEM_PROMPT, _SCHEMA_DESCRIPTION,
+# build_enrichment_prompt).
+
+enrichment:
+  # ── System prompt ──────────────────────────────────────────────────────────
+  system: |
+    You are a structured data extraction engine for job postings.
+    Output exactly one JSON object — starting with { and ending with }.
+    Zero text, markdown fences, or explanation before or after the JSON.
+    Extract only facts explicitly stated. Never invent information.
+    Use null for any missing scalar field. Use [] for any missing list field.
+
+  # ── User prompt (template — {title}, {company}, {location}, {description} filled at runtime) ──
+  user: |
+    Extract structured metadata from the job posting below.
+
+    TITLE:    {title}
+    COMPANY:  {company}
+    LOCATION: {location}
+
+    DESCRIPTION:
+    {description}
+
+    ===OUTPUT SCHEMA===
+    Output ONLY the following JSON object — exactly these 13 keys, no extra keys, no markdown fences, no text before or after:
+    {
+      "work_mode":        "remote" | "hybrid" | "onsite" | null,
+      "remote_geo":       string or null,
+      "canada_eligible":  "yes" | "no" | "unknown",
+      "seniority":        "intern" | "junior" | "mid" | "senior" | "staff" | "principal" | null,
+      "role_family":      "data scientist" | "ml engineer" | "mlops engineer" | "data engineer" | "research scientist" | "analyst" | "other",
+      "years_exp_min":    integer or null,
+      "years_exp_max":    integer or null,
+      "required_skills":  ["string", ...],
+      "preferred_skills": ["string", ...],
+      "salary_min":       integer or null,
+      "salary_max":       integer or null,
+      "salary_currency":  "CAD" | "USD" | null,
+      "visa_sponsorship": "yes" | "no" | "unknown",
+      "red_flags":        ["string", ...]
+    }
+    ===END SCHEMA===
+
+    FIELD RULES
+
+    canada_eligible — can the candidate work from Canada?
+      "yes"     → remote (worldwide / North America / Canada mentioned), or Canadian office
+                  e.g. "Remote — North America" → "yes" | "Toronto, ON" → "yes" | "Remote, Canada OK" → "yes"
+      "no"      → US work authorization required, US citizenship/residency required, or US-only office
+                  e.g. "must be authorized to work in the US" → "no" | "Remote — United States only" → "no"
+      "unknown" → work location / authorization requirements not mentioned
+
+    years_exp — integers only, examples:
+      "3+ years experience"   → min=3, max=null
+      "3 to 5 years"          → min=3, max=5
+      "up to 2 years"         → min=null, max=2
+
+    salary — always FULL DOLLAR AMOUNTS (not abbreviated):
+      "$150k-$200k"           → min=150000, max=200000, currency="USD"
+      "$120,000 CAD annually" → min=120000, max=null,   currency="CAD"
+      Not mentioned           → min=null, max=null, currency=null
+
+    required_skills — ALL skills/tools/languages/certifications listed as required.
+      Sections: "Requirements", "Qualifications", "Must Have", "Basic Qualifications", "You Will Need"
+      Include: languages, frameworks, tools, degrees, certifications, methodologies.
+
+    preferred_skills — skills listed as optional/desirable.
+      Sections: "Nice to Have", "Preferred", "Bonus", "Plus", "Preferred Qualifications"
+      If no such section exists → []
+
+    red_flags — copy word-for-word (do NOT paraphrase) phrases signalling Canada-ineligibility:
+      e.g. "must be authorized to work in the US", "US citizenship required",
+           "does not offer visa sponsorship", "security clearance required"
+      If none → []
+
+    visa_sponsorship:
+      "yes"     → sponsorship explicitly offered
+      "no"      → explicitly declined ("does not sponsor", "cannot sponsor", "no sponsorship")
+      "unknown" → not mentioned
+
+    role_family — pick the single closest match:
+      "data scientist"      → statistical modelling, ML experiments, predictions
+      "ml engineer"         → building / deploying ML models and ML systems
+      "mlops engineer"      → ML infrastructure, pipelines, model serving
+      "data engineer"       → ETL, data pipelines, data warehousing
+      "research scientist"  → academic-style research, novel algorithms, publications
+      "analyst"             → BI dashboards, SQL analysis, business reporting
+      "other"               → none of the above applies
+
+    ===ONE-SHOT EXAMPLE (reference only — do NOT extract this posting)===
+
+    Posting:
+      ML Engineer II — Remote (United States Only) | Acme AI
+      Requirements: Bachelor's in CS or equivalent; 3-5 years Python; PyTorch or TensorFlow; REST APIs.
+      Nice to Have: Kubernetes, MLflow.
+      Compensation: $140,000-$180,000 USD/year.
+      Candidates must be authorized to work in the United States. We do not offer visa sponsorship.
+
+    Expected output:
+      {
+        "work_mode": "remote",
+        "remote_geo": "United States only",
+        "canada_eligible": "no",
+        "seniority": "mid",
+        "role_family": "ml engineer",
+        "years_exp_min": 3,
+        "years_exp_max": 5,
+        "required_skills": ["Bachelor's in CS or equivalent", "Python", "PyTorch", "TensorFlow", "REST APIs"],
+        "preferred_skills": ["Kubernetes", "MLflow"],
+        "salary_min": 140000,
+        "salary_max": 180000,
+        "salary_currency": "USD",
+        "visa_sponsorship": "no",
+        "red_flags": ["must be authorized to work in the United States", "We do not offer visa sponsorship"]
+      }
+
+    ===END EXAMPLE===
+
+    Now extract the JSON for the posting above (TITLE: {title} / COMPANY: {company}).
+    Your response must start with { and end with }. No markdown fences. No explanation.

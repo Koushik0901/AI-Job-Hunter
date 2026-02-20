@@ -10,7 +10,23 @@
       "WebFetch(domain:sqlitecloud.io)",
       "WebFetch(domain:www.sqlite.ai)",
       "Bash(uv sync:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "WebFetch(domain:openrouter.ai)",
+      "Bash(Get-Content \"C:\\\\Users\\\\koush\\\\.claude\\\\projects\\\\E--Workspace-Agentic-Job-Assistant-ai-job-hunter\\\\memory\\\\MEMORY.md\")",
+      "Bash(Measure-Object:*)",
+      "Bash(Select-Object -ExpandProperty Lines)",
+      "Bash(python -c:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit:*)",
+      "WebFetch(domain:developer.adzuna.com)",
+      "WebFetch(domain:api.adzuna.com)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.omi.me)",
+      "mcp__MCP_DOCKER__resolve-library-id",
+      "mcp__MCP_DOCKER__get-library-docs",
+      "WebFetch(domain:jobapis.github.io)"
     ]
   }
 }
