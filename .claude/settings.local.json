@@ -26,7 +26,13 @@
       "WebFetch(domain:www.omi.me)",
       "mcp__MCP_DOCKER__resolve-library-id",
       "mcp__MCP_DOCKER__get-library-docs",
-      "WebFetch(domain:jobapis.github.io)"
+      "WebFetch(domain:jobapis.github.io)",
+      "WebFetch(domain:turso.tech)",
+      "WebFetch(domain:neon.com)",
+      "WebFetch(domain:developers.cloudflare.com)",
+      "WebFetch(domain:www.cockroachlabs.com)",
+      "WebFetch(domain:docs.turso.tech)",
+      "WebFetch(domain:www.freetiers.com)"
     ]
   }
 }

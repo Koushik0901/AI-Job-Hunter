@@ -7,7 +7,7 @@ Project context and conventions for Claude Code.
 Daily ML/AI/Data Science job scraper. Runs on GitHub Actions at 10 AM MT, scrapes 100+
 company career pages (Greenhouse, Lever, Ashby, Workable, SmartRecruiters) plus HN "Who is
 Hiring?" (monthly community thread), filters to Canada/Remote roles,
-stores results in SQLite Cloud, sends Telegram notifications, and enriches new jobs with
+stores results in Turso (libsql cloud), sends Telegram notifications, and enriches new jobs with
 LLM-extracted metadata (seniority, salary, skills, canada_eligible, etc.) via OpenRouter.
 
 LLM calls use **LangChain** (`ChatOpenAI` pointed at OpenRouter) and **Pydantic** (`JobEnrichment`
@@ -179,7 +179,8 @@ The `canada_eligible` enrichment field provides the second check for ambiguous "
 |----------|----------|-------|
 | `TELEGRAM_TOKEN` | Yes | Bot token from @BotFather |
 | `TELEGRAM_CHAT_ID` | Yes | Your chat ID |
-| `SQLITECLOUD_URL` | Recommended | Falls back to local `jobs.db` |
+| `TURSO_URL` | Recommended | e.g. `libsql://your-db.turso.io` — falls back to local `jobs.db` |
+| `TURSO_AUTH_TOKEN` | Recommended | Turso database auth token |
 | `OPENROUTER_API_KEY` | Optional | LLM enrichment silently skipped if unset |
 | `ENRICHMENT_MODEL` | Optional | Default: `google/gemma-3-12b-it` |
 
@@ -187,7 +188,7 @@ Local: set in `.env` (git-ignored). GitHub Actions: set as repository secrets.
 
 ## Database
 
-Two tables in SQLite (local or SQLite Cloud):
+Two tables in SQLite (local file or Turso libsql cloud):
 
 **`jobs` table** — scraped postings:
 - `url` (PK), `company`, `title`, `location`, `posted`, `ats`, `description`, `first_seen`, `last_seen`
@@ -344,7 +345,7 @@ and `%Y-%m-%d` / `%m/%d/%Y` formats. Always returns `YYYY-MM-DD` string or empty
 
 Workflow: `.github/workflows/daily_scrape.yml`
 - Runs daily at 10:00 AM MST (cron: `0 17 * * *` UTC = UTC-7 in winter)
-- Required secrets: `SQLITECLOUD_URL`, `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`, `OPENROUTER_API_KEY`
+- Required secrets: `TURSO_URL`, `TURSO_AUTH_TOKEN`, `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`, `OPENROUTER_API_KEY`
 - HN "Who is Hiring?" always runs (no secrets needed)
 - Manual trigger available via `workflow_dispatch`
 
@@ -360,8 +361,7 @@ the prompts, update both files to keep them in sync.
 - **Windows CP1252 terminal**: `→`, em-dash `—`, and emoji crash the Windows legacy terminal
   renderer (`UnicodeEncodeError: 'charmap' codec can't encode character`). Use ASCII (`->`, `-`)
   in `console.print()` messages. This is a display-only issue; Telegram receives Unicode fine.
-- **SQLite Cloud free tier**: pauses after 12h inactivity. Connection on next run wakes it; fine
-  for a daily scraper but the first run of the day may be slightly slower.
+- **Turso free tier**: never pauses (as of March 2025 policy change). 5 GB storage, no manual restarts needed. Connection via hrana HTTP API using `requests` — no compiled extension. `_TursoConnection` in `db.py` is a sqlite3-compatible wrapper; `commit()` is a no-op (auto-committed per statement).
 - **SmartRecruiters/Workable false positives**: their APIs return HTTP 200 for any slug, even
   companies not on that platform (with `content: []` or `results: []`). The `--check` and
   `add_company.py` probes will show these as "FOUND" with 0 jobs.

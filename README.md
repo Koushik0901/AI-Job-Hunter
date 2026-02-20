@@ -1,7 +1,7 @@
 # AI Job Hunter
 
 A daily ML/AI/Data Science job scraper that monitors 100+ company career pages, stores results in
-**SQLite Cloud**, enriches job postings with **LLM-extracted metadata**, and sends Telegram
+**Turso** (libsql cloud), enriches job postings with **LLM-extracted metadata**, and sends Telegram
 notifications for new postings — grouped by country.
 
 ## Features
@@ -13,7 +13,7 @@ notifications for new postings — grouped by country.
 - **LLM enrichment** via OpenRouter — extracts seniority, work mode, skills, salary, visa sponsorship, and
   whether the role allows working from Canada (`canada_eligible`). Uses **LangChain** + **Pydantic** for
   structured output with automatic validation and provider-rotation on rate limits
-- Stores all jobs in **SQLite Cloud** (or a local SQLite file as fallback) with deduplication
+- Stores all jobs in **Turso** (free libsql cloud — never pauses, 5 GB) with deduplication, falls back to local SQLite
 - Sends **Telegram notifications** grouped by 🇨🇦 Canada / 🌐 USA & Remote / 🌍 Other
 - Runs **daily via GitHub Actions** (free) or Windows Task Scheduler
 - **Interactive company discovery** (`add_company.py`) — start from just a company name, auto-probe
@@ -60,7 +60,7 @@ uv run python src/scrape.py [OPTIONS]
 
 Options:
   --config PATH          Path to companies.yaml (default: companies.yaml in current directory)
-  --db PATH              Path to local SQLite file (default: jobs.db). Ignored if SQLITECLOUD_URL is set.
+  --db PATH              Path to local SQLite file (default: jobs.db). Ignored if TURSO_URL is set.
   --limit N              Max rows to display in terminal table (default: 50)
   --no-location-filter   Show all title-matched jobs, not just Canada/Remote
   --no-enrich            Skip fetching full descriptions (faster, no description stored)
@@ -158,7 +158,8 @@ Copy `.env.example` to `.env` and fill in your values:
 |----------|----------|-------------|
 | `TELEGRAM_TOKEN` | Yes | Bot token from @BotFather |
 | `TELEGRAM_CHAT_ID` | Yes | Your chat ID with the bot |
-| `SQLITECLOUD_URL` | Recommended | Connection string from sqlitecloud.io. Falls back to local `jobs.db` if not set. |
+| `TURSO_URL` | Recommended | e.g. `libsql://your-db.turso.io`. Falls back to local `jobs.db` if not set. |
+| `TURSO_AUTH_TOKEN` | Recommended | Turso database auth token. |
 | `OPENROUTER_API_KEY` | Optional | API key from openrouter.ai. LLM enrichment is silently skipped if not set. |
 | `ENRICHMENT_MODEL` | Optional | Model used for job enrichment (default: `google/gemma-3-12b-it`) |
 
@@ -166,10 +167,15 @@ Copy `.env.example` to `.env` and fill in your values:
 1. Open Telegram → search **@BotFather** → send `/newbot` → copy the token
 2. Send your bot any message, then visit `https://api.telegram.org/bot<TOKEN>/getUpdates` to find your chat ID under `"chat":{"id":...}`
 
-**SQLite Cloud setup:**
-1. Sign up at [sqlitecloud.io](https://sqlitecloud.io) (free tier: 1 GB)
-2. Create a project → create a database named `jobs.db`
-3. Copy the connection string: `sqlitecloud://host:8860/jobs.db?apikey=...`
+**Turso setup:**
+1. Sign up at [turso.tech](https://turso.tech) (free tier: 5 GB, never pauses)
+2. Install the CLI: `brew install tursodatabase/tap/turso` (or download from turso.tech)
+3. Create a database and get credentials:
+   ```bash
+   turso db create jobs
+   turso db show jobs --url        # → paste as TURSO_URL
+   turso db tokens create jobs     # → paste as TURSO_AUTH_TOKEN
+   ```
 
 **OpenRouter setup:**
 1. Sign up at [openrouter.ai](https://openrouter.ai) (pay-per-use, ~$1.80/year at 50 jobs/day)
@@ -301,7 +307,8 @@ ai-job-hunter/
 
 1. Push this repo to GitHub (private repo is fine — 2,000 free minutes/month)
 2. Go to **Settings → Secrets and variables → Actions** and add:
-   - `SQLITECLOUD_URL`
+   - `TURSO_URL`
+   - `TURSO_AUTH_TOKEN`
    - `TELEGRAM_TOKEN`
    - `TELEGRAM_CHAT_ID`
    - `OPENROUTER_API_KEY`
@@ -596,9 +603,8 @@ The checkpoint is invalidated if you change the teacher model, student models, o
 |---------|---------|
 | `langchain-openai` | LLM calls via OpenRouter (`ChatOpenAI`) + structured output (`with_structured_output`) |
 | `pydantic` | Output schema validation (`JobEnrichment` model) — transitively from langchain-openai |
-| `requests` | HTTP calls to ATS APIs, Algolia, and Telegram |
+| `requests` | HTTP calls to ATS APIs, Algolia, Telegram, and Turso (hrana HTTP API — no compiled extension needed) |
 | `pyyaml` | Parse `companies.yaml` and `eval/dataset.yaml` |
 | `rich` | Terminal table output and console formatting |
-| `sqlitecloud` | SQLite Cloud connection — API-compatible with stdlib `sqlite3` |
 
 All other functionality (threading, HTML parsing, JSON, regex, date handling) uses Python stdlib.

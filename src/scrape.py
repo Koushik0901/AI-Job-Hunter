@@ -749,7 +749,7 @@ def main() -> None:
         "--db",
         default=None,
         metavar="PATH",
-        help="Local SQLite file path (default: jobs.db in current directory). Ignored if SQLITECLOUD_URL is set.",
+        help="Local SQLite file path (default: jobs.db in current directory). Ignored if TURSO_URL is set.",
     )
     parser.add_argument(
         "--no-enrich",
@@ -799,15 +799,19 @@ def main() -> None:
         return
 
     # Resolve DB URL
-    cloud_url = os.getenv("SQLITECLOUD_URL", "")
-    if cloud_url:
-        db_url = cloud_url
-        db_label = "SQLite Cloud"
+    turso_url = os.getenv("TURSO_URL", "")
+    turso_token = os.getenv("TURSO_AUTH_TOKEN", "")
+    if turso_url:
+        db_url = turso_url
+        db_auth_token = turso_token
+        db_label = "Turso"
     elif args.db:
         db_url = args.db
+        db_auth_token = ""
         db_label = args.db
     else:
         db_url = str(Path.cwd() / "jobs.db")
+        db_auth_token = ""
         db_label = db_url
 
     # LLM config
@@ -818,7 +822,7 @@ def main() -> None:
 
     # --enrich-backfill: enrich unenriched/failed jobs, then exit
     if args.enrich_backfill:
-        conn = init_db(db_url)
+        conn = init_db(db_url, db_auth_token)
         jobs_to_enrich = load_unenriched_jobs(conn)
         console.print(
             f"[bold]Backfill:[/bold] {len(jobs_to_enrich)} job(s) to enrich in {db_label}"
@@ -871,7 +875,7 @@ def main() -> None:
 
     render_table(jobs, limit=args.limit)
 
-    conn = init_db(db_url)
+    conn = init_db(db_url, db_auth_token)
     new_count, updated_count, new_jobs = save_jobs(conn, jobs)
     console.print(
         f"\n[bold]Database:[/bold] {db_label}  "

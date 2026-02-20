@@ -1,5 +1,8 @@
 """
-db.py — SQLite / SQLite Cloud persistence layer.
+db.py — SQLite persistence layer (local file or Turso libsql cloud).
+
+Turso support uses the hrana HTTP API directly via `requests` — no compiled
+extension needed, works on Windows and Linux alike.
 """
 from __future__ import annotations
 
@@ -8,11 +11,110 @@ from datetime import datetime, timezone
 from typing import Any
 
 
-def init_db(db_url: str) -> Any:
-    """Open the jobs database (local SQLite file or SQLite Cloud URL) and ensure the schema exists."""
-    if db_url.startswith("sqlitecloud://"):
-        import sqlitecloud  # type: ignore[import]
-        conn = sqlitecloud.connect(db_url)
+# ---------------------------------------------------------------------------
+# Turso HTTP API wrapper — sqlite3-compatible interface
+# ---------------------------------------------------------------------------
+
+class _TursoCursor:
+    """Minimal sqlite3-compatible cursor backed by a Turso HTTP response."""
+
+    def __init__(self, rows: list[tuple]) -> None:
+        self._rows = rows
+        self._idx = 0
+
+    def fetchall(self) -> list[tuple]:
+        return self._rows
+
+    def fetchone(self) -> tuple | None:
+        if self._idx < len(self._rows):
+            row = self._rows[self._idx]
+            self._idx += 1
+            return row
+        return None
+
+
+class _TursoConnection:
+    """
+    sqlite3-compatible connection using the Turso hrana HTTP API.
+
+    Each execute() call is a single HTTP POST to /v2/pipeline.
+    commit() is a no-op — Turso auto-commits each statement.
+    """
+
+    def __init__(self, url: str, auth_token: str) -> None:
+        import requests as req
+        self._session = req.Session()
+        self._session.headers.update({
+            "Authorization": f"Bearer {auth_token}",
+            "Content-Type": "application/json",
+        })
+        # libsql://db-name.turso.io  →  https://db-name.turso.io/v2/pipeline
+        self._endpoint = url.replace("libsql://", "https://") + "/v2/pipeline"
+
+    @staticmethod
+    def _to_arg(val: Any) -> dict:
+        if val is None:
+            return {"type": "null"}
+        if isinstance(val, bool):
+            return {"type": "integer", "value": str(int(val))}
+        if isinstance(val, int):
+            return {"type": "integer", "value": str(val)}
+        if isinstance(val, float):
+            return {"type": "float", "value": val}
+        return {"type": "text", "value": str(val)}
+
+    @staticmethod
+    def _from_val(val: dict) -> Any:
+        t = val.get("type", "null")
+        if t == "null":
+            return None
+        if t == "integer":
+            return int(val["value"])
+        if t == "float":
+            return float(val["value"])
+        return val.get("value")
+
+    def execute(self, sql: str, params: tuple = ()) -> _TursoCursor:
+        payload = {
+            "requests": [
+                {
+                    "type": "execute",
+                    "stmt": {
+                        "sql": sql,
+                        "args": [self._to_arg(p) for p in params],
+                    },
+                },
+                {"type": "close"},
+            ]
+        }
+        resp = self._session.post(self._endpoint, json=payload, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        result = data["results"][0]
+        if result["type"] == "error":
+            raise Exception(result["error"]["message"])
+        rows: list[tuple] = []
+        if result["type"] == "ok":
+            r = result["response"].get("result", {})
+            for row in r.get("rows", []):
+                rows.append(tuple(self._from_val(v) for v in row))
+        return _TursoCursor(rows)
+
+    def commit(self) -> None:
+        pass  # Turso auto-commits each statement
+
+    def close(self) -> None:
+        self._session.close()
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def init_db(db_url: str, auth_token: str = "") -> Any:
+    """Open the jobs database (local SQLite file or Turso libsql URL) and ensure the schema exists."""
+    if db_url.startswith("libsql://"):
+        conn: Any = _TursoConnection(db_url, auth_token)
     else:
         conn = sqlite3.connect(db_url)
     conn.execute("""
@@ -63,7 +165,7 @@ def init_db(db_url: str) -> Any:
 
 
 def save_jobs(
-    conn: sqlite3.Connection, jobs: list[dict[str, Any]]
+    conn: Any, jobs: list[dict[str, Any]]
 ) -> tuple[int, int, list[dict[str, Any]]]:
     """Upsert jobs into the database. Returns (new_count, updated_count, new_jobs)."""
     now = datetime.now(timezone.utc).isoformat()[:10]
