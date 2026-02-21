@@ -161,7 +161,7 @@ Copy `.env.example` to `.env` and fill in your values:
 | `TURSO_URL` | Recommended | e.g. `libsql://your-db.turso.io`. Falls back to local `jobs.db` if not set. |
 | `TURSO_AUTH_TOKEN` | Recommended | Turso database auth token. |
 | `OPENROUTER_API_KEY` | Optional | API key from openrouter.ai. LLM enrichment is silently skipped if not set. |
-| `ENRICHMENT_MODEL` | Optional | Model used for job enrichment (default: `google/gemma-3-12b-it`) |
+| `ENRICHMENT_MODEL` | Optional | Model used for job enrichment (default: `openai/gpt-oss-120b`) |
 
 **Telegram setup:**
 1. Open Telegram → search **@BotFather** → send `/newbot` → copy the token

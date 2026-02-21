@@ -816,7 +816,7 @@ def main() -> None:
 
     # LLM config
     openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
-    openrouter_model = os.getenv("ENRICHMENT_MODEL", "google/gemma-3-12b-it")
+    openrouter_model = os.getenv("ENRICHMENT_MODEL", "openai/gpt-oss-120b")
 
     console = Console(stderr=True)
 

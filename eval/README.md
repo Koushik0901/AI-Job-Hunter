@@ -249,7 +249,7 @@ block with an empty `company` and `description` is ignored by `load_dataset()`.
 | Student | `qwen/qwen3-30b-a3b-thinking-2507` |
 | Student | `meta-llama/llama-4-scout` |
 
-The production enrichment model is `google/gemma-3-12b-it` by default (set via `ENRICHMENT_MODEL`).
+The production enrichment model is `openai/gpt-oss-120b` by default (set via `ENRICHMENT_MODEL`).
 The eval tells you if a different model would be worth upgrading to.
 
 ---

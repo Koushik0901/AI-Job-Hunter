@@ -182,7 +182,7 @@ The `canada_eligible` enrichment field provides the second check for ambiguous "
 | `TURSO_URL` | Recommended | e.g. `libsql://your-db.turso.io` — falls back to local `jobs.db` |
 | `TURSO_AUTH_TOKEN` | Recommended | Turso database auth token |
 | `OPENROUTER_API_KEY` | Optional | LLM enrichment silently skipped if unset |
-| `ENRICHMENT_MODEL` | Optional | Default: `google/gemma-3-12b-it` |
+| `ENRICHMENT_MODEL` | Optional | Default: `openai/gpt-oss-120b` |
 
 Local: set in `.env` (git-ignored). GitHub Actions: set as repository secrets.
 

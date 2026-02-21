@@ -50,9 +50,9 @@ EVAL_DB_PATH = EVAL_DIR / "eval_jobs.db"
 DEFAULT_TEACHER = "openai/gpt-5.2"
 
 DEFAULT_STUDENT_MODELS = [
+    "openai/gpt-oss-120b",
     "google/gemma-3-12b-it",
     "google/gemma-3-27b-it",
-    "openai/gpt-oss-120b",
     "nvidia/nemotron-3-nano-30b-a3b",
     "mistralai/mistral-small-3.2-24b-instruct",
     "qwen/qwen3-30b-a3b-thinking-2507",
