@@ -28,14 +28,20 @@ uv run python eval/eval.py run
 uv run python eval/eval.py report
 ```
 
+`crawl` specifics:
+
+- uses `--source-db` (or default `jobs.db`) to load enabled source registry
+- scrapes with broader eval title include list
+- disables location filtering to broaden dataset coverage
+
 ## Scoring dimensions
 
 Field groups:
 
 - categorical
 - list fields (F1 + precision + recall)
-- numeric years exp (tolerance scoring)
-- salary values/currency
+- numeric years-exp with ordinal tolerance
+- salary values/currency with tolerance and normalization
 
 Overall score:
 
@@ -46,8 +52,8 @@ Overall score:
 File: `eval/results/checkpoint.json`
 
 - checkpoint updated after each completed job result
-- resume validates teacher/model/job set compatibility
-- allows narrowing `--models` on resume for targeted retries
+- resume validates teacher/model/job-set compatibility
+- supports narrowing `--models` on resume for targeted retries
 
 ## Output artifacts
 

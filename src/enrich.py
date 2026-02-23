@@ -530,7 +530,7 @@ def run_enrichment_pipeline(
                 f"  [green]{ok_count} enriched[/green] before pause, "
                 f"[dim]{paused_count} job(s) left unenriched[/dim].\n"
                 f"  Resume anytime with: "
-                f"[bold]uv run python src/scrape.py --enrich-backfill[/bold]"
+                f"[bold]uv run python src/cli.py scrape --enrich-backfill[/bold]"
             )
         else:
             console.print(

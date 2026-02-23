@@ -1,22 +1,25 @@
 # Documentation Index
 
-This documentation is organized by task.
+This documentation is organized by task and maps to the current DB-backed CLI architecture.
 
 ## Start
 
 - Quick setup and first run: [`quickstart.md`](quickstart.md)
 - Root project overview: [`../README.md`](../README.md)
+- Project changelog: [`../CHANGELOG.md`](../CHANGELOG.md)
 
 ## CLI Reference
 
-- Daily scraper command: [`cli/scrape.md`](cli/scrape.md)
-- Company discovery command: [`cli/add-company.md`](cli/add-company.md)
-- Eval framework command: [`cli/eval.md`](cli/eval.md)
+- Scrape pipeline: [`cli/scrape.md`](cli/scrape.md)
+- Source registry management: [`cli/sources.md`](cli/sources.md)
+- Job lifecycle and retention: [`cli/lifecycle.md`](cli/lifecycle.md)
+- Company discovery helper: [`cli/add-company.md`](cli/add-company.md)
+- Eval framework CLI: [`cli/eval.md`](cli/eval.md)
 
 ## Configuration
 
 - Environment variables and precedence: [`configuration/environment.md`](configuration/environment.md)
-- `companies.yaml` schema and maintenance: [`configuration/companies-yaml.md`](configuration/companies-yaml.md)
+- Company source registry in DB: [`configuration/company-sources.md`](configuration/company-sources.md)
 
 ## Architecture
 
@@ -44,4 +47,4 @@ This documentation is organized by task.
 
 - File-by-file technical reference: [`reference/file-by-file-reference.md`](reference/file-by-file-reference.md)
 - Glossary: [`reference/glossary.md`](reference/glossary.md)
-- Documentation change log: [`reference/changelog-docs.md`](reference/changelog-docs.md)
+- Documentation changelog: [`reference/changelog-docs.md`](reference/changelog-docs.md)

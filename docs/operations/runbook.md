@@ -11,16 +11,22 @@
 
 ```bash
 # Standard run
-uv run python src/scrape.py
+uv run python src/cli.py scrape
 
 # Backfill enrichment (resume after rate limit)
-uv run python src/scrape.py --enrich-backfill
+uv run python src/cli.py scrape --enrich-backfill
 
 # Recompute all enrichments
-uv run python src/scrape.py --re-enrich-all
+uv run python src/cli.py scrape --re-enrich-all
 
 # Validate ATS slug
-uv run python src/scrape.py --check openai
+uv run python src/cli.py sources check openai
+
+# Review source registry
+uv run python src/cli.py sources list
+
+# Preview old-row retention impact
+uv run python src/cli.py lifecycle prune --days 28
 ```
 
 ## Incident playbooks
@@ -33,23 +39,34 @@ uv run python src/scrape.py --check openai
 ### Telegram notifications missing
 
 - Verify `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID`.
-- Verify `--no-notify` not used.
+- Verify `--no-notify` was not used.
 - Inspect network and Bot API errors in logs.
 
-### Company source quality issues
+### Source registry empty or stale
 
-- Use `src/add_company.py` for targeted add/validation.
-- For mass import, always run `--import-companies --dry-run` first.
+- Check current rows: `uv run python src/cli.py sources list`
+- Add one company: `uv run python src/add_company.py "Company Name"`
+- Bulk refresh candidates:
+  - `uv run python src/cli.py sources import --dry-run`
+  - `uv run python src/cli.py sources import`
+
+### Over-pruning risk review
+
+- Always run dry-run first:
+  - `uv run python src/cli.py lifecycle prune --days 28`
+- Protect desired rows by setting lifecycle statuses before apply.
+- Execute deletion only after review:
+  - `uv run python src/cli.py lifecycle prune --days 28 --apply`
 
 ### Eval interruption
 
-- Resume with:
+Resume with:
 
 ```bash
 uv run python eval/eval.py run --resume
 ```
 
-- To retry specific model only:
+To retry specific models only:
 
 ```bash
 uv run python eval/eval.py run --resume --models <model>
@@ -57,8 +74,10 @@ uv run python eval/eval.py run --resume --models <model>
 
 ## Change management
 
-When changing filters/prompts/config:
+When changing filters, prompts, source import logic, or lifecycle rules:
 
-1. Update docs in this folder and relevant references.
-2. Run a local scrape dry pass (`--no-notify` recommended).
-3. If enrichment semantics changed, run eval subset before full run.
+1. Update relevant docs under `docs/`.
+2. Append entries to `CHANGELOG.md` and `docs/reference/changelog-docs.md`.
+3. Run local compile + smoke checks.
+4. Run a local scrape pass (`--no-notify` recommended).
+5. If enrichment semantics changed, run eval subset before full eval.

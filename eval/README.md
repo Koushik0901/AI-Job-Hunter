@@ -19,11 +19,12 @@ uv run python eval/eval.py report
 ### Crawl
 
 ```bash
-uv run python eval/eval.py crawl [--config PATH] [--db PATH] [--limit N]
+uv run python eval/eval.py crawl [--source-db PATH] [--db PATH] [--limit N]
 ```
 
 - Scrapes using broader title filter than production.
 - Disables location filtering.
+- Loads enabled company sources from source DB.
 - Saves crawled jobs to eval DB (`eval/eval_jobs.db` by default).
 
 ### Build

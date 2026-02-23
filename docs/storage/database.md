@@ -20,8 +20,36 @@ Persistence is implemented in `src/db.py`.
 - `posted` TEXT
 - `ats` TEXT
 - `description` TEXT
+- `application_status` TEXT
 - `first_seen` TEXT NOT NULL
 - `last_seen` TEXT NOT NULL
+
+`application_status` allowed values from lifecycle command:
+
+- `applied`
+- `interviewing`
+- `offer`
+- `rejected`
+- `withdrawn`
+- `not_applied`
+
+### `company_sources`
+
+- `id` INTEGER PRIMARY KEY
+- `name` TEXT NOT NULL
+- `ats_type` TEXT NOT NULL
+- `ats_url` TEXT NOT NULL
+- `slug` TEXT NOT NULL
+- `enabled` INTEGER NOT NULL DEFAULT 1
+- `source` TEXT
+- `created_at` TEXT NOT NULL
+- `updated_at` TEXT NOT NULL
+
+Indexes:
+
+- unique `ats_url`
+- unique `(ats_type, slug)`
+- non-unique `enabled`
 
 ### `job_enrichments`
 
@@ -56,17 +84,35 @@ Persistence is implemented in `src/db.py`.
 - uses `INSERT OR REPLACE`
 - writes one full enrichment row per URL
 
+`upsert_company_source()`:
+
+- inserts/upserts by `ats_url`
+- fallback update path for `(ats_type, slug)` conflict cases
+- updates timestamps on mutations
+
 ## Enrichment selection logic
 
 `load_unenriched_jobs(force=False)`:
 
-- default picks URLs with no enrichment row or row where status != `ok`
+- selects rows with no enrichment row or status not equal to `ok`
 
 `load_unenriched_jobs(force=True)`:
 
-- picks all jobs with non-empty description
+- selects all rows with non-empty description
+
+## Retention pruning logic
+
+`prune_not_applied_older_than_days(days, dry_run)`:
+
+- filters rows where:
+  - `application_status` is null/empty/`not_applied`
+  - `posted` exists and SQLite `date(posted)` is <= `date('now', -days)`
+  - status is not in protected set (`applied`, `interviewing`, `offer`, `rejected`, `withdrawn`)
+- dry-run returns count only
+- apply mode deletes rows and returns deleted count
 
 ## Date conventions
 
-- scrape persistence uses `YYYY-MM-DD` strings for first/last seen
+- scrape persistence uses `YYYY-MM-DD` strings for `first_seen` and `last_seen`
+- posted values come from source metadata normalization and are stored as date-like strings
 - enrichment uses full ISO timestamp in `enriched_at`

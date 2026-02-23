@@ -894,7 +894,7 @@ def cmd_run(args) -> None:
 # ---------------------------------------------------------------------------
 
 def cmd_crawl(args) -> None:
-    import scrape  # src/scrape.py via sys.path
+    from services.scrape_service import scrape_all
     from db import init_db, load_enabled_company_sources
 
     db_path = Path(args.db) if args.db else EVAL_DB_PATH
@@ -916,14 +916,15 @@ def cmd_crawl(args) -> None:
     source_conn.close()
     if not companies:
         print("ERROR: no enabled company sources found in DB.")
-        print("Run `uv run python src/scrape.py --migrate-companies-from-yaml companies.yaml` first.")
+        print("Add companies with `uv run python src/add_company.py \"Company Name\"`")
+        print("or import from community lists with `uv run python src/cli.py sources import`.")
         sys.exit(1)
 
     print(f"Loaded {len(companies)} enabled companies from DB")
     print(f"Crawling with no location filter, broader title filter...")
     print(f"Output: {db_path}\n")
 
-    jobs = scrape.scrape_all(
+    jobs = scrape_all(
         companies,
         apply_location_filter=False,
         enrich=True,

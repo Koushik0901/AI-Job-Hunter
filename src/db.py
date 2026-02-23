@@ -135,6 +135,7 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
             posted      TEXT,
             ats         TEXT,
             description TEXT,
+            application_status TEXT,
             first_seen  TEXT NOT NULL,
             last_seen   TEXT NOT NULL
         )
@@ -157,6 +158,10 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_company_sources_ats_slug ON company_sources(ats_type, slug)"
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_company_sources_enabled ON company_sources(enabled)")
+    try:
+        conn.execute("ALTER TABLE jobs ADD COLUMN application_status TEXT")
+    except Exception:
+        pass
     conn.execute("""
         CREATE TABLE IF NOT EXISTS job_enrichments (
             url                  TEXT PRIMARY KEY REFERENCES jobs(url),
@@ -355,6 +360,40 @@ def save_jobs(
 
     conn.commit()
     return new_count, updated_count, new_jobs
+
+
+def set_application_status(conn: Any, url: str, status: str | None) -> int:
+    """Set application_status for a job URL. Returns changed row count."""
+    normalized = (status or "").strip().lower() or None
+    valid = {"applied", "interviewing", "offer", "rejected", "withdrawn", "not_applied"}
+    if normalized not in valid and normalized is not None:
+        raise ValueError(f"Invalid status: {status}")
+    conn.execute("UPDATE jobs SET application_status=? WHERE url=?", (normalized, url))
+    changed = conn.execute("SELECT changes()").fetchone()
+    conn.commit()
+    return int(changed[0]) if changed else 0
+
+
+def prune_not_applied_older_than_days(conn: Any, days: int, dry_run: bool = True) -> int:
+    """Prune jobs older than N days if not applied/interview pipeline and has parseable posted date."""
+    if days <= 0:
+        raise ValueError("days must be > 0")
+    protected = ("applied", "interviewing", "offer", "rejected", "withdrawn")
+    placeholders = ", ".join("?" for _ in protected)
+    where = f"""
+        (application_status IS NULL OR application_status = '' OR application_status = 'not_applied')
+        AND (posted IS NOT NULL AND posted != '')
+        AND date(posted) <= date('now', ?)
+        AND (application_status IS NULL OR application_status NOT IN ({placeholders}))
+    """
+    params: tuple[Any, ...] = (f"-{days} day",) + protected
+    if dry_run:
+        row = conn.execute(f"SELECT COUNT(*) FROM jobs WHERE {where}", params).fetchone()
+        return int(row[0]) if row else 0
+    conn.execute(f"DELETE FROM jobs WHERE {where}", params)
+    changed = conn.execute("SELECT changes()").fetchone()
+    conn.commit()
+    return int(changed[0]) if changed else 0
 
 
 def load_unenriched_jobs(conn: Any, force: bool = False) -> list[dict[str, Any]]:

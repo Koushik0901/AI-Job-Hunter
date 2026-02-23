@@ -31,41 +31,64 @@ Optional but recommended:
 
 If `TURSO_URL` is absent, local SQLite `jobs.db` is used.
 
+## Add company sources
+
+Sources are stored in DB table `company_sources`.
+
+```bash
+# interactive single-company add
+uv run python src/add_company.py "Scale AI"
+
+# or bulk import from curated lists
+uv run python src/cli.py sources import --dry-run
+uv run python src/cli.py sources import
+```
+
+Verify source registry:
+
+```bash
+uv run python src/cli.py sources list
+```
+
 ## First run
 
 ```bash
-uv run python src/scrape.py
+uv run python src/cli.py scrape
 ```
 
 Behavior:
 
-1. Loads companies from `companies.yaml`.
+1. Loads enabled companies from DB table `company_sources`.
 2. Scrapes ATS sources and HN comments.
 3. Applies title filter and default location filter.
 4. Fetches full descriptions (unless `--no-enrich`).
-5. Upserts records into DB.
+5. Upserts records into `jobs`.
 6. Sends Telegram messages only for new jobs.
 7. Runs LLM enrichment for new jobs only (if key exists and `--no-enrich-llm` not set).
 
 ## Common next commands
 
 ```bash
-# Show all title matches globally
-uv run python src/scrape.py --no-location-filter --limit 200
+# Show broader location output
+uv run python src/cli.py scrape --no-location-filter --limit 200
 
 # Backfill missing/failed enrichment rows
-uv run python src/scrape.py --enrich-backfill
+uv run python src/cli.py scrape --enrich-backfill
 
 # Re-enrich every described job
-uv run python src/scrape.py --re-enrich-all
+uv run python src/cli.py scrape --re-enrich-all
 
-# Add one company interactively
-uv run python src/add_company.py "Scale AI"
+# Track your process for one URL
+uv run python src/cli.py lifecycle set-status --url <job_url> --status applied
+
+# Preview retention cleanup
+uv run python src/cli.py lifecycle prune --days 28
 ```
 
 ## Troubleshooting quick pointers
 
-- Help text: `uv run python src/scrape.py --help`
+- CLI help: `uv run python src/cli.py --help`
+- Scrape help: `uv run python src/cli.py scrape --help`
 - If enrichment pauses due to 429: rerun with `--enrich-backfill`
 - If notifications do not send: verify `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID`
 - More: [`troubleshooting/known-issues.md`](troubleshooting/known-issues.md)

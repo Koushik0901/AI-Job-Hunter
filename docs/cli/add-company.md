@@ -8,21 +8,21 @@ uv run python src/add_company.py "Company Name" [options]
 
 ## Arguments
 
-- Positional `company`: user-facing company label used when writing new YAML rows.
+- Positional `company`: user-facing company label used when writing DB source rows.
 - `--slug SLUG` (repeatable): extra slug probes appended after generated candidates.
 - `--add`: non-interactive mode; auto-add all new matches.
-- `--config PATH`: path to `companies.yaml` (default: `<cwd>/companies.yaml`).
+- `--db PATH`: local SQLite path (default: `<cwd>/jobs.db`; ignored if `TURSO_URL` is set).
 
 ## What it does
 
 1. Generates slug candidates from company name.
 2. Probes all ATS backends concurrently.
 3. Keeps only hits with `jobs > 0`.
-4. Filters out entries already represented in `companies.yaml`:
+4. Filters out entries already represented in DB `company_sources`:
    - exact `ats_url` match
    - slug found in URL path segments of existing entries
 5. Prompts for selection (unless `--add`).
-6. Appends selected rows.
+6. Upserts selected rows into DB with `enabled=true`.
 
 ## Slug generation strategy
 
@@ -44,9 +44,9 @@ SmartRecruiters and Workable can return HTTP 200 for non-existent slugs with zer
 
 ## Safety and assumptions
 
-- No overwrite/edit of existing YAML entries; appends only.
+- Existing DB rows are upserted by `ats_url`/`slug` semantics in DB helpers.
 - Duplicate checks are conservative but slug collisions are still possible for ambiguous short slugs.
-- Script imports shared probe logic from `src/scrape.py`.
+- Script imports shared probe logic from `src/services/probe_service.py`.
 
 ## Examples
 

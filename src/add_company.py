@@ -13,10 +13,8 @@ import argparse
 import os
 import re
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-import requests
 from rich.console import Console
 from rich.table import Table
 
@@ -25,8 +23,8 @@ from rich.table import Table
 sys.path.insert(0, str(Path(__file__).parent))
 
 from notify import _load_dotenv
-from scrape import _ATS_PROBES, _probe_job_count
 from db import find_company_by_url_or_slug_segment, init_db, upsert_company_source
+from services.probe_service import probe_all
 
 # ---------------------------------------------------------------------------
 # Canonical ATS URL templates (one per platform, no query params)
@@ -92,39 +90,6 @@ def _candidate_slugs(name: str) -> list[str]:
 # Concurrent ATS probing
 # ---------------------------------------------------------------------------
 
-def _probe_all(slugs: list[str]) -> list[dict]:
-    """Probe all 5 ATS platforms for every slug concurrently. Returns hit dicts."""
-
-    def _probe_one(slug: str, ats_name: str, url_tmpl: str, method: str, success_test) -> dict | None:
-        url = url_tmpl.format(slug=slug)
-        try:
-            if method == "POST":
-                resp = requests.post(url, json={}, timeout=15)
-            else:
-                resp = requests.get(url, timeout=15)
-            if success_test(resp):
-                count = _probe_job_count(resp, ats_name)
-                canonical = _ATS_URL_TEMPLATES[ats_name].format(slug=slug)
-                return {"slug": slug, "ats": ats_name, "ats_url": canonical, "jobs": count}
-        except requests.RequestException:
-            pass
-        return None
-
-    results: list[dict] = []
-    with ThreadPoolExecutor(max_workers=20) as ex:
-        futures = [
-            ex.submit(_probe_one, slug, ats_name, url_tmpl, method, success_test)
-            for slug in slugs
-            for ats_name, url_tmpl, method, success_test in _ATS_PROBES
-        ]
-        for fut in as_completed(futures):
-            hit = fut.result()
-            if hit:
-                results.append(hit)
-
-    return results
-
-
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
@@ -179,7 +144,7 @@ examples:
     console.print(f"\n[dim]Trying slugs:[/dim] {', '.join(candidates)}\n")
 
     # 2. Probe concurrently
-    hits = _probe_all(candidates)
+    hits = probe_all(candidates, _ATS_URL_TEMPLATES)
 
     # 3. Deduplicate by ats_url, sort for consistent display
     seen_urls: set[str] = set()

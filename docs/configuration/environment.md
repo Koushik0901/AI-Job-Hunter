@@ -11,10 +11,10 @@ This project loads environment variables from two sources:
 |---|---|---|---|
 | `TELEGRAM_TOKEN` | for notifications | `src/notify.py` | Bot token |
 | `TELEGRAM_CHAT_ID` | for notifications | `src/notify.py` | Chat target |
-| `TURSO_URL` | optional | `src/db.py`, `src/scrape.py` | If set, overrides `--db` local path |
+| `TURSO_URL` | optional | `src/db.py`, `src/cli.py` | If set, overrides `--db` local path |
 | `TURSO_AUTH_TOKEN` | required with Turso | `src/db.py` | Bearer token for hrana HTTP pipeline |
 | `OPENROUTER_API_KEY` | optional | `src/enrich.py`, `eval/eval.py` | Enables enrichment/eval API calls |
-| `ENRICHMENT_MODEL` | optional | `src/scrape.py` | Runtime default is `openai/gpt-oss-120b` |
+| `ENRICHMENT_MODEL` | optional | `src/cli.py` | Runtime default is `openai/gpt-oss-120b` |
 
 ## Precedence and defaults
 

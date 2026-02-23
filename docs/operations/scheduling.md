@@ -12,7 +12,7 @@ Current configuration:
   - manual `workflow_dispatch`
 - Runner: `ubuntu-latest`
 - Timeout: `30` minutes
-- Run command: `uv run python src/scrape.py`
+- Run command: `uv run python src/cli.py scrape`
 
 Required secrets:
 
@@ -30,7 +30,7 @@ Behavior:
 
 - Creates task `AIJobHunter`
 - Default run time in script: `11:00AM`
-- Runs `uv run python src/scrape.py` from repo directory
+- Runs `uv run python src/cli.py scrape` from repo directory
 - Execution time limit: 30 minutes
 
 Usage:

@@ -8,8 +8,8 @@ uv run python eval/eval.py <subcommand> [options]
 
 Subcommands:
 
-- `build`
 - `crawl`
+- `build`
 - `cost`
 - `run`
 - `report`
@@ -17,12 +17,18 @@ Subcommands:
 ## `crawl`
 
 ```bash
-uv run python eval/eval.py crawl [--config PATH] [--db PATH] [--limit N]
+uv run python eval/eval.py crawl [--source-db PATH] [--db PATH] [--limit N]
 ```
 
-- Scrapes jobs with broader title filter and no location filter.
-- Stores results in `eval_jobs.db` style schema.
-- Prints location and segment distribution preview.
+- Loads enabled company sources from production source DB (`jobs.db` by default).
+- Uses broader eval title filter and disables location filtering.
+- Saves crawled jobs into eval DB (`eval/eval_jobs.db` by default).
+
+Options:
+
+- `--source-db PATH`: source DB for company registry and scrape input.
+- `--db PATH`: output eval DB path.
+- `--limit N`: cap number of crawled rows after filtering.
 
 ## `build`
 
@@ -30,9 +36,9 @@ uv run python eval/eval.py crawl [--config PATH] [--db PATH] [--limit N]
 uv run python eval/eval.py build [--db PATH]
 ```
 
-- Builds `eval/dataset.yaml` from DB records with non-empty descriptions.
+- Builds `eval/dataset.yaml` from eval DB records with non-empty descriptions.
 - Assigns segment tags using `tag_segment`.
-- Preserves existing `manual_jobs` entries.
+- Preserves existing `manual_jobs` entries in dataset file.
 
 ## `cost`
 
@@ -41,7 +47,7 @@ uv run python eval/eval.py cost [--models MODEL...] [--teacher MODEL]
 ```
 
 - Estimates token and cost totals without API calls.
-- Uses hardcoded `PRICING` table and fallback pricing for unknown models.
+- Uses static `PRICING` map and `PRICING_FALLBACK` for unknown models.
 
 ## `run`
 
@@ -54,10 +60,10 @@ uv run python eval/eval.py run [--models MODEL...] [--teacher MODEL] [--subset N
 - Checkpoints after each completed job.
 - Supports resume and model subset on resume.
 
-Rate limit semantics:
+Rate-limit semantics:
 
 - Uses `RateLimitSignal` from enrichment module.
-- On model-level exhaustion, keeps checkpoint and continues other models.
+- On model-level exhaustion, persists partial progress + checkpoint.
 
 ## `report`
 
@@ -92,4 +98,4 @@ Priority order:
 5. `sparse`
 6. `core`
 
-Targets are encoded in `_SEGMENT_TARGETS` and displayed during build/crawl summaries.
+Targets are encoded in `_SEGMENT_TARGETS` and shown during crawl/build summaries.
