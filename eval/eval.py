@@ -895,16 +895,31 @@ def cmd_run(args) -> None:
 
 def cmd_crawl(args) -> None:
     import scrape  # src/scrape.py via sys.path
-
-    config_path = Path(args.config) if args.config else Path.cwd() / "companies.yaml"
-    if not config_path.exists():
-        print(f"ERROR: Config file not found: {config_path}")
-        sys.exit(1)
+    from db import init_db, load_enabled_company_sources
 
     db_path = Path(args.db) if args.db else EVAL_DB_PATH
 
-    companies = scrape.load_companies(config_path)
-    print(f"Loaded {len(companies)} companies from {config_path}")
+    turso_url = os.getenv("TURSO_URL", "")
+    turso_token = os.getenv("TURSO_AUTH_TOKEN", "")
+    if turso_url:
+        source_db_url = turso_url
+        source_db_token = turso_token
+    elif args.source_db:
+        source_db_url = args.source_db
+        source_db_token = ""
+    else:
+        source_db_url = str(Path.cwd() / "jobs.db")
+        source_db_token = ""
+
+    source_conn = init_db(source_db_url, source_db_token)
+    companies = load_enabled_company_sources(source_conn)
+    source_conn.close()
+    if not companies:
+        print("ERROR: no enabled company sources found in DB.")
+        print("Run `uv run python src/scrape.py --migrate-companies-from-yaml companies.yaml` first.")
+        sys.exit(1)
+
+    print(f"Loaded {len(companies)} enabled companies from DB")
     print(f"Crawling with no location filter, broader title filter...")
     print(f"Output: {db_path}\n")
 
@@ -1170,8 +1185,8 @@ def main() -> None:
                          help="Path to eval_jobs.db (default: eval/eval_jobs.db)")
 
     p_crawl = sub.add_parser("crawl", help="Crawl jobs into eval/eval_jobs.db (no location filter)")
-    p_crawl.add_argument("--config", default=None, metavar="PATH",
-                         help="Path to companies.yaml (default: companies.yaml in cwd)")
+    p_crawl.add_argument("--source-db", default=None, metavar="PATH",
+                         help="Source jobs DB path for company_sources (default: jobs.db in cwd, or TURSO_URL)")
     p_crawl.add_argument("--db", default=None, metavar="PATH",
                          help="Output DB path (default: eval/eval_jobs.db)")
     p_crawl.add_argument("--limit", type=int, default=None, metavar="N",

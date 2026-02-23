@@ -1,5 +1,5 @@
 """
-add_company.py — Discover which ATS platform a company uses and add it to companies.yaml.
+add_company.py — Discover which ATS platform a company uses and add it to DB.
 
 Usage:
     uv run python src/add_company.py "Hugging Face"
@@ -10,14 +10,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from urllib.parse import urlparse
 
 import requests
-import yaml
 from rich.console import Console
 from rich.table import Table
 
@@ -27,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from notify import _load_dotenv
 from scrape import _ATS_PROBES, _probe_job_count
+from db import find_company_by_url_or_slug_segment, init_db, upsert_company_source
 
 # ---------------------------------------------------------------------------
 # Canonical ATS URL templates (one per platform, no query params)
@@ -126,45 +126,12 @@ def _probe_all(slugs: list[str]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# YAML helpers
-# ---------------------------------------------------------------------------
-
-def _find_in_yaml(slug: str, ats_url: str, config_path: Path) -> str | None:
-    """Return existing company name if this slug or ats_url is already in yaml, else None.
-
-    Checks two ways:
-    - Exact ats_url match (same platform, same company)
-    - Slug appears as a URL path segment in any existing entry (same company, different platform)
-    """
-    if not config_path.exists():
-        return None
-    with config_path.open("r", encoding="utf-8") as f:
-        data = yaml.safe_load(f) or {}
-    slug_lower = slug.lower()
-    for c in data.get("companies", []):
-        existing_url = c.get("ats_url", "")
-        if existing_url == ats_url:
-            return c.get("name", slug)
-        parts = [p.lower() for p in urlparse(existing_url).path.strip("/").split("/") if p]
-        if slug_lower in parts:
-            return c.get("name", slug)
-
-
-def _append_entry(name: str, ats_type: str, ats_url: str, config_path: Path) -> None:
-    with config_path.open("a", encoding="utf-8") as f:
-        f.write(f"  - name: {name}\n")
-        f.write(f"    ats_type: {ats_type}\n")
-        f.write(f"    ats_url: {ats_url}\n")
-        f.write(f"    enabled: true\n")
-
-
-# ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Discover ATS platform for a company and add it to companies.yaml.",
+        description="Discover ATS platform for a company and add it to DB.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
@@ -183,15 +150,24 @@ examples:
         "--add", action="store_true",
         help="Auto-add all new matches without prompting (non-interactive)",
     )
-    parser.add_argument(
-        "--config", default=None,
-        help="Path to companies.yaml (default: companies.yaml in current directory)",
-    )
+    parser.add_argument("--db", default=None, help="Local DB path (default: jobs.db in current directory)")
     args = parser.parse_args()
 
     _load_dotenv(Path.cwd() / ".env")
 
-    config_path = Path(args.config) if args.config else Path.cwd() / "companies.yaml"
+    turso_url = os.getenv("TURSO_URL", "")
+    turso_token = os.getenv("TURSO_AUTH_TOKEN", "")
+    if turso_url:
+        db_url = turso_url
+        db_token = turso_token
+    elif args.db:
+        db_url = args.db
+        db_token = ""
+    else:
+        db_url = str(Path.cwd() / "jobs.db")
+        db_token = ""
+    conn = init_db(db_url, db_token)
+
     console = Console()
 
     # 1. Build slug candidates
@@ -232,6 +208,7 @@ examples:
             "[dim]Try supplying a specific slug with --slug, "
             "or check the company's careers page URL.[/dim]"
         )
+        conn.close()
         return
 
     table = Table(title=f"ATS boards found for '{args.company}'", show_header=True)
@@ -250,19 +227,20 @@ examples:
             f"[dim]  {len(zero_hits)} zero-job hit(s) hidden (false positives): {names}[/dim]"
         )
 
-    # 5. Filter out entries already in companies.yaml (by URL or by slug in existing URL)
+    # 5. Filter out entries already in DB (by URL or by slug in existing URL)
     new_hits: list[dict] = []
     for h in real_hits:
-        existing_name = _find_in_yaml(h["slug"], h["ats_url"], config_path)
+        existing_name = find_company_by_url_or_slug_segment(conn, h["slug"], h["ats_url"])
         if existing_name:
             console.print(
-                f"[dim]  Already in companies.yaml as '{existing_name}': {h['ats_url']}[/dim]"
+                f"[dim]  Already in DB as '{existing_name}': {h['ats_url']}[/dim]"
             )
         else:
             new_hits.append(h)
 
     if not new_hits:
-        console.print("[dim]All found entries are already in companies.yaml.[/dim]")
+        console.print("[dim]All found entries are already in DB.[/dim]")
+        conn.close()
         return
 
     # 6. Decide which entries to add
@@ -274,7 +252,7 @@ examples:
     elif len(new_hits) == 1:
         h = new_hits[0]
         answer = console.input(
-            f"\nAdd [cyan]{h['slug']}[/cyan] ([green]{h['ats']}[/green]) to companies.yaml? [y/N] "
+            f"\nAdd [cyan]{h['slug']}[/cyan] ([green]{h['ats']}[/green]) to DB? [y/N] "
         )
         if answer.strip().lower() == "y":
             to_add = [h]
@@ -302,18 +280,28 @@ examples:
                     pass
             to_add = [new_hits[i] for i in indices]
 
-    # 7. Append chosen entries to companies.yaml
+    # 7. Insert chosen entries into DB
     if not to_add:
         console.print("[dim]Nothing added.[/dim]")
+        conn.close()
         return
 
     for h in to_add:
-        _append_entry(args.company, h["ats"], h["ats_url"], config_path)
+        upsert_company_source(
+            conn,
+            name=args.company,
+            ats_type=h["ats"],
+            ats_url=h["ats_url"],
+            slug=h["slug"],
+            enabled=True,
+            source="add_company",
+        )
         console.print(
             f"[green]Added[/green] {args.company} "
             f"([green]{h['ats']}[/green], slug=[cyan]{h['slug']}[/cyan]) "
-            f"-> {config_path.name}"
+            f"-> DB"
         )
+    conn.close()
 
 
 if __name__ == "__main__":

@@ -8,9 +8,10 @@ Usage:
     uv run python src/scrape.py --no-notify            # skip Telegram notification
     uv run python src/scrape.py --no-enrich-llm        # skip LLM enrichment even if API key is set
     uv run python src/scrape.py --enrich-backfill      # enrich unenriched/failed jobs in DB, then exit
+    uv run python src/scrape.py --re-enrich-all        # re-enrich ALL jobs (overwrites existing), then exit
     uv run python src/scrape.py --check cohere         # discover which ATS a company uses
     uv run python src/scrape.py --db /path/to/jobs.db  # use a custom database path
-    uv run python src/scrape.py --config /path/to/companies.yaml
+    uv run python src/scrape.py --migrate-companies-from-yaml companies.yaml
 """
 from __future__ import annotations
 
@@ -29,7 +30,15 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from db import init_db, load_unenriched_jobs, save_jobs
+from db import (
+    init_db,
+    list_company_sources,
+    load_enabled_company_sources,
+    load_unenriched_jobs,
+    save_jobs,
+    set_company_source_enabled,
+    upsert_company_source,
+)
 from enrich import run_enrichment_pipeline
 from fetchers import (
     _extract_json_array_from_html,
@@ -53,6 +62,16 @@ from notify import _load_dotenv, notify_new_jobs
 # ---------------------------------------------------------------------------
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+
+def _safe_text(value: Any) -> str:
+    """Return a console-safe string for legacy cp1252 terminals."""
+    text = str(value or "")
+    try:
+        text.encode("cp1252")
+        return text
+    except UnicodeEncodeError:
+        return text.encode("cp1252", errors="replace").decode("cp1252")
 
 # ---------------------------------------------------------------------------
 # Title filter keywords
@@ -205,36 +224,6 @@ def _extract_slug(ats_url: str, ats_type: str) -> str:
     return parts[-1]
 
 
-def load_companies(config_path: Path) -> list[dict[str, Any]]:
-    """Load companies.yaml and return enabled company entries as a flat list."""
-    with config_path.open("r", encoding="utf-8") as f:
-        data = yaml.safe_load(f) or {}
-
-    if "companies" in data and isinstance(data["companies"], list):
-        return [c for c in data["companies"] if c.get("enabled", True)]
-
-    # Legacy format: {greenhouse: [slug, ...], lever: [...], ...}
-    entries = []
-    url_templates = {
-        "greenhouse": "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs",
-        "lever":      "https://api.lever.co/v0/postings/{slug}",
-        "ashby":      "https://jobs.ashbyhq.com/{slug}",
-        "workable":   "https://apply.workable.com/api/v3/accounts/{slug}/jobs",
-    }
-    for ats_type, slugs in data.items():
-        if not isinstance(slugs, list):
-            continue
-        tmpl = url_templates.get(ats_type, "")
-        for slug in slugs:
-            entries.append({
-                "name": slug,
-                "ats_type": ats_type,
-                "ats_url": tmpl.format(slug=slug),
-                "enabled": True,
-            })
-    return entries
-
-
 def scrape_all(
     companies: list[dict[str, Any]],
     apply_location_filter: bool = True,
@@ -253,13 +242,13 @@ def scrape_all(
         ats_url = comp.get("ats_url", "")
 
         if ats_type not in FETCHERS:
-            console.print(f"  [yellow]Skipping {name}: unknown ats_type '{ats_type}'[/yellow]")
+            console.print(f"  [yellow]Skipping {_safe_text(name)}: unknown ats_type '{ats_type}'[/yellow]")
             continue
 
         fetcher, normalizer = FETCHERS[ats_type]
         slug = _extract_slug(ats_url, ats_type)
 
-        console.print(f"  [dim]Fetching {ats_type}:{slug} ({name})...[/dim]", end="")
+        console.print(f"  [dim]Fetching {ats_type}:{slug} ({_safe_text(name)})...[/dim]", end="")
         try:
             raw_jobs = fetcher(slug)
             console.print(f" [green]{len(raw_jobs)} jobs[/green]")
@@ -465,8 +454,8 @@ def _parse_companies_from_markdown(text: str) -> list[tuple[str, str, str]]:
     return results
 
 
-def cmd_import_companies(config_path: Path, dry_run: bool = False) -> None:
-    """Fetch community GitHub lists of Greenhouse/Lever/SmartRecruiters companies and append new entries."""
+def cmd_import_companies(conn: Any, dry_run: bool = False) -> None:
+    """Fetch community GitHub lists and upsert company sources in DB."""
     console = Console()
 
     # 1. Fetch all sources and collect (company_name, ats_type, slug, source) candidates
@@ -494,23 +483,10 @@ def cmd_import_companies(config_path: Path, dry_run: bool = False) -> None:
         console.print("[yellow]No companies found from any source.[/yellow]")
         return
 
-    # 2. Load existing companies.yaml — deduplicate by slug
-    if config_path.exists():
-        with config_path.open("r", encoding="utf-8") as f:
-            existing_data = yaml.safe_load(f) or {}
-    else:
-        existing_data = {"companies": []}
-
-    existing_companies = existing_data.get("companies", [])
+    # 2. Load existing company sources from DB for dedupe
+    existing_companies = list_company_sources(conn, enabled_only=False)
     existing_urls: set[str] = {c.get("ats_url", "") for c in existing_companies}
-    existing_slugs: set[str] = set()
-    for c in existing_companies:
-        url = c.get("ats_url", "")
-        if url:
-            parts = [p for p in urlparse(url).path.strip("/").split("/") if p]
-            # For greenhouse: boards-api.greenhouse.io/v1/boards/SLUG/jobs → parts[-2] = SLUG
-            for p in parts:
-                existing_slugs.add(p.lower())
+    existing_slugs: set[str] = {str(c.get("slug", "")).lower() for c in existing_companies if c.get("slug")}
 
     # 3. Build new entries — deduplicate across sources as we go
     new_entries: list[dict[str, Any]] = []
@@ -532,6 +508,7 @@ def cmd_import_companies(config_path: Path, dry_run: bool = False) -> None:
             "name": company_name,
             "ats_type": ats_type,
             "ats_url": ats_url,
+            "slug": slug,
             "enabled": True,
             "_source": source_label,
         })
@@ -561,22 +538,115 @@ def cmd_import_companies(config_path: Path, dry_run: bool = False) -> None:
     console.print(preview)
 
     if dry_run:
-        console.print("[yellow]Dry run — not writing to companies.yaml[/yellow]")
+        console.print("[yellow]Dry run — not writing to DB[/yellow]")
         return
 
-    # 5. Append to companies.yaml
-    with config_path.open("a", encoding="utf-8") as f:
-        f.write("\n  # ── Imported via --import-companies ──────────────────────────────────────\n")
-        for entry in new_entries:
-            f.write(f"  - name: {entry['name']}\n")
-            f.write(f"    ats_type: {entry['ats_type']}\n")
-            f.write(f"    ats_url: {entry['ats_url']}\n")
-            f.write(f"    enabled: true\n")
+    # 5. Upsert into DB
+    for entry in new_entries:
+        upsert_company_source(
+            conn,
+            name=entry["name"],
+            ats_type=entry["ats_type"],
+            ats_url=entry["ats_url"],
+            slug=entry["slug"],
+            enabled=True,
+            source=f"import:{entry.get('_source', 'unknown')}",
+        )
 
     console.print(
         f"[bold green]Done.[/bold green] "
-        f"Appended {len(new_entries)} companies to {config_path}"
+        f"Upserted {len(new_entries)} company source(s) into DB"
     )
+
+
+def _load_companies_from_yaml(config_path: Path) -> list[dict[str, Any]]:
+    """Load company entries from YAML for one-time migration only."""
+    with config_path.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    if "companies" in data and isinstance(data["companies"], list):
+        return data["companies"]
+
+    entries = []
+    url_templates = {
+        "greenhouse": "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs",
+        "lever": "https://api.lever.co/v0/postings/{slug}",
+        "ashby": "https://jobs.ashbyhq.com/{slug}",
+        "workable": "https://apply.workable.com/api/v3/accounts/{slug}/jobs",
+        "smartrecruiters": "https://api.smartrecruiters.com/v1/companies/{slug}/postings",
+    }
+    for ats_type, slugs in data.items():
+        if not isinstance(slugs, list):
+            continue
+        tmpl = url_templates.get(ats_type, "")
+        if not tmpl:
+            continue
+        for slug in slugs:
+            entries.append(
+                {
+                    "name": slug,
+                    "ats_type": ats_type,
+                    "ats_url": tmpl.format(slug=slug),
+                    "enabled": True,
+                }
+            )
+    return entries
+
+
+def cmd_migrate_companies_from_yaml(conn: Any, config_path: Path) -> None:
+    """One-time migration: import company sources from YAML into DB."""
+    console = Console()
+    if not config_path.exists():
+        console.print(f"[red]YAML file not found:[/red] {config_path}")
+        return
+    rows = _load_companies_from_yaml(config_path)
+    inserted = 0
+    skipped = 0
+    for row in rows:
+        ats_type = str(row.get("ats_type", "")).lower()
+        ats_url = str(row.get("ats_url", "")).strip()
+        slug = _extract_slug(ats_url, ats_type)
+        if not ats_type or not ats_url or not slug:
+            skipped += 1
+            continue
+        upsert_company_source(
+            conn,
+            name=str(row.get("name", slug)).strip() or slug,
+            ats_type=ats_type,
+            ats_url=ats_url,
+            slug=slug,
+            enabled=bool(row.get("enabled", True)),
+            source="yaml_migration",
+        )
+        inserted += 1
+    console.print(
+        f"[bold green]Migration complete.[/bold green] Upserted {inserted}, skipped {skipped} invalid row(s)."
+    )
+
+
+def cmd_list_companies(conn: Any) -> None:
+    """Print company sources from DB."""
+    console = Console()
+    rows = list_company_sources(conn, enabled_only=False)
+    if not rows:
+        console.print("[yellow]No company sources found in DB.[/yellow]")
+        return
+    table = Table(title=f"Company sources ({len(rows)})", show_header=True)
+    table.add_column("ID", style="dim")
+    table.add_column("Enabled")
+    table.add_column("ATS", style="green")
+    table.add_column("Slug", style="cyan")
+    table.add_column("Name")
+    table.add_column("Source", style="dim")
+    for row in rows:
+        table.add_row(
+            str(row["id"]),
+            "yes" if row["enabled"] else "no",
+            row["ats_type"],
+            row["slug"],
+            _safe_text(row["name"]),
+            _safe_text(row["source"] or ""),
+        )
+    console.print(table)
 
 
 # ---------------------------------------------------------------------------
@@ -648,7 +718,7 @@ def check_company(slug: str) -> None:
         )
     else:
         console.print(
-            f"\n[dim]To add to companies.yaml, copy the matching entry above.[/dim]"
+            f"\n[dim]To add to DB, run add_company.py with this slug.[/dim]"
         )
 
 
@@ -696,11 +766,11 @@ def render_table(jobs: list[dict[str, Any]], limit: int) -> None:
         url = job.get("url", "")
         display_url = url if len(url) <= 60 else url[:57] + "..."
         table.add_row(
-            job.get("company", ""),
-            job.get("title", ""),
-            job.get("location", ""),
+            _safe_text(job.get("company", "")),
+            _safe_text(job.get("title", "")),
+            _safe_text(job.get("location", "")),
             job.get("posted", "")[:10],
-            display_url,
+            _safe_text(display_url),
         )
 
     console.print(table)
@@ -718,11 +788,6 @@ def render_table(jobs: list[dict[str, Any]], limit: int) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Scrape ML/AI/Data Science jobs from ATS platforms."
-    )
-    parser.add_argument(
-        "--config", "-c",
-        default=None,
-        help="Path to companies.yaml (default: companies.yaml in the current directory)",
     )
     parser.add_argument(
         "--no-location-filter",
@@ -772,14 +837,42 @@ def main() -> None:
         help="Enrich all unenriched/failed jobs in the DB, then exit (no scraping)",
     )
     parser.add_argument(
+        "--re-enrich-all",
+        action="store_true",
+        help="Re-enrich every job in the DB (overwrites existing enrichments), then exit",
+    )
+    parser.add_argument(
         "--import-companies",
         action="store_true",
-        help="Fetch AI/ML company lists from GitHub and append new entries to companies.yaml",
+        help="Fetch AI/ML company lists from GitHub and upsert into company_sources table",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="With --import-companies: print what would be added without writing",
+        help="With --import-companies: print what would be added without writing to DB",
+    )
+    parser.add_argument(
+        "--migrate-companies-from-yaml",
+        metavar="PATH",
+        default=None,
+        help="One-time migration: import company entries from YAML into DB, then exit",
+    )
+    parser.add_argument(
+        "--list-companies",
+        action="store_true",
+        help="List company source rows from DB and exit",
+    )
+    parser.add_argument(
+        "--enable-company",
+        metavar="ID_OR_SLUG",
+        default=None,
+        help="Enable one company source by id or slug, then exit",
+    )
+    parser.add_argument(
+        "--disable-company",
+        metavar="ID_OR_SLUG",
+        default=None,
+        help="Disable one company source by id or slug, then exit",
     )
     args = parser.parse_args()
 
@@ -788,14 +881,6 @@ def main() -> None:
 
     if args.check:
         check_company(args.check)
-        return
-
-    if args.import_companies:
-        if args.config:
-            config_path = Path(args.config)
-        else:
-            config_path = Path.cwd() / "companies.yaml"
-        cmd_import_companies(config_path, dry_run=args.dry_run)
         return
 
     # Resolve DB URL
@@ -819,13 +904,42 @@ def main() -> None:
     openrouter_model = os.getenv("ENRICHMENT_MODEL", "openai/gpt-oss-120b")
 
     console = Console(stderr=True)
+    conn = init_db(db_url, db_auth_token)
 
-    # --enrich-backfill: enrich unenriched/failed jobs, then exit
-    if args.enrich_backfill:
-        conn = init_db(db_url, db_auth_token)
-        jobs_to_enrich = load_unenriched_jobs(conn)
+    if args.migrate_companies_from_yaml:
+        cmd_migrate_companies_from_yaml(conn, Path(args.migrate_companies_from_yaml))
+        conn.close()
+        return
+
+    if args.list_companies:
+        cmd_list_companies(conn)
+        conn.close()
+        return
+
+    if args.enable_company or args.disable_company:
+        target = args.enable_company or args.disable_company
+        enabled = bool(args.enable_company)
+        updated = set_company_source_enabled(conn, target, enabled=enabled)
+        verb = "enabled" if enabled else "disabled"
+        if updated:
+            console.print(f"[green]Updated:[/green] {verb} '{target}'")
+        else:
+            console.print(f"[yellow]No company source matched '{target}'.[/yellow]")
+        conn.close()
+        return
+
+    if args.import_companies:
+        cmd_import_companies(conn, dry_run=args.dry_run)
+        conn.close()
+        return
+
+    # --enrich-backfill / --re-enrich-all: enrich jobs, then exit
+    if args.enrich_backfill or args.re_enrich_all:
+        force = args.re_enrich_all
+        jobs_to_enrich = load_unenriched_jobs(conn, force=force)
+        label = "Re-enrich all" if force else "Backfill"
         console.print(
-            f"[bold]Backfill:[/bold] {len(jobs_to_enrich)} job(s) to enrich in {db_label}"
+            f"[bold]{label}:[/bold] {len(jobs_to_enrich)} job(s) to enrich in {db_label}"
         )
         if not jobs_to_enrich:
             console.print("[dim]Nothing to enrich.[/dim]")
@@ -837,18 +951,15 @@ def main() -> None:
         return
 
     # Normal daily scrape flow
-    if args.config:
-        config_path = Path(args.config)
-    else:
-        config_path = Path.cwd() / "companies.yaml"
-
-    if not config_path.exists():
-        print(f"ERROR: Config file not found: {config_path}", file=sys.stderr)
+    companies = load_enabled_company_sources(conn)
+    if not companies:
+        console.print(
+            "[red]No enabled company sources found in DB.[/red] "
+            "Run --migrate-companies-from-yaml companies.yaml or add companies with add_company.py."
+        )
+        conn.close()
         sys.exit(1)
-
-    console.print(f"[bold]Loading companies from[/bold] {config_path}")
-
-    companies = load_companies(config_path)
+    console.print(f"[bold]Loaded {len(companies)} enabled company source(s) from DB[/bold]")
     ats_counts = {}
     for c in companies:
         ats_counts[c.get("ats_type", "unknown")] = ats_counts.get(c.get("ats_type", "unknown"), 0) + 1
@@ -875,7 +986,6 @@ def main() -> None:
 
     render_table(jobs, limit=args.limit)
 
-    conn = init_db(db_url, db_auth_token)
     new_count, updated_count, new_jobs = save_jobs(conn, jobs)
     console.print(
         f"\n[bold]Database:[/bold] {db_label}  "

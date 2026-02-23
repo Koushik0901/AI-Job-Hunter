@@ -938,3 +938,11 @@ companies:
     ats_type: greenhouse
     ats_url: https://boards-api.greenhouse.io/v1/boards/wavelo/jobs
     enabled: true
+  - name: BIS safety
+    ats_type: lever
+    ats_url: https://api.lever.co/v0/postings/bis
+    enabled: true
+  - name: sardine
+    ats_type: ashby
+    ats_url: https://jobs.ashbyhq.com/sardine
+    enabled: true

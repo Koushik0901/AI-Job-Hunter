@@ -21,6 +21,7 @@ uv run python src/scrape.py --no-enrich-llm        # skip LLM enrichment
 uv run python src/scrape.py --no-notify            # skip Telegram
 uv run python src/scrape.py --no-enrich            # skip description fetching (faster)
 uv run python src/scrape.py --enrich-backfill      # enrich all unenriched/failed jobs, then exit
+uv run python src/scrape.py --re-enrich-all        # re-enrich ALL jobs (overwrites existing), then exit
 uv run python src/scrape.py --check openai         # probe all 5 ATS platforms for a slug
 uv run python src/scrape.py --import-companies --dry-run  # preview companies to import
 uv run python src/scrape.py --import-companies     # fetch & append new companies to companies.yaml
@@ -194,24 +195,16 @@ Two tables in SQLite (local file or Turso libsql cloud):
 - `url` (PK), `company`, `title`, `location`, `posted`, `ats`, `description`, `first_seen`, `last_seen`
 
 **`job_enrichments` table** — LLM output:
-- Active columns (written by current `save_enrichment()`):
   `url` (FK), `work_mode`, `remote_geo`, `canada_eligible`, `seniority`, `role_family`,
   `years_exp_min`, `years_exp_max`, `required_skills`, `preferred_skills`,
   `salary_min`, `salary_max`, `salary_currency`, `visa_sponsorship`, `red_flags`,
   `enriched_at`, `enrichment_status`, `enrichment_model`
-- Legacy columns (created by `CREATE TABLE` but never populated by current code):
-  `must_have_skills`, `nice_to_have_skills`, `tech_stack` — these are V3/V4 schema leftovers,
-  always NULL in practice. The rename to `required_skills`/`preferred_skills` happened in V5.
 
 `canada_eligible` values: `"yes"` | `"no"` | `"unknown"` — LLM determines whether the job allows
 working from Canada based on the full description text.
 
 `enrichment_status` values: `"ok"` | `"failed"` | `"skipped"` | `NULL` (unenriched, picked up by backfill).
 `"skipped"` = job has no description text to enrich.
-
-**Schema drift note**: `init_db()` runs `CREATE TABLE IF NOT EXISTS` (creates legacy columns)
-then `ALTER TABLE ADD COLUMN` migrations to add `canada_eligible`, `required_skills`, `preferred_skills`.
-On a fresh DB, both sets of columns exist; only the new ones are ever written to.
 
 ## Eval framework (`eval/eval.py`)
 

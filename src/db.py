@@ -9,6 +9,15 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlparse
+
+_ATS_TYPES = frozenset({
+    "greenhouse",
+    "lever",
+    "ashby",
+    "workable",
+    "smartrecruiters",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +140,24 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
         )
     """)
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS company_sources (
+            id          INTEGER PRIMARY KEY,
+            name        TEXT NOT NULL,
+            ats_type    TEXT NOT NULL,
+            ats_url     TEXT NOT NULL,
+            slug        TEXT NOT NULL,
+            enabled     INTEGER NOT NULL DEFAULT 1,
+            source      TEXT,
+            created_at  TEXT NOT NULL,
+            updated_at  TEXT NOT NULL
+        )
+    """)
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_company_sources_url ON company_sources(ats_url)")
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_company_sources_ats_slug ON company_sources(ats_type, slug)"
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_company_sources_enabled ON company_sources(enabled)")
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS job_enrichments (
             url                  TEXT PRIMARY KEY REFERENCES jobs(url),
             work_mode            TEXT,
@@ -140,9 +167,8 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
             role_family          TEXT,
             years_exp_min        INTEGER,
             years_exp_max        INTEGER,
-            must_have_skills     TEXT,
-            nice_to_have_skills  TEXT,
-            tech_stack           TEXT,
+            required_skills      TEXT,
+            preferred_skills     TEXT,
             salary_min           INTEGER,
             salary_max           INTEGER,
             salary_currency      TEXT,
@@ -153,15 +179,129 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
             enrichment_model     TEXT
         )
     """)
-    # Migrations: add new columns to existing DBs (try/except — column may already exist)
-    for col in ("canada_eligible TEXT", "required_skills TEXT", "preferred_skills TEXT"):
-        try:
-            conn.execute(f"ALTER TABLE job_enrichments ADD COLUMN {col}")
-            conn.commit()
-        except Exception:
-            pass  # column already exists
     conn.commit()
     return conn
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def upsert_company_source(
+    conn: Any,
+    *,
+    name: str,
+    ats_type: str,
+    ats_url: str,
+    slug: str,
+    enabled: bool = True,
+    source: str = "manual",
+) -> None:
+    """Insert or update one company source row."""
+    ats = (ats_type or "").strip().lower()
+    if ats not in _ATS_TYPES:
+        raise ValueError(f"Unsupported ats_type: {ats_type}")
+    now = _utc_now_iso()
+    params = (name, ats, ats_url, slug, 1 if enabled else 0, source, now, now)
+    try:
+        conn.execute(
+            """
+            INSERT INTO company_sources (name, ats_type, ats_url, slug, enabled, source, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(ats_url) DO UPDATE SET
+                name=excluded.name,
+                ats_type=excluded.ats_type,
+                slug=excluded.slug,
+                enabled=excluded.enabled,
+                source=excluded.source,
+                updated_at=excluded.updated_at
+            """,
+            params,
+        )
+    except Exception:
+        conn.execute(
+            """
+            UPDATE company_sources
+            SET name=?, ats_url=?, enabled=?, source=?, updated_at=?
+            WHERE ats_type=? AND slug=?
+            """,
+            (name, ats_url, 1 if enabled else 0, source, now, ats, slug),
+        )
+    conn.commit()
+
+
+def list_company_sources(conn: Any, enabled_only: bool = False) -> list[dict[str, Any]]:
+    """List company sources, optionally filtering to enabled rows only."""
+    sql = """
+        SELECT id, name, ats_type, ats_url, slug, enabled, source, created_at, updated_at
+        FROM company_sources
+    """
+    if enabled_only:
+        sql += " WHERE enabled = 1"
+    sql += " ORDER BY ats_type, slug"
+    rows = conn.execute(sql).fetchall()
+    return [
+        {
+            "id": row[0],
+            "name": row[1],
+            "ats_type": row[2],
+            "ats_url": row[3],
+            "slug": row[4],
+            "enabled": bool(row[5]),
+            "source": row[6] or "",
+            "created_at": row[7],
+            "updated_at": row[8],
+        }
+        for row in rows
+    ]
+
+
+def load_enabled_company_sources(conn: Any) -> list[dict[str, Any]]:
+    """Return enabled company source rows in the scrape-friendly shape."""
+    rows = list_company_sources(conn, enabled_only=True)
+    return [
+        {
+            "name": row["name"],
+            "ats_type": row["ats_type"],
+            "ats_url": row["ats_url"],
+            "slug": row["slug"],
+            "enabled": True,
+        }
+        for row in rows
+    ]
+
+
+def set_company_source_enabled(conn: Any, slug_or_id: str, enabled: bool) -> int:
+    """Enable/disable one company source by integer id or slug."""
+    now = _utc_now_iso()
+    try:
+        row_id = int(slug_or_id)
+        conn.execute(
+            "UPDATE company_sources SET enabled=?, updated_at=? WHERE id=?",
+            (1 if enabled else 0, now, row_id),
+        )
+    except ValueError:
+        conn.execute(
+            "UPDATE company_sources SET enabled=?, updated_at=? WHERE lower(slug)=lower(?)",
+            (1 if enabled else 0, now, slug_or_id),
+        )
+    changed = conn.execute("SELECT changes()").fetchone()
+    conn.commit()
+    return int(changed[0]) if changed else 0
+
+
+def find_company_by_url_or_slug_segment(conn: Any, slug: str, ats_url: str) -> str | None:
+    """Return existing company name if URL exists or slug appears in URL path segments."""
+    candidates = list_company_sources(conn, enabled_only=False)
+    slug_l = (slug or "").strip().lower()
+    for row in candidates:
+        existing_url = row["ats_url"]
+        if existing_url == ats_url:
+            return row["name"]
+        path_parts = [p.lower() for p in urlparse(existing_url).path.strip("/").split("/") if p]
+        if slug_l and slug_l in path_parts:
+            return row["name"]
+    return None
 
 
 def save_jobs(
@@ -217,14 +357,25 @@ def save_jobs(
     return new_count, updated_count, new_jobs
 
 
-def load_unenriched_jobs(conn: Any) -> list[dict[str, Any]]:
-    """Return jobs that have never been enriched or whose last enrichment failed."""
-    rows = conn.execute("""
-        SELECT j.url, j.company, j.title, j.location, j.description
-        FROM jobs j
-        LEFT JOIN job_enrichments e ON j.url = e.url
-        WHERE e.url IS NULL OR e.enrichment_status != 'ok'
-    """).fetchall()
+def load_unenriched_jobs(conn: Any, force: bool = False) -> list[dict[str, Any]]:
+    """Return jobs to enrich.
+
+    force=False (default): only jobs never enriched or with a failed enrichment.
+    force=True: all jobs that have a description, regardless of existing enrichment status.
+    """
+    if force:
+        rows = conn.execute("""
+            SELECT url, company, title, location, description
+            FROM jobs
+            WHERE description IS NOT NULL AND description != ''
+        """).fetchall()
+    else:
+        rows = conn.execute("""
+            SELECT j.url, j.company, j.title, j.location, j.description
+            FROM jobs j
+            LEFT JOIN job_enrichments e ON j.url = e.url
+            WHERE e.url IS NULL OR e.enrichment_status != 'ok'
+        """).fetchall()
     return [
         {
             "url": row[0],
