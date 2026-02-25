@@ -24,14 +24,14 @@ Handling:
 
 - `add_company.py` suppresses `jobs == 0` results from add table.
 
-## 3) Prompt location split
+## 3) Prompt loading failures
 
-- Runtime prompt strings are in `src/enrich.py`.
-- `prompts.yaml` is reference only.
+- Runtime prompts are loaded from `prompts.yaml`.
+- Missing keys or invalid YAML can fail enrichment prompt construction.
 
 Risk:
 
-- Drift if one is edited and the other is not.
+- Enrichment calls fail fast until `prompts.yaml` is corrected.
 
 ## 4) Location filter is intentionally permissive for some remote roles
 

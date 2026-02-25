@@ -18,3 +18,4 @@ wheels/
 
 # Eval results (large JSON files, not tracked)
 eval/results/
+node_modules

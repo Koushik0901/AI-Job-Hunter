@@ -5,8 +5,16 @@ from pathlib import Path
 
 from rich.console import Console
 
-from db import init_db, load_enabled_company_sources, load_unenriched_jobs, save_jobs
+from db import (
+    get_candidate_profile,
+    init_db,
+    load_enabled_company_sources,
+    load_enrichments_for_urls,
+    load_unenriched_jobs,
+    save_jobs,
+)
 from enrich import run_enrichment_pipeline
+from match_score import compute_match_score
 from notify import notify_new_jobs
 from services.scrape_service import render_jobs_table, scrape_all
 
@@ -21,6 +29,7 @@ def register(subparsers) -> None:
     parser.add_argument("--no-enrich-llm", action="store_true", help="Skip LLM enrichment")
     parser.add_argument("--enrich-backfill", action="store_true", help="Enrich unenriched/failed jobs in DB and exit")
     parser.add_argument("--re-enrich-all", action="store_true", help="Re-enrich all jobs with descriptions and exit")
+    parser.add_argument("--sort-by", choices=("match", "posted"), default="match", help="Display ordering for scraped jobs")
 
 
 def _resolve_db():
@@ -41,6 +50,7 @@ def run(args) -> None:
 
     openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
     openrouter_model = os.getenv("ENRICHMENT_MODEL", "openai/gpt-oss-120b")
+    description_format_model = os.getenv("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-20b:paid")
 
     if args.enrich_backfill or args.re_enrich_all:
         force = args.re_enrich_all
@@ -52,7 +62,14 @@ def run(args) -> None:
         elif not openrouter_api_key:
             console.print("[yellow]OPENROUTER_API_KEY not set - cannot enrich.[/yellow]")
         else:
-            run_enrichment_pipeline(jobs_to_enrich, conn, openrouter_api_key, openrouter_model, console)
+            run_enrichment_pipeline(
+                jobs_to_enrich,
+                conn,
+                openrouter_api_key,
+                openrouter_model,
+                description_format_model,
+                console,
+            )
         conn.close()
         return
 
@@ -79,6 +96,19 @@ def run(args) -> None:
         enrich=not args.no_enrich,
     )
 
+    profile = get_candidate_profile(conn)
+    url_to_enrichment = load_enrichments_for_urls(conn, [j.get("url", "") for j in jobs if j.get("url")])
+    for job in jobs:
+        job_enrichment = url_to_enrichment.get(job.get("url", ""), {})
+        match = compute_match_score({"title": job.get("title", ""), "enrichment": job_enrichment}, profile)
+        job["match_score"] = match["score"]
+        job["match_band"] = match["band"]
+
+    if args.sort_by == "match":
+        jobs.sort(key=lambda j: int(j.get("match_score", 0)), reverse=True)
+    else:
+        jobs.sort(key=lambda j: j.get("posted") or "", reverse=True)
+
     console.print(f"\n[bold green]Done.[/bold green] Found {len(jobs)} matching jobs.\n")
     if not jobs:
         console.print("[yellow]No jobs matched the filters.[/yellow]")
@@ -102,6 +132,13 @@ def run(args) -> None:
         console.print("[dim]No new jobs - no Telegram notification sent.[/dim]")
 
     if new_jobs and not args.no_enrich_llm and openrouter_api_key:
-        run_enrichment_pipeline(new_jobs, conn, openrouter_api_key, openrouter_model, console)
+        run_enrichment_pipeline(
+            new_jobs,
+            conn,
+            openrouter_api_key,
+            openrouter_model,
+            description_format_model,
+            console,
+        )
 
     conn.close()

@@ -5,12 +5,15 @@ description = "Daily ML/AI/Data Science job scraper with SQLite storage and Tele
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.117.1",
     "langchain-openai>=0.3.0",
     "matplotlib>=3.10.8",
     "numpy>=2.4.2",
     "pandas>=3.0.1",
     "pyyaml>=6.0.3",
+    "redis>=5.2.1",
     "requests>=2.32.5",
     "rich>=14.3.2",
     "seaborn>=0.13.2",
+    "uvicorn>=0.36.0",
 ]

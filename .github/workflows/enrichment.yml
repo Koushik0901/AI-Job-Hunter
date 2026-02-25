@@ -1,0 +1,38 @@
+name: Job Enrichment
+
+on:
+  schedule:
+    - cron: "30 17 * * *" # 30 minutes after scrape
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Enrichment mode"
+        required: true
+        default: "backfill"
+        type: choice
+        options:
+          - backfill
+          - re_enrich_all
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Run enrichment
+        env:
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ENRICHMENT_MODEL: ${{ secrets.ENRICHMENT_MODEL }}
+          DESCRIPTION_FORMAT_MODEL: ${{ secrets.DESCRIPTION_FORMAT_MODEL }}
+        run: |
+          if [ "${{ github.event.inputs.mode || 'backfill' }}" = "re_enrich_all" ]; then
+            uv run python src/cli.py scrape --re-enrich-all
+          else
+            uv run python src/cli.py scrape --enrich-backfill
+          fi

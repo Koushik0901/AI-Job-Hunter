@@ -6,7 +6,7 @@ on:
   workflow_dispatch:       # allows manual trigger from the GitHub Actions UI
 
 jobs:
-  scrape:
+  scrape_only:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -15,11 +15,10 @@ jobs:
 
       - uses: astral-sh/setup-uv@v5
 
-      - name: Run scraper
+      - name: Run scraper (no LLM enrichment)
         env:
           TURSO_URL: ${{ secrets.TURSO_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: uv run python src/cli.py scrape
+        run: uv run python src/cli.py scrape --no-enrich-llm

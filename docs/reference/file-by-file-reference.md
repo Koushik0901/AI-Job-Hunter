@@ -12,7 +12,12 @@ This page summarizes tracked project files and their runtime roles.
 ### `.github/workflows/daily_scrape.yml`
 
 - Scheduled/manual CI execution of daily scraper.
-- Runs `uv run python src/cli.py scrape`.
+- Runs `uv run python src/cli.py scrape --no-enrich-llm`.
+
+### `.github/workflows/enrichment.yml`
+
+- Scheduled/manual CI execution of enrichment pipeline.
+- Runs `uv run python src/cli.py scrape --enrich-backfill` (or manual `--re-enrich-all`).
 
 ### `.gitignore`
 
@@ -37,8 +42,8 @@ This page summarizes tracked project files and their runtime roles.
 
 ### `prompts.yaml`
 
-- Reference copy of enrichment prompt text.
-- Runtime prompt source remains `src/enrich.py`.
+- Runtime source of truth for enrichment and description-format prompts.
+- Loaded directly by `src/enrich.py`.
 
 ### `pyproject.toml`
 
@@ -103,6 +108,47 @@ This page summarizes tracked project files and their runtime roles.
 
 - Pydantic schema + OpenRouter/LangChain enrichment pipeline.
 - Rate-limit stop/resume semantics.
+
+### `src/match_score.py`
+
+- Deterministic profile-based job fit scoring rubric.
+- Shared by dashboard API and CLI scrape rendering.
+
+### `src/dashboard/backend/main.py`
+
+- FastAPI app and dashboard REST endpoints.
+
+### `src/dashboard/backend/repository.py`
+
+- Dashboard data-access layer for jobs/tracking/events/stats/profile.
+- Joins and maps `job_enrichments` into detail response payload.
+- Computes `match` payload from `candidate_profile` + job data.
+
+### `src/dashboard/backend/schemas.py`
+
+- Pydantic request/response contracts for dashboard API.
+- Includes nested job enrichment model under `JobDetail.enrichment`.
+- Includes `CandidateProfile` and `JobMatchScore` contracts.
+
+### `src/dashboard/backend/service.py`
+
+- URL decoding and patch normalization helpers.
+
+### `src/dashboard/frontend/*`
+
+- React/Vite dashboard app (route-based Board + Profile pages, dual-theme UI).
+- Includes `framer-motion` animations for board and drawer transitions.
+- Key component responsibilities:
+  - `App.tsx`: route registration and theme persistence.
+  - `components/layout/AppShell.tsx`: shared app shell and top navigation tabs (`Board`, `Profile`).
+  - `pages/BoardPage.tsx`: board orchestration, data fetches, status patching, drawer interaction.
+  - `pages/ProfilePage.tsx`: profile load/edit/save workflow with manual save and dirty-state UX.
+  - `components/KanbanColumn.tsx`: status column drop zone + card list frame.
+  - `components/JobCard.tsx`: draggable job summary card.
+  - `components/DetailDrawer.tsx`: detail panel with tracking edits, enrichment, timeline.
+  - `components/ThemeToggle.tsx`: dark/light switch.
+  - `components/reactbits/SpotlightSurface.tsx`: pointer-reactive spotlight wrapper.
+  - `components/reactbits/ShimmerTag.tsx`: animated metadata/skill chip.
 
 ## Eval (`eval/`)
 

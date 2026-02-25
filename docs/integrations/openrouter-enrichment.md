@@ -7,6 +7,9 @@ Implemented in `src/enrich.py`.
 - LangChain `ChatOpenAI`
 - Pydantic `JobEnrichment`
 - OpenRouter base URL: `https://openrouter.ai/api/v1`
+- Two-model setup:
+  - `ENRICHMENT_MODEL` for structured extraction
+  - `DESCRIPTION_FORMAT_MODEL` for low-cost description formatting
 
 ## Structured output contract
 
@@ -14,11 +17,18 @@ Implemented in `src/enrich.py`.
 
 Validators coerce invalid model outputs into safe defaults for key enum/list fields.
 
+Persisted row includes:
+
+- extracted structured fields
+- `formatted_description` (nullable plain text)
+
 ## Output status values
 
 - `ok`: valid extraction persisted
 - `failed`: extraction call failed (non-rate-limit)
 - `skipped`: no description text
+
+Formatting failures do **not** flip extraction status to `failed`; enrichment remains `ok` with `formatted_description = null`.
 
 ## Provider-aware rate-limit handling
 
@@ -42,9 +52,20 @@ When a `RateLimitSignal` is hit:
 - does not persist cancelled rows
 - prints resume command using `--enrich-backfill`
 
+## Description formatting pass
+
+After successful structured extraction, a second LLM call rewrites the raw description into cleaner plain text for UI rendering.
+
+Rules:
+
+- preserve all factual content
+- no hallucinations
+- no markdown fences/HTML
+- best-effort only (nullable fallback)
+
 ## Prompt source of truth
 
-- Runtime prompt strings: `src/enrich.py`
-- `prompts.yaml` is a reference copy only
+- Runtime prompt source: `prompts.yaml`
+- Runtime loader: `src/enrich.py` (`_load_prompts`)
 
-When updating prompts, keep both synchronized.
+When updating prompts, edit `prompts.yaml` only.

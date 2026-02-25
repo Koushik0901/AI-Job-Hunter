@@ -15,7 +15,11 @@ def register(subparsers) -> None:
 
     p_stat = sub.add_parser("set-status", help="Set application status for one job URL")
     p_stat.add_argument("--url", required=True)
-    p_stat.add_argument("--status", required=True, choices=["applied", "interviewing", "offer", "rejected", "withdrawn", "not_applied"])
+    p_stat.add_argument(
+        "--status",
+        required=True,
+        choices=["not_applied", "staging", "applied", "interviewing", "offer", "rejected"],
+    )
 
     p_prune = sub.add_parser("prune", help="Prune old not-applied jobs")
     p_prune.add_argument("--days", type=int, default=28)

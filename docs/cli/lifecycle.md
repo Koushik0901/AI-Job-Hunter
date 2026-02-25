@@ -18,12 +18,12 @@ uv run python src/cli.py lifecycle set-status --url <job_url> --status <status>
 
 Allowed status values:
 
+- `not_applied`
+- `staging`
 - `applied`
 - `interviewing`
 - `offer`
 - `rejected`
-- `withdrawn`
-- `not_applied`
 
 Writes `jobs.application_status` for the matching URL.
 
@@ -46,6 +46,7 @@ Pruning criteria in `db.py`:
 
 Protected statuses:
 
+- `staging`
 - `applied`
 - `interviewing`
 - `offer`

@@ -16,17 +16,23 @@ uv run python src/cli.py scrape [options]
 - `--no-enrich-llm`: skip OpenRouter enrichment stage
 - `--enrich-backfill`: enrich jobs missing successful enrichment and exit
 - `--re-enrich-all`: force enrich all jobs with descriptions and exit
+- `--sort-by {match|posted}`: display ordering (default: `match`)
 
 ## Mode behavior
 
 ### Normal scrape mode
 
-Runs full pipeline and writes jobs to DB.
+Runs scraping pipeline and writes jobs to DB.
+
+In automation, scrape workflow runs with `--no-enrich-llm` and enrichment is handled by a separate workflow.
 
 ### Enrichment-only modes
 
 - `--enrich-backfill`: picks rows where enrichment missing or non-`ok`.
 - `--re-enrich-all`: picks all jobs with non-empty descriptions.
+- Enrichment includes:
+  - structured extraction (`ENRICHMENT_MODEL`)
+  - best-effort description formatting (`DESCRIPTION_FORMAT_MODEL`)
 
 ### Source registry precondition
 
@@ -39,7 +45,15 @@ Runs full pipeline and writes jobs to DB.
 
 ### Title filter
 
-Include list (`TITLE_INCLUDE`) and exclusion list (`TITLE_EXCLUDE`) are case-insensitive substring checks.
+Include list (`TITLE_INCLUDE`) and exclusion list (`TITLE_EXCLUDE`) are case-insensitive checks.
+Additionally, senior-level markers are excluded by default (`senior`, `sr`, `staff`, `principal`, `lead`).
+
+### Match scoring
+
+- Table includes a `Match` column (`0-100`).
+- Scores are computed from your profile (`candidate_profile`) and enrichment/title signals.
+- `--sort-by match` ranks highest-fit jobs first.
+- Rubric details: [`../dashboard/match-scoring.md`](../dashboard/match-scoring.md).
 
 ### Location filter
 

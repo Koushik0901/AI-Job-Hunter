@@ -53,6 +53,14 @@ TITLE_EXCLUDE = [
     "principal staff",
 ]
 
+SENIORITY_EXCLUDE_PATTERNS = [
+    r"\bsenior\b",
+    r"\bsr\.?\b",
+    r"\bstaff\b",
+    r"\bprincipal\b",
+    r"\blead\b",
+]
+
 _CA_PROVINCES = [
     "ontario", "british columbia", "alberta", "quebec", "nova scotia",
     "new brunswick", "prince edward island", "newfoundland", "labrador",
@@ -85,7 +93,13 @@ def safe_text(value: Any) -> str:
 
 def passes_title_filter(title: str) -> bool:
     t = title.lower()
-    return any(kw in t for kw in TITLE_INCLUDE) and not any(kw in t for kw in TITLE_EXCLUDE)
+    if not any(kw in t for kw in TITLE_INCLUDE):
+        return False
+    if any(kw in t for kw in TITLE_EXCLUDE):
+        return False
+    if any(re.search(pattern, t) for pattern in SENIORITY_EXCLUDE_PATTERNS):
+        return False
+    return True
 
 
 def passes_location_filter(location: str) -> bool:
@@ -233,6 +247,7 @@ def render_jobs_table(jobs: list[dict[str, Any]], limit: int) -> None:
     table.add_column("Title", style="cyan", min_width=25, max_width=45)
     table.add_column("Location", min_width=14, max_width=28)
     table.add_column("Posted", min_width=10, max_width=10, no_wrap=True)
+    table.add_column("Match", min_width=7, max_width=9, no_wrap=True)
     table.add_column("URL", min_width=20, max_width=60, no_wrap=True)
 
     for job in displayed:
@@ -243,6 +258,7 @@ def render_jobs_table(jobs: list[dict[str, Any]], limit: int) -> None:
             safe_text(job.get("title", "")),
             safe_text(job.get("location", "")),
             job.get("posted", "")[:10],
+            str(job.get("match_score", "-")),
             safe_text(display_url),
         )
 

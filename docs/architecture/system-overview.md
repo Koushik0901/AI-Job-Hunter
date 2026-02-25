@@ -12,8 +12,11 @@
 - `src/fetchers.py`: ATS/HN ingestion, normalizers, description retrieval.
 - `src/db.py`: SQLite/Turso persistence and schema migrations.
 - `src/enrich.py`: OpenRouter + LangChain + Pydantic extraction pipeline.
+- `src/match_score.py`: deterministic job-to-profile scoring rubric implementation.
 - `src/notify.py`: dotenv loader and Telegram send pipeline.
 - `src/add_company.py`: interactive/non-interactive ATS discovery + DB source upsert.
+- `src/dashboard/backend/*`: FastAPI API layer for tracker dashboard.
+- `src/dashboard/frontend/*`: React/Vite dashboard UI (kanban + detail drawer + dual-theme UX).
 - `eval/eval.py`: model evaluation framework over crawled dataset.
 
 ## CLI architecture
@@ -39,7 +42,8 @@ Supported commands:
 5. Persist jobs and classify new vs updated.
 6. Notify Telegram for new jobs.
 7. Enrich new or backfilled jobs into structured metadata.
-8. Maintain source registry and lifecycle state in DB.
+8. Compute profile-based job match score and ranking.
+9. Maintain source registry, lifecycle state, and candidate profile in DB.
 
 ## Shared job record shape
 
@@ -64,5 +68,5 @@ Fetcher-specific transient keys (prefixed `_`) are injected to support second-st
 
 ## Non-goals
 
-- No web app/UI surface; CLI and scheduled jobs only.
+- Dashboard is intentionally scoped to tracking/review workflows, not scrape orchestration controls.
 - No backward compatibility shim for removed `src/scrape.py` legacy entrypoint.

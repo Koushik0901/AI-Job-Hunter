@@ -14,11 +14,14 @@ import time
 import warnings
 from concurrent.futures import CancelledError, ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Literal, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field, field_validator
+import yaml
 
 # LangChain attaches a `parsed` field to raw response objects for internal bookkeeping;
 # Pydantic complains it doesn't match the schema. The warning is cosmetic — data is correct.
@@ -33,110 +36,33 @@ from db import save_enrichment
 logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+_PROMPTS_FILE = Path(__file__).resolve().parent.parent / "prompts.yaml"
 
-_SYSTEM_PROMPT = (
-    "You are a structured data extraction engine for job postings. "
-    "Output exactly one JSON object — starting with { and ending with }. "
-    "Zero text, markdown fences, or explanation before or after the JSON. "
-    "Extract only facts explicitly stated. Never invent information. "
-    "Use null for any missing scalar field. Use [] for any missing list field."
-)
 
-_SCHEMA_DESCRIPTION = """\
-===OUTPUT SCHEMA===
-Output ONLY the following JSON object — exactly these 13 keys, no extra keys, no markdown fences, no text before or after:
-{
-  "work_mode":        "remote" | "hybrid" | "onsite" | null,
-  "remote_geo":       string or null,
-  "canada_eligible":  "yes" | "no" | "unknown",
-  "seniority":        "intern" | "junior" | "mid" | "senior" | "staff" | "principal" | null,
-  "role_family":      "data scientist" | "ml engineer" | "mlops engineer" | "data engineer" | "research scientist" | "analyst" | "other",
-  "years_exp_min":    integer or null,
-  "years_exp_max":    integer or null,
-  "required_skills":  ["string", ...],
-  "preferred_skills": ["string", ...],
-  "salary_min":       integer or null,
-  "salary_max":       integer or null,
-  "salary_currency":  "CAD" | "USD" | null,
-  "visa_sponsorship": "yes" | "no" | "unknown",
-  "red_flags":        ["string", ...]
-}
-===END SCHEMA===
+@lru_cache(maxsize=1)
+def _load_prompts() -> dict[str, Any]:
+    data = yaml.safe_load(_PROMPTS_FILE.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):
+        raise ValueError("prompts.yaml must contain a top-level mapping")
+    return data
 
-FIELD RULES
 
-canada_eligible — can the candidate work from Canada?
-  "yes"     → remote (worldwide / North America / Canada mentioned), or Canadian office
-              e.g. "Remote — North America" → "yes" | "Toronto, ON" → "yes" | "Remote, Canada OK" → "yes"
-  "no"      → US work authorization required, US citizenship/residency required, or US-only office
-              e.g. "must be authorized to work in the US" → "no" | "Remote — United States only" → "no"
-  "unknown" → work location / authorization requirements not mentioned
+def _prompt_template(section: str, key: str) -> str:
+    prompts = _load_prompts()
+    node = prompts.get(section, {})
+    if not isinstance(node, dict) or key not in node:
+        raise KeyError(f"Missing prompt '{section}.{key}' in prompts.yaml")
+    value = node[key]
+    if not isinstance(value, str):
+        raise TypeError(f"Prompt '{section}.{key}' must be a string")
+    return value
 
-years_exp — integers only, examples:
-  "3+ years experience"   → min=3, max=null
-  "3 to 5 years"          → min=3, max=5
-  "up to 2 years"         → min=null, max=2
 
-salary — always FULL DOLLAR AMOUNTS (not abbreviated):
-  "$150k–$200k"           → min=150000, max=200000, currency="USD"
-  "$120,000 CAD annually" → min=120000, max=null,   currency="CAD"
-  Not mentioned           → min=null, max=null, currency=null
-
-required_skills — ALL skills/tools/languages/certifications listed as required.
-  Sections: "Requirements", "Qualifications", "Must Have", "Basic Qualifications", "You Will Need"
-  Include: languages, frameworks, tools, degrees, certifications, methodologies.
-
-preferred_skills — skills listed as optional/desirable.
-  Sections: "Nice to Have", "Preferred", "Bonus", "Plus", "Preferred Qualifications"
-  If no such section exists → []
-
-red_flags — copy word-for-word (do NOT paraphrase) phrases signalling Canada-ineligibility:
-  e.g. "must be authorized to work in the US", "US citizenship required",
-       "does not offer visa sponsorship", "security clearance required"
-  If none → []
-
-visa_sponsorship:
-  "yes"     → sponsorship explicitly offered
-  "no"      → explicitly declined ("does not sponsor", "cannot sponsor", "no sponsorship")
-  "unknown" → not mentioned
-
-role_family — pick the single closest match:
-  "data scientist"      → statistical modelling, ML experiments, predictions
-  "ml engineer"         → building / deploying ML models and ML systems
-  "mlops engineer"      → ML infrastructure, pipelines, model serving
-  "data engineer"       → ETL, data pipelines, data warehousing
-  "research scientist"  → academic-style research, novel algorithms, publications
-  "analyst"             → BI dashboards, SQL analysis, business reporting
-  "other"               → none of the above applies
-
-===ONE-SHOT EXAMPLE (reference only — do NOT extract this posting)===
-
-Posting:
-  ML Engineer II — Remote (United States Only) | Acme AI
-  Requirements: Bachelor's in CS or equivalent; 3-5 years Python; PyTorch or TensorFlow; REST APIs.
-  Nice to Have: Kubernetes, MLflow.
-  Compensation: $140,000-$180,000 USD/year.
-  Candidates must be authorized to work in the United States. We do not offer visa sponsorship.
-
-Expected output:
-  {
-    "work_mode": "remote",
-    "remote_geo": "United States only",
-    "canada_eligible": "no",
-    "seniority": "mid",
-    "role_family": "ml engineer",
-    "years_exp_min": 3,
-    "years_exp_max": 5,
-    "required_skills": ["Bachelor's in CS or equivalent", "Python", "PyTorch", "TensorFlow", "REST APIs"],
-    "preferred_skills": ["Kubernetes", "MLflow"],
-    "salary_min": 140000,
-    "salary_max": 180000,
-    "salary_currency": "USD",
-    "visa_sponsorship": "no",
-    "red_flags": ["must be authorized to work in the United States", "We do not offer visa sponsorship"]
-  }
-
-===END EXAMPLE==="""
+def _render_template(template: str, variables: dict[str, str]) -> str:
+    rendered = template
+    for key, value in variables.items():
+        rendered = rendered.replace(f"{{{key}}}", value)
+    return rendered
 
 
 
@@ -184,17 +110,29 @@ class JobEnrichment(BaseModel):
     years_exp_max: Optional[int] = Field(
         default=None, description="Maximum years of experience mentioned (integer). '3-5 years' → 5. Null if open-ended or not stated."
     )
+    minimum_degree: Optional[Literal["high_school", "associate", "bachelor", "master", "phd"]] = Field(
+        default=None,
+        description=(
+            "Lowest required degree explicitly stated in the posting. "
+            "Map to one of: high_school, associate, bachelor, master, phd. "
+            "Null if no explicit minimum degree requirement is stated."
+        ),
+    )
     required_skills: list[str] = Field(
         default_factory=list,
         description=(
-            "ALL skills, tools, languages, frameworks, degrees, and certifications listed as required or mandatory. "
-            "Look in sections labelled: Requirements, Qualifications, Must Have, Basic Qualifications, You Will Need."
+            "Exhaustive list of ALL explicitly required or expected-to-use skills, tools, languages, frameworks, "
+            "libraries, cloud/data/ML tools, databases, APIs/protocols, and certifications. "
+            "Use full-posting scan, not just one section. "
+            "Look in sections labelled: Requirements, Qualifications, Must Have, Basic Qualifications, You Will Need, "
+            "and explicit stack usage under Responsibilities/Role Overview. "
+            "Do NOT include degree requirements here; degree goes to minimum_degree."
         ),
     )
     preferred_skills: list[str] = Field(
         default_factory=list,
         description=(
-            "Skills listed as optional or desirable. "
+            "Exhaustive list of skills/tools explicitly marked optional, desirable, bonus, or preferred. "
             "Look in sections labelled: Nice to Have, Preferred, Bonus, Plus, Preferred Qualifications. "
             "Return empty list [] if no such section exists."
         ),
@@ -258,6 +196,12 @@ class JobEnrichment(BaseModel):
     def _coerce_salary_currency(cls, v):
         return v if v in ("CAD", "USD") else None
 
+    @field_validator("minimum_degree", mode="before")
+    @classmethod
+    def _coerce_minimum_degree(cls, v):
+        allowed = ("high_school", "associate", "bachelor", "master", "phd")
+        return v if v in allowed else None
+
 
 # ---------------------------------------------------------------------------
 # Prompt builder (also used by eval.py for token estimation)
@@ -268,15 +212,29 @@ def build_enrichment_prompt(job: dict[str, Any]) -> str:
     description = (job.get("description") or "").strip()
     title = job.get("title", "")
     company = job.get("company", "")
-    return (
-        f"Extract structured metadata from the job posting below.\n\n"
-        f"TITLE:    {title}\n"
-        f"COMPANY:  {company}\n"
-        f"LOCATION: {job.get('location', '')}\n\n"
-        f"DESCRIPTION:\n{description}\n\n"
-        f"{_SCHEMA_DESCRIPTION}\n\n"
-        f"Now extract the JSON for the posting above (TITLE: {title} / COMPANY: {company}).\n"
-        f"Your response must start with {{ and end with }}. No markdown fences. No explanation."
+    template = _prompt_template("enrichment", "user")
+    return _render_template(
+        template,
+        {
+            "title": str(title),
+            "company": str(company),
+            "location": str(job.get("location", "")),
+            "description": str(description),
+        },
+    )
+
+
+def build_description_format_prompt(job: dict[str, Any]) -> str:
+    """Build prompt for low-cost UI-focused description formatting."""
+    template = _prompt_template("description_format", "user")
+    return _render_template(
+        template,
+        {
+            "title": str(job.get("title", "")),
+            "company": str(job.get("company", "")),
+            "location": str(job.get("location", "")),
+            "description": str((job.get("description") or "").strip()),
+        },
     )
 
 
@@ -366,6 +324,18 @@ def _make_chain(
     return llm.with_structured_output(JobEnrichment)
 
 
+def _make_text_llm(
+    api_key: str,
+    model: str,
+):
+    return ChatOpenAI(
+        model=model,
+        api_key=api_key,
+        base_url=_OPENROUTER_BASE_URL,
+        temperature=0,
+    )
+
+
 def _enrichment_to_dict(enrichment: JobEnrichment, url: str, model: str, now: str) -> dict[str, Any]:
     """Convert a validated JobEnrichment to a flat dict ready for DB storage."""
     result = enrichment.model_dump()
@@ -380,6 +350,31 @@ def _enrichment_to_dict(enrichment: JobEnrichment, url: str, model: str, now: st
     return result
 
 
+def _clean_formatted_description(raw: Any) -> str | None:
+    text = str(raw or "").replace("\r\n", "\n").strip()
+    if not text:
+        return None
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text
+
+
+def format_description_with_llm(
+    job: dict[str, Any],
+    api_key: str,
+    model: str,
+) -> str | None:
+    """Format one description for cleaner UI rendering. Best effort only."""
+    if not (job.get("description") or "").strip():
+        return None
+    llm = _make_text_llm(api_key, model)
+    messages = [
+        SystemMessage(content=_prompt_template("description_format", "system")),
+        HumanMessage(content=build_description_format_prompt(job)),
+    ]
+    response = llm.invoke(messages)
+    return _clean_formatted_description(getattr(response, "content", ""))
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -388,6 +383,7 @@ def enrich_one_job(
     job: dict[str, Any],
     api_key: str,
     model: str,
+    format_model: str,
     stop_event: threading.Event | None = None,
     provider_order: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -417,7 +413,7 @@ def enrich_one_job(
         }
 
     messages = [
-        SystemMessage(content=_SYSTEM_PROMPT),
+        SystemMessage(content=_prompt_template("enrichment", "system")),
         HumanMessage(content=build_enrichment_prompt(job)),
     ]
     ignored_providers: list[str] = []
@@ -435,7 +431,13 @@ def enrich_one_job(
         )
         try:
             enrichment: JobEnrichment = _invoke_once(chain, messages)
-            return _enrichment_to_dict(enrichment, url, model, now)
+            result = _enrichment_to_dict(enrichment, url, model, now)
+            try:
+                result["formatted_description"] = format_description_with_llm(job, api_key, format_model)
+            except Exception as format_error:
+                logger.warning("Description formatting failed for %s: %s", url, format_error)
+                result["formatted_description"] = None
+            return result
         except Exception as e:
             if not _is_rate_limit(e):
                 logger.error("Enrichment failed for %s: %s", url, e)
@@ -473,6 +475,7 @@ def run_enrichment_pipeline(
     conn: Any,
     api_key: str,
     model: str,
+    format_model: str,
     console: Any,
 ) -> None:
     """Enrich jobs concurrently via OpenRouter, saving each result to DB.
@@ -491,7 +494,7 @@ def run_enrichment_pipeline(
 
     with ThreadPoolExecutor(max_workers=5) as executor:
         futures = {
-            executor.submit(enrich_one_job, job, api_key, model, stop_event): job
+            executor.submit(enrich_one_job, job, api_key, model, format_model, stop_event): job
             for job in jobs
         }
         for future in as_completed(futures):

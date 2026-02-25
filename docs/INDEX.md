@@ -43,6 +43,13 @@ This documentation is organized by task and maps to the current DB-backed CLI ar
 
 - Eval framework model comparison details: [`evaluation/eval-framework.md`](evaluation/eval-framework.md)
 
+## Dashboard
+
+- Dashboard overview and run guide: [`dashboard/overview.md`](dashboard/overview.md)
+- Backend API reference: [`dashboard/backend-api.md`](dashboard/backend-api.md)
+- Frontend UI behavior and interaction model: [`dashboard/frontend-ui.md`](dashboard/frontend-ui.md)
+- Match scoring rubric: [`dashboard/match-scoring.md`](dashboard/match-scoring.md)
+
 ## Reference
 
 - File-by-file technical reference: [`reference/file-by-file-reference.md`](reference/file-by-file-reference.md)

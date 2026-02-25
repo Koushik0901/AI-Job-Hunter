@@ -2,9 +2,12 @@
 
 ## GitHub Actions
 
-Workflow file: `.github/workflows/daily_scrape.yml`
+Workflow files:
 
-Current configuration:
+- `.github/workflows/daily_scrape.yml`
+- `.github/workflows/enrichment.yml`
+
+### `daily_scrape.yml` (scrape-only)
 
 - Name: `Daily Job Scrape`
 - Trigger:
@@ -12,7 +15,7 @@ Current configuration:
   - manual `workflow_dispatch`
 - Runner: `ubuntu-latest`
 - Timeout: `30` minutes
-- Run command: `uv run python src/cli.py scrape`
+- Run command: `uv run python src/cli.py scrape --no-enrich-llm`
 
 Required secrets:
 
@@ -20,7 +23,28 @@ Required secrets:
 - `TURSO_AUTH_TOKEN`
 - `TELEGRAM_TOKEN`
 - `TELEGRAM_CHAT_ID`
+
+### `enrichment.yml` (enrichment + formatting)
+
+- Name: `Job Enrichment`
+- Trigger:
+  - scheduled cron `30 17 * * *`
+  - manual `workflow_dispatch` with mode:
+    - `backfill`
+    - `re_enrich_all`
+- Runner: `ubuntu-latest`
+- Timeout: `30` minutes
+- Run command:
+  - `uv run python src/cli.py scrape --enrich-backfill`
+  - or `uv run python src/cli.py scrape --re-enrich-all` (manual mode)
+
+Required secrets:
+
+- `TURSO_URL`
+- `TURSO_AUTH_TOKEN`
 - `OPENROUTER_API_KEY`
+- `ENRICHMENT_MODEL`
+- `DESCRIPTION_FORMAT_MODEL`
 
 ## Windows Task Scheduler
 

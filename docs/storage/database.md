@@ -26,12 +26,12 @@ Persistence is implemented in `src/db.py`.
 
 `application_status` allowed values from lifecycle command:
 
+- `not_applied`
+- `staging`
 - `applied`
 - `interviewing`
 - `offer`
 - `rejected`
-- `withdrawn`
-- `not_applied`
 
 ### `company_sources`
 
@@ -61,8 +61,10 @@ Indexes:
 - `role_family`
 - `years_exp_min`
 - `years_exp_max`
+- `minimum_degree`
 - `required_skills` (JSON string)
 - `preferred_skills` (JSON string)
+- `formatted_description` (plain text, nullable, UI-ready)
 - `salary_min`
 - `salary_max`
 - `salary_currency`
@@ -71,6 +73,17 @@ Indexes:
 - `enriched_at`
 - `enrichment_status`
 - `enrichment_model`
+
+### `candidate_profile`
+
+- `id` INTEGER PRIMARY KEY (singleton row `1`)
+- `years_experience` INTEGER
+- `skills` (JSON string)
+- `target_role_families` (JSON string)
+- `requires_visa_sponsorship` INTEGER (`0/1`)
+- `updated_at`
+
+Used by `src/match_score.py` to compute dashboard/CLI job-fit scoring.
 
 ## Upsert logic
 
@@ -83,6 +96,11 @@ Indexes:
 
 - uses `INSERT OR REPLACE`
 - writes one full enrichment row per URL
+
+`get_candidate_profile()` / `upsert_candidate_profile()`:
+
+- read/write singleton profile row (`id=1`) used for scoring
+- normalize JSON arrays for `skills` and `target_role_families`
 
 `upsert_company_source()`:
 
@@ -107,7 +125,7 @@ Indexes:
 - filters rows where:
   - `application_status` is null/empty/`not_applied`
   - `posted` exists and SQLite `date(posted)` is <= `date('now', -days)`
-  - status is not in protected set (`applied`, `interviewing`, `offer`, `rejected`, `withdrawn`)
+  - status is not in protected set (`staging`, `applied`, `interviewing`, `offer`, `rejected`, `withdrawn`)
 - dry-run returns count only
 - apply mode deletes rows and returns deleted count
 

@@ -1,0 +1,274 @@
+[
+  {
+    "name": "App.jsx",
+    "path": "src/App.jsx",
+    "sha": "889dfb6a62d16af93f95998d38c477bd6aba96d1",
+    "size": 2257,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/App.jsx?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/blob/main/src/App.jsx",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/blobs/889dfb6a62d16af93f95998d38c477bd6aba96d1",
+    "download_url": "https://raw.githubusercontent.com/epodak/reactbits/main/src/App.jsx",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/App.jsx?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/blobs/889dfb6a62d16af93f95998d38c477bd6aba96d1",
+      "html": "https://github.com/epodak/reactbits/blob/main/src/App.jsx"
+    }
+  },
+  {
+    "name": "assets",
+    "path": "src/assets",
+    "sha": "ecb71026f909c50be5ce02cfab1b5da3e6587e04",
+    "size": 0,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/assets?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/tree/main/src/assets",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/trees/ecb71026f909c50be5ce02cfab1b5da3e6587e04",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/assets?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/trees/ecb71026f909c50be5ce02cfab1b5da3e6587e04",
+      "html": "https://github.com/epodak/reactbits/tree/main/src/assets"
+    }
+  },
+  {
+    "name": "components",
+    "path": "src/components",
+    "sha": "98f1e0b83ce5c0a177a9d85b7203c83eed9173b4",
+    "size": 0,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/components?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/tree/main/src/components",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/trees/98f1e0b83ce5c0a177a9d85b7203c83eed9173b4",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/components?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/trees/98f1e0b83ce5c0a177a9d85b7203c83eed9173b4",
+      "html": "https://github.com/epodak/reactbits/tree/main/src/components"
+    }
+  },
+  {
+    "name": "constants",
+    "path": "src/constants",
+    "sha": "b4cd8b32bb3adfa6db376d223f32a8f541639d80",
+    "size": 0,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/constants?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/tree/main/src/constants",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/trees/b4cd8b32bb3adfa6db376d223f32a8f541639d80",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/constants?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/trees/b4cd8b32bb3adfa6db376d223f32a8f541639d80",
+      "html": "https://github.com/epodak/reactbits/tree/main/src/constants"
+    }
+  },
+  {
+    "name": "content",
+    "path": "src/content",
+    "sha": "df81906f9b69ed7d6114b9760ed789303c89a7a8",
+    "size": 0,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/content?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/tree/main/src/content",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/trees/df81906f9b69ed7d6114b9760ed789303c89a7a8",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/content?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/trees/df81906f9b69ed7d6114b9760ed789303c89a7a8",
+      "html": "https://github.com/epodak/reactbits/tree/main/src/content"
+    }
+  },
+  {
+    "name": "css",
+    "path": "src/css",
+    "sha": "a8b136529fe30effdfaba8e94f36c6fc15a92b01",
+    "size": 0,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/css?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/tree/main/src/css",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/trees/a8b136529fe30effdfaba8e94f36c6fc15a92b01",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/css?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/trees/a8b136529fe30effdfaba8e94f36c6fc15a92b01",
+      "html": "https://github.com/epodak/reactbits/tree/main/src/css"
+    }
+  },
+  {
+    "name": "demo",
+    "path": "src/demo",
+    "sha": "cefbcc705f50198f32501cbb7ae80b321cdc8b63",
+    "size": 0,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/demo?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/tree/main/src/demo",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/trees/cefbcc705f50198f32501cbb7ae80b321cdc8b63",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/demo?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/trees/cefbcc705f50198f32501cbb7ae80b321cdc8b63",
+      "html": "https://github.com/epodak/reactbits/tree/main/src/demo"
+    }
+  },
+  {
+    "name": "global.d.ts",
+    "path": "src/global.d.ts",
+    "sha": "efed86e4c7234b0bc0f0f64c474f20da4adad72f",
+    "size": 308,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/global.d.ts?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/blob/main/src/global.d.ts",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/blobs/efed86e4c7234b0bc0f0f64c474f20da4adad72f",
+    "download_url": "https://raw.githubusercontent.com/epodak/reactbits/main/src/global.d.ts",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/global.d.ts?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/blobs/efed86e4c7234b0bc0f0f64c474f20da4adad72f",
+      "html": "https://github.com/epodak/reactbits/blob/main/src/global.d.ts"
+    }
+  },
+  {
+    "name": "hooks",
+    "path": "src/hooks",
+    "sha": "db409e73e49a8d4b8e3672cefee430e5689c7e07",
+    "size": 0,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/hooks?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/tree/main/src/hooks",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/trees/db409e73e49a8d4b8e3672cefee430e5689c7e07",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/hooks?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/trees/db409e73e49a8d4b8e3672cefee430e5689c7e07",
+      "html": "https://github.com/epodak/reactbits/tree/main/src/hooks"
+    }
+  },
+  {
+    "name": "main.jsx",
+    "path": "src/main.jsx",
+    "sha": "3000510455aa110b87457c3d7b37fe4000155dc2",
+    "size": 486,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/main.jsx?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/blob/main/src/main.jsx",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/blobs/3000510455aa110b87457c3d7b37fe4000155dc2",
+    "download_url": "https://raw.githubusercontent.com/epodak/reactbits/main/src/main.jsx",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/main.jsx?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/blobs/3000510455aa110b87457c3d7b37fe4000155dc2",
+      "html": "https://github.com/epodak/reactbits/blob/main/src/main.jsx"
+    }
+  },
+  {
+    "name": "pages",
+    "path": "src/pages",
+    "sha": "25b755021efc38d435b2e6da25cd7e6814dcba30",
+    "size": 0,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/pages?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/tree/main/src/pages",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/trees/25b755021efc38d435b2e6da25cd7e6814dcba30",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/pages?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/trees/25b755021efc38d435b2e6da25cd7e6814dcba30",
+      "html": "https://github.com/epodak/reactbits/tree/main/src/pages"
+    }
+  },
+  {
+    "name": "styles.css",
+    "path": "src/styles.css",
+    "sha": "5fd7aff4a96b81e1e5fca9a0993c214b2b7545a9",
+    "size": 1352,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/styles.css?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/blob/main/src/styles.css",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/blobs/5fd7aff4a96b81e1e5fca9a0993c214b2b7545a9",
+    "download_url": "https://raw.githubusercontent.com/epodak/reactbits/main/src/styles.css",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/styles.css?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/blobs/5fd7aff4a96b81e1e5fca9a0993c214b2b7545a9",
+      "html": "https://github.com/epodak/reactbits/blob/main/src/styles.css"
+    }
+  },
+  {
+    "name": "tailwind",
+    "path": "src/tailwind",
+    "sha": "df5ec8e8edb4c4bd388ad1b05e2a5c0136b6b60a",
+    "size": 0,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/tailwind?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/tree/main/src/tailwind",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/trees/df5ec8e8edb4c4bd388ad1b05e2a5c0136b6b60a",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/tailwind?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/trees/df5ec8e8edb4c4bd388ad1b05e2a5c0136b6b60a",
+      "html": "https://github.com/epodak/reactbits/tree/main/src/tailwind"
+    }
+  },
+  {
+    "name": "ts-default",
+    "path": "src/ts-default",
+    "sha": "9caf99ec34c35b89f1573c6d048d17f86a12cfb2",
+    "size": 0,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/ts-default?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/tree/main/src/ts-default",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/trees/9caf99ec34c35b89f1573c6d048d17f86a12cfb2",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/ts-default?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/trees/9caf99ec34c35b89f1573c6d048d17f86a12cfb2",
+      "html": "https://github.com/epodak/reactbits/tree/main/src/ts-default"
+    }
+  },
+  {
+    "name": "ts-tailwind",
+    "path": "src/ts-tailwind",
+    "sha": "9ea245ef04d17366271d6482b505898c1657375d",
+    "size": 0,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/ts-tailwind?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/tree/main/src/ts-tailwind",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/trees/9ea245ef04d17366271d6482b505898c1657375d",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/ts-tailwind?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/trees/9ea245ef04d17366271d6482b505898c1657375d",
+      "html": "https://github.com/epodak/reactbits/tree/main/src/ts-tailwind"
+    }
+  },
+  {
+    "name": "utils",
+    "path": "src/utils",
+    "sha": "882d2b7fbb9f076876b25bae724ff54313fa838d",
+    "size": 0,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/utils?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/tree/main/src/utils",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/trees/882d2b7fbb9f076876b25bae724ff54313fa838d",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/utils?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/trees/882d2b7fbb9f076876b25bae724ff54313fa838d",
+      "html": "https://github.com/epodak/reactbits/tree/main/src/utils"
+    }
+  },
+  {
+    "name": "vite-env.d.ts",
+    "path": "src/vite-env.d.ts",
+    "sha": "cea642887bfca7de5baaf08c7bbe56509ee5459e",
+    "size": 85,
+    "url": "https://api.github.com/repos/epodak/reactbits/contents/src/vite-env.d.ts?ref=main",
+    "html_url": "https://github.com/epodak/reactbits/blob/main/src/vite-env.d.ts",
+    "git_url": "https://api.github.com/repos/epodak/reactbits/git/blobs/cea642887bfca7de5baaf08c7bbe56509ee5459e",
+    "download_url": "https://raw.githubusercontent.com/epodak/reactbits/main/src/vite-env.d.ts",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/epodak/reactbits/contents/src/vite-env.d.ts?ref=main",
+      "git": "https://api.github.com/repos/epodak/reactbits/git/blobs/cea642887bfca7de5baaf08c7bbe56509ee5459e",
+      "html": "https://github.com/epodak/reactbits/blob/main/src/vite-env.d.ts"
+    }
+  }
+]

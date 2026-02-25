@@ -6,6 +6,7 @@ extension needed, works on Windows and Linux alike.
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import datetime, timezone
 from typing import Any
@@ -172,8 +173,10 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
             role_family          TEXT,
             years_exp_min        INTEGER,
             years_exp_max        INTEGER,
+            minimum_degree       TEXT,
             required_skills      TEXT,
             preferred_skills     TEXT,
+            formatted_description TEXT,
             salary_min           INTEGER,
             salary_max           INTEGER,
             salary_currency      TEXT,
@@ -184,6 +187,64 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
             enrichment_model     TEXT
         )
     """)
+    try:
+        conn.execute("ALTER TABLE job_enrichments ADD COLUMN minimum_degree TEXT")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE job_enrichments ADD COLUMN formatted_description TEXT")
+    except Exception:
+        pass
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS job_tracking (
+            url                  TEXT PRIMARY KEY REFERENCES jobs(url),
+            status               TEXT NOT NULL DEFAULT 'not_applied',
+            priority             TEXT NOT NULL DEFAULT 'medium',
+            applied_at           TEXT,
+            next_step            TEXT,
+            target_compensation  TEXT,
+            updated_at           TEXT NOT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_job_tracking_status ON job_tracking(status)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS job_events (
+            id          INTEGER PRIMARY KEY,
+            url         TEXT NOT NULL REFERENCES jobs(url),
+            event_type  TEXT NOT NULL,
+            title       TEXT NOT NULL,
+            body        TEXT,
+            event_at    TEXT NOT NULL,
+            created_at  TEXT NOT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_job_events_url ON job_events(url)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_job_events_event_at ON job_events(event_at DESC)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS candidate_profile (
+            id                        INTEGER PRIMARY KEY,
+            years_experience          INTEGER NOT NULL DEFAULT 0,
+            skills                    TEXT NOT NULL DEFAULT '[]',
+            target_role_families      TEXT NOT NULL DEFAULT '[]',
+            requires_visa_sponsorship INTEGER NOT NULL DEFAULT 0,
+            education                 TEXT NOT NULL DEFAULT '[]',
+            degree                    TEXT,
+            degree_field              TEXT,
+            updated_at                TEXT NOT NULL
+        )
+    """)
+    try:
+        conn.execute("ALTER TABLE candidate_profile ADD COLUMN education TEXT NOT NULL DEFAULT '[]'")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE candidate_profile ADD COLUMN degree TEXT")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE candidate_profile ADD COLUMN degree_field TEXT")
+    except Exception:
+        pass
     conn.commit()
     return conn
 
@@ -365,7 +426,7 @@ def save_jobs(
 def set_application_status(conn: Any, url: str, status: str | None) -> int:
     """Set application_status for a job URL. Returns changed row count."""
     normalized = (status or "").strip().lower() or None
-    valid = {"applied", "interviewing", "offer", "rejected", "withdrawn", "not_applied"}
+    valid = {"not_applied", "staging", "applied", "interviewing", "offer", "rejected"}
     if normalized not in valid and normalized is not None:
         raise ValueError(f"Invalid status: {status}")
     conn.execute("UPDATE jobs SET application_status=? WHERE url=?", (normalized, url))
@@ -378,7 +439,8 @@ def prune_not_applied_older_than_days(conn: Any, days: int, dry_run: bool = True
     """Prune jobs older than N days if not applied/interview pipeline and has parseable posted date."""
     if days <= 0:
         raise ValueError("days must be > 0")
-    protected = ("applied", "interviewing", "offer", "rejected", "withdrawn")
+    # Keep legacy withdrawn protected for old rows while new lifecycle uses staging.
+    protected = ("staging", "applied", "interviewing", "offer", "rejected", "withdrawn")
     placeholders = ", ".join("?" for _ in protected)
     where = f"""
         (application_status IS NULL OR application_status = '' OR application_status = 'not_applied')
@@ -433,12 +495,12 @@ def save_enrichment(conn: Any, url: str, enrichment: dict[str, Any]) -> None:
         """
         INSERT OR REPLACE INTO job_enrichments (
             url, work_mode, remote_geo, canada_eligible, seniority, role_family,
-            years_exp_min, years_exp_max,
-            required_skills, preferred_skills,
+            years_exp_min, years_exp_max, minimum_degree,
+            required_skills, preferred_skills, formatted_description,
             salary_min, salary_max, salary_currency,
             visa_sponsorship, red_flags,
             enriched_at, enrichment_status, enrichment_model
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             url,
@@ -449,8 +511,10 @@ def save_enrichment(conn: Any, url: str, enrichment: dict[str, Any]) -> None:
             enrichment.get("role_family"),
             enrichment.get("years_exp_min"),
             enrichment.get("years_exp_max"),
+            enrichment.get("minimum_degree"),
             enrichment.get("required_skills"),
             enrichment.get("preferred_skills"),
+            enrichment.get("formatted_description"),
             enrichment.get("salary_min"),
             enrichment.get("salary_max"),
             enrichment.get("salary_currency"),
@@ -462,3 +526,156 @@ def save_enrichment(conn: Any, url: str, enrichment: dict[str, Any]) -> None:
         ),
     )
     conn.commit()
+
+
+def load_enrichments_for_urls(conn: Any, urls: list[str]) -> dict[str, dict[str, Any]]:
+    if not urls:
+        return {}
+    placeholders = ", ".join("?" for _ in urls)
+    rows = conn.execute(
+        f"""
+        SELECT
+            url, work_mode, remote_geo, canada_eligible, seniority, role_family, years_exp_min, years_exp_max,
+            minimum_degree, required_skills, preferred_skills, formatted_description, salary_min, salary_max,
+            salary_currency, visa_sponsorship, red_flags, enriched_at, enrichment_status, enrichment_model
+        FROM job_enrichments
+        WHERE url IN ({placeholders})
+        """,
+        tuple(urls),
+    ).fetchall()
+    out: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        out[row[0]] = {
+            "work_mode": row[1],
+            "remote_geo": row[2],
+            "canada_eligible": row[3],
+            "seniority": row[4],
+            "role_family": row[5],
+            "years_exp_min": row[6],
+            "years_exp_max": row[7],
+            "minimum_degree": row[8],
+            "required_skills": _parse_json_array(row[9]),
+            "preferred_skills": _parse_json_array(row[10]),
+            "formatted_description": row[11],
+            "salary_min": row[12],
+            "salary_max": row[13],
+            "salary_currency": row[14],
+            "visa_sponsorship": row[15],
+            "red_flags": _parse_json_array(row[16]),
+            "enriched_at": row[17],
+            "enrichment_status": row[18],
+            "enrichment_model": row[19],
+        }
+    return out
+
+
+def _parse_json_array(raw: Any) -> list[str]:
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [str(v).strip() for v in raw if str(v).strip()]
+    if not isinstance(raw, str):
+        return []
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(v).strip() for v in parsed if str(v).strip()]
+
+
+def get_candidate_profile(conn: Any) -> dict[str, Any]:
+    row = conn.execute(
+        """
+        SELECT years_experience, skills, target_role_families, requires_visa_sponsorship, education, degree, degree_field, updated_at
+        FROM candidate_profile
+        WHERE id = 1
+        """
+    ).fetchone()
+    if not row:
+        return {
+            "years_experience": 0,
+            "skills": [],
+            "target_role_families": [],
+            "requires_visa_sponsorship": False,
+            "education": [],
+            "degree": None,
+            "degree_field": None,
+            "updated_at": None,
+        }
+    education = _parse_education_array(row[4])
+    if not education and (row[5] or row[6]):
+        education = [{"degree": str(row[5] or "").strip(), "field": (str(row[6]).strip() or None) if row[6] is not None else None}]
+    return {
+        "years_experience": int(row[0] or 0),
+        "skills": _parse_json_array(row[1]),
+        "target_role_families": _parse_json_array(row[2]),
+        "requires_visa_sponsorship": bool(row[3]),
+        "education": education,
+        "degree": row[5],
+        "degree_field": row[6],
+        "updated_at": row[7],
+    }
+
+
+def upsert_candidate_profile(conn: Any, profile: dict[str, Any]) -> dict[str, Any]:
+    years_experience = int(profile.get("years_experience", 0) or 0)
+    years_experience = max(0, years_experience)
+    skills = _parse_json_array(profile.get("skills"))
+    role_families = _parse_json_array(profile.get("target_role_families"))
+    requires_visa = bool(profile.get("requires_visa_sponsorship", False))
+    education = _parse_education_array(profile.get("education"))
+    if not education and (profile.get("degree") or profile.get("degree_field")):
+        education = [{
+            "degree": (profile.get("degree") or "").strip(),
+            "field": (profile.get("degree_field") or "").strip() or None,
+        }]
+    education = [item for item in education if item.get("degree")]
+    primary_degree = education[0] if education else {"degree": None, "field": None}
+    degree = primary_degree.get("degree")
+    degree_field = primary_degree.get("field")
+    updated_at = _utc_now_iso()
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO candidate_profile
+        (id, years_experience, skills, target_role_families, requires_visa_sponsorship, education, degree, degree_field, updated_at)
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            years_experience,
+            json.dumps(skills, ensure_ascii=True),
+            json.dumps(role_families, ensure_ascii=True),
+            1 if requires_visa else 0,
+            json.dumps(education, ensure_ascii=True),
+            degree,
+            degree_field,
+            updated_at,
+        ),
+    )
+    conn.commit()
+    return get_candidate_profile(conn)
+
+
+def _parse_education_array(raw: Any) -> list[dict[str, str | None]]:
+    parsed: Any = raw
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(parsed, list):
+        return []
+    result: list[dict[str, str | None]] = []
+    for item in parsed:
+        if not isinstance(item, dict):
+            continue
+        degree = str(item.get("degree") or "").strip()
+        field_value = item.get("field")
+        field = str(field_value).strip() if field_value is not None else ""
+        if not degree:
+            continue
+        result.append({"degree": degree, "field": field or None})
+    return result

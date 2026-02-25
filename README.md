@@ -4,6 +4,11 @@ Daily ML/AI/Data Science job discovery pipeline.
 
 The system scrapes ATS job boards (Greenhouse, Lever, Ashby, Workable, SmartRecruiters) plus Hacker News "Who is Hiring", filters by title/location, stores jobs in SQLite or Turso (libsql), optionally enriches jobs with structured LLM extraction via OpenRouter, and sends Telegram notifications for new roles.
 
+Automation uses split workflows:
+
+- scrape workflow writes jobs/descriptions (`--no-enrich-llm`)
+- enrichment workflow runs backfill/re-enrich with extraction + description formatting
+
 ## Quick Start
 
 ### 1) Install
@@ -72,6 +77,30 @@ uv run python eval/eval.py run
 uv run python eval/eval.py report
 ```
 
+## Dashboard
+
+```bash
+# API backend (reload enabled)
+uv run python src/dashboard/backend/main.py
+
+# Frontend app
+cd src/dashboard/frontend
+npm install
+npm run dev
+```
+
+Dashboard highlights:
+
+- Route-based dashboard navigation:
+  - `/` for Board
+  - `/profile` for Profile
+- Kanban by tracking status with drag-and-drop updates.
+- Detail drawer with full job data, source URL, and enrichment fields from `job_enrichments`.
+- Inline tracking edits persisted to DB through dashboard API.
+- Dedicated profile page with manual save flow for match-scoring inputs.
+- Professional dual-theme UI with dark/light toggle and smooth transitions.
+- Profile-based match scoring (`0-100`) with strong junior/entry and `<=4 years` preference.
+
 ## Documentation Map
 
 - Start here: [`docs/INDEX.md`](docs/INDEX.md)
@@ -98,6 +127,11 @@ uv run python eval/eval.py report
   - [`docs/troubleshooting/known-issues.md`](docs/troubleshooting/known-issues.md)
 - Evaluation:
   - [`docs/evaluation/eval-framework.md`](docs/evaluation/eval-framework.md)
+- Dashboard:
+  - [`docs/dashboard/overview.md`](docs/dashboard/overview.md)
+  - [`docs/dashboard/backend-api.md`](docs/dashboard/backend-api.md)
+  - [`docs/dashboard/frontend-ui.md`](docs/dashboard/frontend-ui.md)
+  - [`docs/dashboard/match-scoring.md`](docs/dashboard/match-scoring.md)
 - Reference:
   - [`docs/reference/file-by-file-reference.md`](docs/reference/file-by-file-reference.md)
   - [`docs/reference/glossary.md`](docs/reference/glossary.md)
@@ -108,5 +142,6 @@ uv run python eval/eval.py report
 
 - Code is the source of truth. Docs are aligned to tracked behavior in `src/`, `eval/`, and automation files.
 - Company sources are DB-only (`company_sources` table).
-- `prompts.yaml` is a reference copy; runtime prompt strings are defined in `src/enrich.py`.
+- `prompts.yaml` is the runtime source of truth for enrichment and description-format prompts.
 - Default enrichment model is `openai/gpt-oss-120b` unless overridden by `ENRICHMENT_MODEL`.
+- Default description formatting model is `openai/gpt-oss-20b:paid` unless overridden by `DESCRIPTION_FORMAT_MODEL`.

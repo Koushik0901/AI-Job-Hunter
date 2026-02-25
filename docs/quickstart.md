@@ -85,6 +85,38 @@ uv run python src/cli.py lifecycle set-status --url <job_url> --status applied
 uv run python src/cli.py lifecycle prune --days 28
 ```
 
+## Run dashboard (optional)
+
+```bash
+# API
+uv run python src/dashboard/backend/main.py
+
+# UI
+cd src/dashboard/frontend
+npm install
+npm run dev
+```
+
+Open:
+
+- API: `http://127.0.0.1:8000/api/health`
+- UI: `http://localhost:5173`
+
+Note: dashboard backend requires `TURSO_URL` and `TURSO_AUTH_TOKEN`.
+
+## Configure match profile (dashboard)
+
+In the dashboard `Profile` page (`/profile`), set:
+
+- years of experience
+- skills
+- target role families
+- visa sponsorship need
+
+Then save profile to enable/rerank match scoring.
+
+Scoring rubric: [`dashboard/match-scoring.md`](dashboard/match-scoring.md)
+
 ## Troubleshooting quick pointers
 
 - CLI help: `uv run python src/cli.py --help`
