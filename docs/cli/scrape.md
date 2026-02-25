@@ -16,6 +16,8 @@ uv run python src/cli.py scrape [options]
 - `--no-enrich-llm`: skip OpenRouter enrichment stage
 - `--enrich-backfill`: enrich jobs missing successful enrichment and exit
 - `--re-enrich-all`: force enrich all jobs with descriptions and exit
+- `--jd-reformat-missing`: reformat descriptions for rows where `enrichment_status=ok` but `formatted_description` is missing/empty
+- `--jd-reformat-all`: reformat descriptions for all rows where `enrichment_status=ok`
 - `--sort-by {match|posted}`: display ordering (default: `match`)
 
 ## Mode behavior
@@ -30,6 +32,8 @@ In automation, scrape workflow runs with `--no-enrich-llm` and enrichment is han
 
 - `--enrich-backfill`: picks rows where enrichment missing or non-`ok`.
 - `--re-enrich-all`: picks all jobs with non-empty descriptions.
+- `--jd-reformat-missing`: picks rows with successful enrichment but missing formatted description.
+- `--jd-reformat-all`: picks all successfully enriched rows and refreshes formatted descriptions.
 - Enrichment includes:
   - structured extraction (`ENRICHMENT_MODEL`)
   - best-effort description formatting (`DESCRIPTION_FORMAT_MODEL`)
@@ -94,6 +98,9 @@ Rejects:
 ```bash
 # Resume paused enrichment after rate limit
 uv run python src/cli.py scrape --enrich-backfill
+
+# Reformat only missing job descriptions (no extraction rerun)
+uv run python src/cli.py scrape --jd-reformat-missing
 
 # Rebuild from local DB with no messaging
 uv run python src/cli.py scrape --no-notify --no-enrich-llm

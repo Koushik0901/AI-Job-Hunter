@@ -78,6 +78,12 @@ uv run python src/cli.py scrape --enrich-backfill
 # Re-enrich every described job
 uv run python src/cli.py scrape --re-enrich-all
 
+# Reformat descriptions for already-enriched rows missing formatted text
+uv run python src/cli.py scrape --jd-reformat-missing
+
+# Reformat descriptions for all already-enriched rows
+uv run python src/cli.py scrape --jd-reformat-all
+
 # Track your process for one URL
 uv run python src/cli.py lifecycle set-status --url <job_url> --status applied
 

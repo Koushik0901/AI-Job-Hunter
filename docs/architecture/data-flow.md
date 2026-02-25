@@ -5,7 +5,7 @@
 1. Parse CLI args.
 2. Load `.env` from `<cwd>/.env`.
 3. Resolve DB (Turso if `TURSO_URL`, else local SQLite path).
-4. If `--enrich-backfill` or `--re-enrich-all`:
+4. If `--enrich-backfill`, `--re-enrich-all`, `--jd-reformat-missing`, or `--jd-reformat-all`:
    - load enrichment candidates from DB
    - run enrichment-only pipeline
    - exit
@@ -30,7 +30,7 @@
 In production automation, this is split:
 
 - scrape workflow: `scrape --no-enrich-llm`
-- enrichment workflow: `scrape --enrich-backfill` (or manual `--re-enrich-all`)
+- enrichment workflow: `scrape --enrich-backfill` (or manual `--re-enrich-all` / `--jd-reformat-missing` / `--jd-reformat-all`)
 
 ## Source registry flow (`src/cli.py sources`)
 

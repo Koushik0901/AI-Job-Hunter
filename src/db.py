@@ -489,6 +489,46 @@ def load_unenriched_jobs(conn: Any, force: bool = False) -> list[dict[str, Any]]
     ]
 
 
+def load_jobs_for_jd_reformat(conn: Any, *, missing_only: bool) -> list[dict[str, Any]]:
+    """Return enriched jobs eligible for description reformat pass."""
+    missing_clause = "AND (e.formatted_description IS NULL OR trim(e.formatted_description) = '')" if missing_only else ""
+    rows = conn.execute(
+        f"""
+        SELECT j.url, j.company, j.title, j.location, j.description
+        FROM jobs j
+        INNER JOIN job_enrichments e ON j.url = e.url
+        WHERE
+            j.description IS NOT NULL
+            AND j.description != ''
+            AND e.enrichment_status = 'ok'
+            {missing_clause}
+        """
+    ).fetchall()
+    return [
+        {
+            "url": row[0],
+            "company": row[1],
+            "title": row[2],
+            "location": row[3],
+            "description": row[4],
+        }
+        for row in rows
+    ]
+
+
+def save_formatted_description(conn: Any, url: str, formatted_description: str | None) -> None:
+    """Update formatted_description for an existing enrichment row."""
+    conn.execute(
+        """
+        UPDATE job_enrichments
+        SET formatted_description = ?
+        WHERE url = ? AND enrichment_status = 'ok'
+        """,
+        (formatted_description, url),
+    )
+    conn.commit()
+
+
 def save_enrichment(conn: Any, url: str, enrichment: dict[str, Any]) -> None:
     """Upsert one enrichment row into job_enrichments."""
     conn.execute(

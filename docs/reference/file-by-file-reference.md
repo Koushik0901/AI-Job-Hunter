@@ -17,7 +17,7 @@ This page summarizes tracked project files and their runtime roles.
 ### `.github/workflows/enrichment.yml`
 
 - Scheduled/manual CI execution of enrichment pipeline.
-- Runs `uv run python src/cli.py scrape --enrich-backfill` (or manual `--re-enrich-all`).
+- Runs `uv run python src/cli.py scrape --enrich-backfill` (or manual `--re-enrich-all` / `--jd-reformat-missing` / `--jd-reformat-all`).
 
 ### `.gitignore`
 

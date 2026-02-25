@@ -19,6 +19,12 @@ uv run python src/cli.py scrape --enrich-backfill
 # Recompute all enrichments
 uv run python src/cli.py scrape --re-enrich-all
 
+# Fill only missing formatted descriptions on already-enriched rows
+uv run python src/cli.py scrape --jd-reformat-missing
+
+# Reformat descriptions for all already-enriched rows
+uv run python src/cli.py scrape --jd-reformat-all
+
 # Validate ATS slug
 uv run python src/cli.py sources check openai
 

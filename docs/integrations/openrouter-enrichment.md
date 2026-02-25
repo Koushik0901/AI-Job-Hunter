@@ -30,6 +30,16 @@ Persisted row includes:
 
 Formatting failures do **not** flip extraction status to `failed`; enrichment remains `ok` with `formatted_description = null`.
 
+Recovery mode for formatting-only gaps:
+
+- `uv run python src/cli.py scrape --jd-reformat-missing`
+- Selects rows where `enrichment_status='ok'` but `formatted_description` is null/empty.
+
+Full formatting refresh mode:
+
+- `uv run python src/cli.py scrape --jd-reformat-all`
+- Selects all rows where `enrichment_status='ok'` and rewrites `formatted_description`.
+
 ## Provider-aware rate-limit handling
 
 `_MAX_PROVIDER_RETRIES = 3`.

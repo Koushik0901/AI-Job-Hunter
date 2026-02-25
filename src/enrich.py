@@ -31,7 +31,7 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-from db import save_enrichment
+from db import save_enrichment, save_formatted_description
 
 logger = logging.getLogger(__name__)
 
@@ -542,3 +542,52 @@ def run_enrichment_pipeline(
                 f"[red]{failed_count} failed[/red], "
                 f"[dim]{skipped_count} skipped[/dim]"
             )
+
+
+def run_description_reformat_pipeline(
+    jobs: list[dict[str, Any]],
+    conn: Any,
+    api_key: str,
+    format_model: str,
+    console: Any,
+) -> None:
+    """Reformat job descriptions only; does not rerun structured extraction."""
+    if not jobs:
+        return
+
+    ok_count = 0
+    failed_count = 0
+    skipped_count = 0
+
+    def _format_one(job: dict[str, Any]) -> tuple[str, str | None, str]:
+        url = str(job.get("url") or "")
+        if not url:
+            return "", None, "failed"
+        try:
+            formatted = format_description_with_llm(job, api_key, format_model)
+            if formatted:
+                return url, formatted, "ok"
+            return url, None, "skipped"
+        except Exception as error:
+            logger.warning("JD reformat failed for %s: %s", url, error)
+            return url, None, "failed"
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(_format_one, job) for job in jobs]
+        for future in as_completed(futures):
+            url, formatted, status = future.result()
+            if status == "ok":
+                ok_count += 1
+                save_formatted_description(conn, url, formatted)
+            elif status == "skipped":
+                skipped_count += 1
+            else:
+                failed_count += 1
+
+    if console:
+        console.print(
+            f"  [bold]JD Reformat:[/bold] "
+            f"[green]{ok_count} updated[/green], "
+            f"[red]{failed_count} failed[/red], "
+            f"[dim]{skipped_count} skipped[/dim]"
+        )

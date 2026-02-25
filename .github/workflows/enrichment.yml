@@ -5,14 +5,16 @@ on:
     - cron: "30 17 * * *" # 30 minutes after scrape
   workflow_dispatch:
     inputs:
-      mode:
-        description: "Enrichment mode"
+      processing_mode:
+        description: "Enrichment/reformat processing mode"
         required: true
-        default: "backfill"
+        default: "enrich_backfill"
         type: choice
         options:
-          - backfill
+          - enrich_backfill
           - re_enrich_all
+          - jd_reformat_missing
+          - jd_reformat_all
 
 jobs:
   enrich:
@@ -31,8 +33,13 @@ jobs:
           ENRICHMENT_MODEL: ${{ secrets.ENRICHMENT_MODEL }}
           DESCRIPTION_FORMAT_MODEL: ${{ secrets.DESCRIPTION_FORMAT_MODEL }}
         run: |
-          if [ "${{ github.event.inputs.mode || 'backfill' }}" = "re_enrich_all" ]; then
+          processing_mode="${{ github.event.inputs.processing_mode || 'enrich_backfill' }}"
+          if [ "$processing_mode" = "re_enrich_all" ]; then
             uv run python src/cli.py scrape --re-enrich-all
+          elif [ "$processing_mode" = "jd_reformat_missing" ]; then
+            uv run python src/cli.py scrape --jd-reformat-missing
+          elif [ "$processing_mode" = "jd_reformat_all" ]; then
+            uv run python src/cli.py scrape --jd-reformat-all
           else
             uv run python src/cli.py scrape --enrich-backfill
           fi

@@ -14,7 +14,7 @@ This project follows a simple Keep a Changelog style with date-based entries.
   - dashboard description rendering now prefers formatted text and falls back to raw `jobs.description`
 - Dedicated enrichment automation workflow:
   - new `.github/workflows/enrichment.yml`
-  - supports scheduled backfill and manual `re_enrich_all`
+  - supports scheduled `enrich_backfill` and manual `processing_mode` options
 - Tests for new formatting flow:
   - `tests/test_enrich.py`
   - repository round-trip assertion for `formatted_description`
@@ -27,6 +27,10 @@ This project follows a simple Keep a Changelog style with date-based entries.
   - configurable per-endpoint TTL env vars (`DASHBOARD_CACHE_TTL_*`)
 - Scoring regression coverage:
   - new test coverage for acronym/expanded and compact skill normalization in `tests/test_match_score.py`
+- New enrichment-only CLI mode for formatting gaps:
+  - `--jd-reformat-missing` targets rows with `enrichment_status='ok'` and empty `formatted_description`
+  - `--jd-reformat-all` refreshes formatted descriptions across all `enrichment_status='ok'` rows
+  - useful for running description formatting catch-up/refresh without full re-enrichment
 
 ### Changed
 
@@ -53,6 +57,11 @@ This project follows a simple Keep a Changelog style with date-based entries.
   - canonical normalization now handles punctuation, compact forms, acronyms, and parenthetical variants
   - examples: `RAG` / `rag` / `Retrieval Augmented Generation (RAG)`, `CI/CD` / `cicd`, `GenAI` / `generative ai`
   - profile add/dedupe and sidebar gap rendering now align with scorer normalization to reduce false skill gaps
+- Enrichment GitHub workflow input renamed to `processing_mode` and now supports:
+  - `enrich_backfill`
+  - `re_enrich_all`
+  - `jd_reformat_missing`
+  - `jd_reformat_all`
 
 ## 2026-02-24
 

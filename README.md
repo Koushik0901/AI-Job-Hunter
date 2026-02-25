@@ -56,6 +56,12 @@ uv run python src/cli.py scrape --no-notify --no-enrich-llm
 # Backfill failed/unenriched records
 uv run python src/cli.py scrape --enrich-backfill
 
+# Reformat missing descriptions for already-enriched rows
+uv run python src/cli.py scrape --jd-reformat-missing
+
+# Reformat descriptions for all already-enriched rows
+uv run python src/cli.py scrape --jd-reformat-all
+
 # Probe ATS support for a slug
 uv run python src/cli.py sources check openai
 

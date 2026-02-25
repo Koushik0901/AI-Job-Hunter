@@ -9,6 +9,11 @@
 - Expanded dashboard scoring documentation:
   - added canonical/fuzzy skill normalization rules in `docs/dashboard/match-scoring.md`
   - documented acronym, compact-form, and parenthetical-equivalence examples
+- Added enrichment formatting-only recovery documentation:
+  - new CLI modes `--jd-reformat-missing` and `--jd-reformat-all` in scrape CLI docs
+  - scheduling and runbook updates for GitHub Actions manual `processing_mode` values:
+    `enrich_backfill`, `re_enrich_all`, `jd_reformat_missing`, `jd_reformat_all`
+  - integration docs updated with selection behavior (`ok` enrichment + missing formatted text)
 - Updated dashboard frontend documentation:
   - board route state persistence and remount cache hydration behavior
   - detail drawer prefetch/cache usage notes

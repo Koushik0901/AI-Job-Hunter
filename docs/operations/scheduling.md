@@ -29,14 +29,18 @@ Required secrets:
 - Name: `Job Enrichment`
 - Trigger:
   - scheduled cron `30 17 * * *`
-  - manual `workflow_dispatch` with mode:
-    - `backfill`
+  - manual `workflow_dispatch` with `processing_mode`:
+    - `enrich_backfill`
     - `re_enrich_all`
+    - `jd_reformat_missing`
+    - `jd_reformat_all`
 - Runner: `ubuntu-latest`
 - Timeout: `30` minutes
 - Run command:
   - `uv run python src/cli.py scrape --enrich-backfill`
   - or `uv run python src/cli.py scrape --re-enrich-all` (manual mode)
+  - or `uv run python src/cli.py scrape --jd-reformat-missing` (manual mode)
+  - or `uv run python src/cli.py scrape --jd-reformat-all` (manual mode)
 
 Required secrets:
 

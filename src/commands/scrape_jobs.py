@@ -10,10 +10,11 @@ from db import (
     init_db,
     load_enabled_company_sources,
     load_enrichments_for_urls,
+    load_jobs_for_jd_reformat,
     load_unenriched_jobs,
     save_jobs,
 )
-from enrich import run_enrichment_pipeline
+from enrich import run_description_reformat_pipeline, run_enrichment_pipeline
 from match_score import compute_match_score
 from notify import notify_new_jobs
 from services.scrape_service import render_jobs_table, scrape_all
@@ -29,6 +30,16 @@ def register(subparsers) -> None:
     parser.add_argument("--no-enrich-llm", action="store_true", help="Skip LLM enrichment")
     parser.add_argument("--enrich-backfill", action="store_true", help="Enrich unenriched/failed jobs in DB and exit")
     parser.add_argument("--re-enrich-all", action="store_true", help="Re-enrich all jobs with descriptions and exit")
+    parser.add_argument(
+        "--jd-reformat-missing",
+        action="store_true",
+        help="Reformat job descriptions for enriched rows missing formatted_description, then exit",
+    )
+    parser.add_argument(
+        "--jd-reformat-all",
+        action="store_true",
+        help="Reformat job descriptions for all enriched rows (enrichment_status=ok), then exit",
+    )
     parser.add_argument("--sort-by", choices=("match", "posted"), default="match", help="Display ordering for scraped jobs")
 
 
@@ -52,10 +63,32 @@ def run(args) -> None:
     openrouter_model = os.getenv("ENRICHMENT_MODEL", "openai/gpt-oss-120b")
     description_format_model = os.getenv("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-20b:paid")
 
-    if args.enrich_backfill or args.re_enrich_all:
-        force = args.re_enrich_all
-        jobs_to_enrich = load_unenriched_jobs(conn, force=force)
-        label = "Re-enrich all" if force else "Backfill"
+    if args.enrich_backfill or args.re_enrich_all or args.jd_reformat_missing or args.jd_reformat_all:
+        if args.jd_reformat_missing or args.jd_reformat_all:
+            jobs_to_enrich = load_jobs_for_jd_reformat(conn, missing_only=args.jd_reformat_missing)
+            label = "JD reformat missing" if args.jd_reformat_missing else "JD reformat all"
+            console.print(f"[bold]{label}:[/bold] {len(jobs_to_enrich)} job(s) to process in {db_label}")
+            if not jobs_to_enrich:
+                console.print("[dim]Nothing to process.[/dim]")
+            elif not openrouter_api_key:
+                console.print("[yellow]OPENROUTER_API_KEY not set - cannot run JD reformat.[/yellow]")
+            else:
+                run_description_reformat_pipeline(
+                    jobs_to_enrich,
+                    conn,
+                    openrouter_api_key,
+                    description_format_model,
+                    console,
+                )
+            conn.close()
+            return
+
+        if args.re_enrich_all:
+            jobs_to_enrich = load_unenriched_jobs(conn, force=True)
+            label = "Re-enrich all"
+        else:
+            jobs_to_enrich = load_unenriched_jobs(conn, force=False)
+            label = "Enrich backfill"
         console.print(f"[bold]{label}:[/bold] {len(jobs_to_enrich)} job(s) to enrich in {db_label}")
         if not jobs_to_enrich:
             console.print("[dim]Nothing to enrich.[/dim]")
