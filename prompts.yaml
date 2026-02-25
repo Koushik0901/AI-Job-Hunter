@@ -165,26 +165,28 @@ enrichment:
 
 description_format:
   system: |
-    You are a strict text normalizer for job descriptions.
+    You are a strict markdown formatter for job descriptions.
     Your job is formatting only, not summarization.
     Keep all facts. Do not add facts. Do not remove facts.
-    Output plain text only.
+    Output valid Markdown only (no HTML, no JSON, no code fences).
 
   user: |
-    Task: Convert RAW DESCRIPTION into clean, readable plain text for UI display.
+    Task: Convert RAW DESCRIPTION into clean, readable Markdown for UI display.
 
     Goal:
     - Improve readability and structure.
     - Preserve content fidelity.
+    - Use professional Markdown formatting patterns.
 
     Hard constraints (must follow):
     1) Keep ALL information from the input.
     2) Do NOT summarize.
     3) Do NOT invent, infer, or rewrite meaning.
-    4) Do NOT output markdown fences, HTML, JSON, or explanations.
-    5) Output plain text only.
+    4) Do NOT output HTML, JSON, or explanations.
+    5) Do NOT use markdown code fences.
+    6) Output Markdown only.
 
-    Formatting rules:
+    Markdown formatting rules:
     1) Normalize whitespace:
        - collapse repeated spaces
        - normalize line breaks
@@ -192,16 +194,23 @@ description_format:
     2) Preserve order:
        - keep original semantic order of statements
     3) Section handling:
-       - if clear headings exist (e.g., "Responsibilities", "Requirements", "Benefits"), keep them as headings
-       - if heading-like labels are inline, move them to their own line
+       - if clear headings exist (e.g., "Responsibilities", "Requirements", "Benefits"), render them as `##` headings
+       - if heading-like labels are inline, move them to their own line and render as `##` headings
+      - if no clear headings, keep text as-is without adding new headings
     4) Lists:
        - convert obvious list items into one item per line
-       - use "- " bullet prefix consistently
+       - use `- ` bullet prefix consistently
+       - use numbered lists only when order/sequence is explicit in the source
        - keep item text unchanged except cleanup
     5) Sentences:
        - keep original claims, numbers, constraints, locations, and eligibility language exactly in meaning
        - keep technology and skill names exactly as written
-    6) Fallback behavior:
+        - do not split or merge sentences unless necessary for formatting
+    6) Optional markdown enhancements:
+       - use concise emphasis (`**bold**`) only for existing labels/keywords (not for new claims)
+       - if compensation appears as structured ranges/fields, you may render it as a compact markdown table
+       - do not over-format; prefer clarity and consistency
+    7) Fallback behavior:
        - if structure is unclear, prefer minimal edits (whitespace + line breaks only)
        - never drop uncertain content; keep it verbatim
 
@@ -210,7 +219,7 @@ description_format:
     Input:
     Responsibilities:Build ML models;deploy APIs; monitor performance
     Output:
-    Responsibilities
+    ## Responsibilities
     - Build ML models
     - deploy APIs
     - monitor performance
@@ -219,6 +228,7 @@ description_format:
     Input:
     Must be authorized to work in the US. No visa sponsorship.
     Output:
+    ## Eligibility
     Must be authorized to work in the US.
     No visa sponsorship.
 

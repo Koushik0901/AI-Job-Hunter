@@ -40,6 +40,7 @@ const STATUS_FILTER_OPTIONS: Array<{ value: TrackingStatus | "all"; label: strin
 const PAGE_SIZE = 25;
 const BACKLOG_MAX_AGE_DAYS = 21;
 const BOARD_CACHE_TTL_MS = 3 * 60 * 1000;
+const JOBS_QUERY_CACHE_CAP = 4;
 
 type BoardView = "kanban" | "list";
 type SortOption = "match_desc" | "posted_desc" | "updated_desc" | "company_asc";
@@ -62,9 +63,35 @@ type BoardPageCache = {
 };
 
 let boardPageCache: BoardPageCache | null = null;
+const jobsQueryCache = new Map<string, { items: JobSummary[]; fetchedAt: number }>();
 
-function buildQueryKey(sort: SortOption, status: TrackingStatus | "all", ats: string, company: string): string {
-  return `${sort}|${status}|${ats.trim().toLowerCase()}|${company.trim().toLowerCase()}`;
+function buildQueryKey(status: TrackingStatus | "all", ats: string, company: string): string {
+  return `${status}|${ats.trim().toLowerCase()}|${company.trim().toLowerCase()}`;
+}
+
+function getJobsQueryCache(key: string): JobSummary[] | null {
+  const cached = jobsQueryCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.fetchedAt >= BOARD_CACHE_TTL_MS) {
+    jobsQueryCache.delete(key);
+    return null;
+  }
+  // LRU touch
+  jobsQueryCache.delete(key);
+  jobsQueryCache.set(key, cached);
+  return cached.items;
+}
+
+function setJobsQueryCache(key: string, items: JobSummary[]): void {
+  if (jobsQueryCache.has(key)) {
+    jobsQueryCache.delete(key);
+  }
+  jobsQueryCache.set(key, { items, fetchedAt: Date.now() });
+  while (jobsQueryCache.size > JOBS_QUERY_CACHE_CAP) {
+    const oldestKey = jobsQueryCache.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    jobsQueryCache.delete(oldestKey);
+  }
 }
 
 function createInitialColumnVisibleCount(): Record<TrackingStatus, number> {
@@ -136,7 +163,7 @@ export function BoardPage() {
     boardPageCache !== null &&
     now - boardPageCache.fetchedAt < BOARD_CACHE_TTL_MS &&
     boardPageCache.queryKey ===
-      buildQueryKey(boardPageCache.sortOption, boardPageCache.statusFilter, boardPageCache.atsFilter, boardPageCache.companyFilter);
+      buildQueryKey(boardPageCache.statusFilter, boardPageCache.atsFilter, boardPageCache.companyFilter);
 
   const [jobs, setJobs] = useState<JobSummary[]>(() => (hasFreshCache ? boardPageCache?.jobs ?? [] : []));
   const [stats, setStats] = useState<StatsResponse | null>(() => (hasFreshCache ? boardPageCache?.stats ?? null : null));
@@ -168,15 +195,22 @@ export function BoardPage() {
   );
   const lastFetchedAtRef = useRef<number>(hasFreshCache ? boardPageCache?.fetchedAt ?? 0 : 0);
 
-  const queryKey = buildQueryKey(sortOption, statusFilter, atsFilter, companyFilter);
+  const queryKey = buildQueryKey(statusFilter, atsFilter, companyFilter);
 
-  async function loadBoard(): Promise<void> {
+  async function loadBoard(force = false): Promise<void> {
+    const cachedItems = !force ? getJobsQueryCache(queryKey) : null;
+    if (cachedItems) {
+      setJobs(cachedItems);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
       const [jobsData, statsData] = await Promise.all([
         getJobsWithParams({
-          sort: sortOption,
+          sort: "match_desc",
           status: statusFilter,
           ats: atsFilter,
           company: companyFilter,
@@ -184,6 +218,7 @@ export function BoardPage() {
         getStats(),
       ]);
       setJobs(jobsData.items);
+      setJobsQueryCache(queryKey, jobsData.items);
       setStats(statsData);
       lastFetchedAtRef.current = Date.now();
       try {
@@ -200,11 +235,9 @@ export function BoardPage() {
   }
 
   useEffect(() => {
-    if (
-      boardPageCache &&
-      boardPageCache.queryKey === queryKey &&
-      Date.now() - boardPageCache.fetchedAt < BOARD_CACHE_TTL_MS
-    ) {
+    const cachedItems = getJobsQueryCache(queryKey);
+    if (cachedItems) {
+      setJobs(cachedItems);
       setLoading(false);
       return;
     }
@@ -358,14 +391,31 @@ export function BoardPage() {
 
   const filteredJobs = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) {
-      return jobs;
-    }
-    return jobs.filter((job) => {
+    const subset = !query ? jobs : jobs.filter((job) => {
       const haystack = `${job.title} ${job.company} ${job.location}`.toLowerCase();
       return haystack.includes(query);
     });
-  }, [jobs, searchQuery]);
+    const sorted = [...subset];
+    if (sortOption === "company_asc") {
+      sorted.sort((left, right) => left.company.localeCompare(right.company));
+      return sorted;
+    }
+    if (sortOption === "posted_desc") {
+      sorted.sort((left, right) => new Date(right.posted).valueOf() - new Date(left.posted).valueOf());
+      return sorted;
+    }
+    if (sortOption === "updated_desc") {
+      sorted.sort((left, right) => {
+        const rightDate = new Date(right.updated_at ?? right.posted).valueOf();
+        const leftDate = new Date(left.updated_at ?? left.posted).valueOf();
+        return rightDate - leftDate;
+      });
+      return sorted;
+    }
+    // match_desc default
+    sorted.sort((left, right) => (right.match_score ?? 0) - (left.match_score ?? 0));
+    return sorted;
+  }, [jobs, searchQuery, sortOption]);
 
   const grouped = useMemo(() => {
     const map = new Map<TrackingStatus, JobSummary[]>();
@@ -401,6 +451,7 @@ export function BoardPage() {
       setSelectedJob(detail);
     }
     setDetailCache((current) => ({ ...current, [url]: detail }));
+    jobsQueryCache.clear();
 
     const newStats = await getStats();
     setStats(newStats);
@@ -426,6 +477,7 @@ export function BoardPage() {
     try {
       const saved = await putProfile(optimistic);
       setProfile(saved);
+      jobsQueryCache.clear();
     } catch (error) {
       setProfile(profile);
       throw error;
@@ -457,6 +509,7 @@ export function BoardPage() {
 
     void deleteJob(url)
       .then(async () => {
+        jobsQueryCache.clear();
         const newStats = await getStats();
         setStats(newStats);
       })
@@ -621,7 +674,7 @@ export function BoardPage() {
             onChange={(event) => setSearchQuery(event.target.value)}
             aria-label="Search jobs"
           />
-          <button type="button" onClick={() => void loadBoard()} className="primary-btn">Refresh</button>
+          <button type="button" onClick={() => void loadBoard(true)} className="primary-btn">Refresh</button>
         </div>
       </section>
       {activeFilterChips.length > 0 && (

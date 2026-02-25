@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { CandidateProfile, JobDetail, JobEvent, Priority, TrackingStatus } from "../types";
 import { AnimatedList } from "./reactbits/AnimatedList";
@@ -48,6 +48,8 @@ interface FitCheck {
   impact?: "critical" | "important" | "nice";
 }
 
+const DescriptionMarkdown = lazy(async () => import("./DescriptionMarkdown").then((module) => ({ default: module.DescriptionMarkdown })));
+
 function valueOrDash(value: string | number | null | undefined): string {
   return value === null || value === undefined || value === "" ? "-" : String(value);
 }
@@ -69,43 +71,11 @@ function formatDescription(description: string): ReactNode {
   if (!base) {
     return <p className="description-text">-</p>;
   }
-
-  const headingPattern = /\s(?=(About the role|Responsibilities|What you'll do|Requirements|Qualifications|Preferred qualifications|Nice to have|Benefits|Compensation|About us|Who you are|Must have|You will|What we offer|Role overview)\b)/gi;
-  const normalized = base
-    .replace(/\r\n/g, "\n")
-    .replace(/\t+/g, " ")
-    .replace(/•\s*/g, "\n• ")
-    .replace(/\s{2,}/g, " ")
-    .replace(headingPattern, "\n\n")
-    .trim();
-
-  const chunks = normalized.split(/\n{2,}/).map((chunk) => chunk.trim()).filter(Boolean);
-  const bulletPattern = /^([-*•]|\d+\.)\s+/;
-  const softHeadingPattern = /^[A-Za-z][A-Za-z0-9\s/&'()-]{2,48}:?$/;
-
-  return chunks.map((chunk, index) => {
-    const lines = chunk.split("\n").map((line) => line.trim()).filter(Boolean);
-    if (lines.length === 0) {
-      return null;
-    }
-
-    if (lines.length === 1 && softHeadingPattern.test(lines[0])) {
-      return <h4 className="description-subhead" key={`heading-${index}`}>{lines[0].replace(/:$/, "")}</h4>;
-    }
-
-    if (lines.every((line) => bulletPattern.test(line))) {
-      return (
-        <ul className="description-list" key={`list-${index}`}>
-          {lines.map((line, lineIndex) => (
-            <li key={`li-${index}-${lineIndex}`}>{line.replace(bulletPattern, "")}</li>
-          ))}
-        </ul>
-      );
-    }
-
-    const flattened = lines.join(" ");
-    return <p className="description-text" key={`paragraph-${index}`}>{flattened}</p>;
-  });
+  return (
+    <Suspense fallback={<p className="description-text">Loading formatted description...</p>}>
+      <DescriptionMarkdown markdown={base} />
+    </Suspense>
+  );
 }
 
 function cleanSkills(skills: string[]): string[] {

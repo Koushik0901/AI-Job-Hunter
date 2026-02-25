@@ -51,6 +51,14 @@ def _resolve_db():
     return str(Path.cwd() / "jobs.db"), "", str(Path.cwd() / "jobs.db")
 
 
+def _env_or_default(name: str, default: str) -> str:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    cleaned = value.strip()
+    return cleaned or default
+
+
 def run(args) -> None:
     db_url, db_auth_token, db_label = _resolve_db()
     if args.db and not os.getenv("TURSO_URL", ""):
@@ -60,8 +68,12 @@ def run(args) -> None:
     console = Console(stderr=True)
 
     openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
-    openrouter_model = os.getenv("ENRICHMENT_MODEL", "openai/gpt-oss-120b")
-    description_format_model = os.getenv("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-20b:paid")
+    openrouter_model = _env_or_default("ENRICHMENT_MODEL", "openai/gpt-oss-120b")
+    description_format_model = _env_or_default("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-20b:paid")
+    if not (os.getenv("DESCRIPTION_FORMAT_MODEL") or "").strip():
+        console.print(
+            f"[yellow]DESCRIPTION_FORMAT_MODEL missing/empty; using default: {description_format_model}[/yellow]"
+        )
 
     if args.enrich_backfill or args.re_enrich_all or args.jd_reformat_missing or args.jd_reformat_all:
         if args.jd_reformat_missing or args.jd_reformat_all:
