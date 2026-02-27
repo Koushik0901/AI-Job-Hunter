@@ -14,6 +14,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from rich.console import Console
 from rich.markup import escape
@@ -88,6 +89,49 @@ def _candidate_slugs(name: str) -> list[str]:
     return slugs
 
 
+def _extract_slug_from_careers_url(value: str) -> tuple[str, str] | None:
+    """Infer (ats, slug) from a careers URL when possible."""
+    raw = (value or "").strip()
+    if not raw.startswith(("http://", "https://")):
+        return None
+
+    parsed = urlparse(raw)
+    host = (parsed.netloc or "").lower()
+    parts = [p for p in parsed.path.split("/") if p]
+
+    if "apply.workable.com" in host and parts:
+        slug = parts[0].strip().lower()
+        if slug and slug not in {"api", "jobs"}:
+            return ("workable", slug)
+
+    if host.endswith(".recruitee.com"):
+        slug = host.split(".")[0].strip().lower()
+        if slug:
+            return ("recruitee", slug)
+
+    if "greenhouse.io" in host and parts:
+        slug = parts[0].strip().lower()
+        if slug and slug not in {"v1", "boards", "job-boards", "boards-api"}:
+            return ("greenhouse", slug)
+
+    if host.endswith("jobs.lever.co") and parts:
+        slug = parts[0].strip().lower()
+        if slug:
+            return ("lever", slug)
+
+    if host.endswith("jobs.ashbyhq.com") and parts:
+        slug = parts[0].strip().lower()
+        if slug:
+            return ("ashby", slug)
+
+    if host.endswith("apply.smartrecruiters.com") and parts:
+        slug = parts[0].strip().lower()
+        if slug:
+            return ("smartrecruiters", slug)
+
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Concurrent ATS probing
 # ---------------------------------------------------------------------------
@@ -137,8 +181,22 @@ examples:
 
     console = Console()
 
+    inferred = _extract_slug_from_careers_url(args.company)
+    company_name_for_db = args.company
+    url_templates = _ATS_URL_TEMPLATES
+
+    if inferred:
+        inferred_ats, inferred_slug = inferred
+        if inferred_slug not in args.slug:
+            args.slug.insert(0, inferred_slug)
+        url_templates = {inferred_ats: _ATS_URL_TEMPLATES[inferred_ats]}
+        company_name_for_db = inferred_slug.replace("-", " ").title()
+        console.print(
+            f"[dim]Detected careers URL -> ATS: {inferred_ats}, slug: {inferred_slug}[/dim]"
+        )
+
     # 1. Build slug candidates
-    candidates = _candidate_slugs(args.company)
+    candidates = _candidate_slugs(company_name_for_db)
     for s in args.slug:
         if s not in candidates:
             candidates.append(s)
@@ -146,7 +204,7 @@ examples:
     console.print(f"\n[dim]Trying slugs:[/dim] {', '.join(candidates)}\n")
 
     # 2. Probe concurrently
-    hits = probe_all(candidates, _ATS_URL_TEMPLATES)
+    hits = probe_all(candidates, url_templates)
 
     # 3. Deduplicate by ats_url, sort for consistent display
     seen_urls: set[str] = set()
@@ -256,7 +314,7 @@ examples:
     for h in to_add:
         upsert_company_source(
             conn,
-            name=args.company,
+            name=company_name_for_db,
             ats_type=h["ats"],
             ats_url=h["ats_url"],
             slug=h["slug"],
@@ -264,7 +322,7 @@ examples:
             source="add_company",
         )
         console.print(
-            f"[green]Added[/green] {args.company} "
+            f"[green]Added[/green] {company_name_for_db} "
             f"([green]{h['ats']}[/green], slug=[cyan]{h['slug']}[/cyan]) "
             f"-> DB"
         )

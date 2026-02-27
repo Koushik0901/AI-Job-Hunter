@@ -121,10 +121,11 @@ def probe_all(slugs: list[str], url_templates: dict[str, str]) -> list[dict[str,
             else:
                 resp = requests.get(url, timeout=15)
             if success_test(resp):
+                canonical_tmpl = url_templates.get(ats_name, url_tmpl)
                 return {
                     "slug": slug,
                     "ats": ats_name,
-                    "ats_url": url_templates[ats_name].format(slug=slug),
+                    "ats_url": canonical_tmpl.format(slug=slug),
                     "jobs": probe_job_count(resp, ats_name),
                 }
         except requests.RequestException:

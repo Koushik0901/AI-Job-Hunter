@@ -13,6 +13,8 @@ uv run python src/add_company.py "Company Name" [options]
 - `--add`: non-interactive mode; auto-add all new matches.
 - `--db PATH`: local SQLite path (default: `<cwd>/jobs.db`; ignored if `TURSO_URL` is set).
 
+You can also pass a careers URL as the positional argument (for example Workable/Recruitee/Lever/Greenhouse/Ashby/SmartRecruiters). The script now auto-detects ATS + slug from the URL and probes that platform first.
+
 ## What it does
 
 1. Generates slug candidates from company name.
@@ -56,4 +58,5 @@ SmartRecruiters and Workable can return HTTP 200 for non-existent slugs with zer
 uv run python src/add_company.py "Hugging Face"
 uv run python src/add_company.py "Toyota Research Institute" --slug tri
 uv run python src/add_company.py "Scale AI" --slug scaleai --add
+uv run python src/add_company.py "https://apply.workable.com/valsoft-corp/#jobs" --add
 ```
