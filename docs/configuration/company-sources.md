@@ -5,7 +5,7 @@ Company scrape targets are stored in DB table `company_sources` (not YAML).
 ## Fields
 
 - `name`: display label used in tables and logs.
-- `ats_type`: one of `greenhouse`, `lever`, `ashby`, `workable`, `smartrecruiters`.
+- `ats_type`: one of `greenhouse`, `lever`, `ashby`, `workable`, `smartrecruiters`, `recruitee`.
 - `ats_url`: canonical board API URL for the source.
 - `slug`: extracted ATS slug used for probing and dedupe.
 - `enabled`: whether `cli.py scrape` includes the source.

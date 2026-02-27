@@ -108,3 +108,133 @@ export interface TrackingPatchRequest {
   next_step?: string | null;
   target_compensation?: string | null;
 }
+
+export interface ManualJobCreateRequest {
+  url: string;
+  company: string;
+  title: string;
+  location?: string | null;
+  posted?: string | null;
+  ats?: string | null;
+  description: string;
+}
+
+export interface SuppressedJob {
+  url: string;
+  company: string;
+  reason: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+}
+
+export interface FunnelWindow {
+  from: string | null;
+  to: string | null;
+  preset: "30d" | "90d" | "all" | string;
+}
+
+export interface FunnelStage {
+  status: TrackingStatus | "rejected";
+  count: number;
+}
+
+export interface FunnelConversions {
+  backlog_to_staging: number;
+  staging_to_applied: number;
+  applied_to_interviewing: number;
+  interviewing_to_offer: number;
+  backlog_to_offer: number;
+}
+
+export interface FunnelTotals {
+  tracked_total: number;
+  active_total: number;
+  offer_total: number;
+}
+
+export interface FunnelComparisonWindow {
+  from: string | null;
+  to: string | null;
+  days: number;
+}
+
+export interface FunnelDeltaSummary {
+  tracked_total: number;
+  active_total: number;
+  offer_total: number;
+  conversions: FunnelConversions;
+  comparison_window: FunnelComparisonWindow | null;
+}
+
+export interface WeeklyGoalMetric {
+  target: number;
+  actual: number;
+  progress: number;
+}
+
+export interface FunnelWeeklyGoals {
+  window_start: string;
+  window_end: string;
+  applications: WeeklyGoalMetric;
+  interviews: WeeklyGoalMetric;
+}
+
+export interface FunnelAlerts {
+  staging_stale_7d: number;
+  interviewing_no_activity_5d: number;
+  backlog_expiring_soon: number;
+}
+
+export interface CohortFunnelRow {
+  week_start: string;
+  stages: FunnelStage[];
+  tracked_total: number;
+  offer_rate: number;
+}
+
+export interface SourceQualityItem {
+  name: string;
+  tracked_total: number;
+  active_total: number;
+  offers: number;
+  offer_rate: number;
+  interview_rate: number;
+}
+
+export interface SourceQualitySummary {
+  ats: SourceQualityItem[];
+  companies: SourceQualityItem[];
+}
+
+export interface ForecastWindow {
+  days: number;
+  projected_interviews: number;
+  projected_offers: number;
+  interviews_low: number;
+  interviews_high: number;
+  offers_low: number;
+  offers_high: number;
+}
+
+export interface ForecastSummary {
+  applications_per_week: number;
+  interview_rate: number;
+  offer_rate_from_interview: number;
+  confidence_band: "low" | "medium" | "high" | string;
+  confidence_margin: number;
+  windows: ForecastWindow[];
+}
+
+export interface FunnelAnalyticsResponse {
+  window: FunnelWindow;
+  stages: FunnelStage[];
+  conversions: FunnelConversions;
+  totals: FunnelTotals;
+  deltas: FunnelDeltaSummary;
+  weekly_goals: FunnelWeeklyGoals;
+  alerts: FunnelAlerts;
+  cohorts: CohortFunnelRow[];
+  source_quality: SourceQualitySummary;
+  forecast: ForecastSummary;
+}

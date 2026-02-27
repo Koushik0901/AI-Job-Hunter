@@ -18,6 +18,7 @@ _ATS_TYPES = frozenset({
     "ashby",
     "workable",
     "smartrecruiters",
+    "recruitee",
 })
 
 
@@ -137,6 +138,7 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
             ats         TEXT,
             description TEXT,
             application_status TEXT,
+            source      TEXT NOT NULL DEFAULT 'scraped',
             first_seen  TEXT NOT NULL,
             last_seen   TEXT NOT NULL
         )
@@ -161,6 +163,10 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_company_sources_enabled ON company_sources(enabled)")
     try:
         conn.execute("ALTER TABLE jobs ADD COLUMN application_status TEXT")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE jobs ADD COLUMN source TEXT NOT NULL DEFAULT 'scraped'")
     except Exception:
         pass
     conn.execute("""
@@ -207,6 +213,20 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_job_tracking_status ON job_tracking(status)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS job_suppressions (
+            id          INTEGER PRIMARY KEY,
+            url         TEXT NOT NULL UNIQUE,
+            company     TEXT,
+            reason      TEXT,
+            scope       TEXT NOT NULL DEFAULT 'url',
+            created_at  TEXT NOT NULL,
+            updated_at  TEXT NOT NULL,
+            created_by  TEXT NOT NULL DEFAULT 'ui',
+            active      INTEGER NOT NULL DEFAULT 1
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_job_suppressions_active_created ON job_suppressions(active, created_at DESC)")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS job_events (
             id          INTEGER PRIMARY KEY,
@@ -378,16 +398,22 @@ def save_jobs(
     new_count = 0
     updated_count = 0
     new_jobs: list[dict[str, Any]] = []
+    suppressed_urls = load_active_suppressed_urls(conn)
 
     for job in jobs:
         url = job.get("url", "")
         if not url:
             continue
+        if url in suppressed_urls:
+            continue
+        source = str(job.get("source") or "scraped").strip().lower()
+        if not source:
+            source = "scraped"
         existing = conn.execute("SELECT 1 FROM jobs WHERE url = ?", (url,)).fetchone()
         if existing is None:
             conn.execute(
-                "INSERT INTO jobs (url, company, title, location, posted, ats, description, first_seen, last_seen) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO jobs (url, company, title, location, posted, ats, description, source, first_seen, last_seen) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     url,
                     job.get("company", ""),
@@ -396,6 +422,7 @@ def save_jobs(
                     job.get("posted", ""),
                     job.get("ats", ""),
                     job.get("description", ""),
+                    source,
                     now,
                     now,
                 ),
@@ -404,7 +431,8 @@ def save_jobs(
             new_jobs.append(job)
         else:
             conn.execute(
-                "UPDATE jobs SET company=?, title=?, location=?, posted=?, ats=?, description=?, last_seen=? "
+                "UPDATE jobs SET company=?, title=?, location=?, posted=?, ats=?, description=?, "
+                "source=CASE WHEN source='manual' THEN source ELSE ? END, last_seen=? "
                 "WHERE url=?",
                 (
                     job.get("company", ""),
@@ -413,6 +441,7 @@ def save_jobs(
                     job.get("posted", ""),
                     job.get("ats", ""),
                     job.get("description", ""),
+                    source,
                     now,
                     url,
                 ),
@@ -430,6 +459,56 @@ def set_application_status(conn: Any, url: str, status: str | None) -> int:
     if normalized not in valid and normalized is not None:
         raise ValueError(f"Invalid status: {status}")
     conn.execute("UPDATE jobs SET application_status=? WHERE url=?", (normalized, url))
+    changed = conn.execute("SELECT changes()").fetchone()
+    conn.commit()
+    return int(changed[0]) if changed else 0
+
+
+def load_active_suppressed_urls(conn: Any) -> set[str]:
+    rows = conn.execute("SELECT url FROM job_suppressions WHERE active = 1").fetchall()
+    return {str(row[0]) for row in rows if row and row[0]}
+
+
+def is_job_suppressed(conn: Any, url: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM job_suppressions WHERE url = ? AND active = 1 LIMIT 1",
+        (url,),
+    ).fetchone()
+    return row is not None
+
+
+def suppress_job_url(
+    conn: Any,
+    *,
+    url: str,
+    reason: str | None = None,
+    created_by: str = "ui",
+) -> None:
+    existing_company_row = conn.execute("SELECT company FROM jobs WHERE url = ? LIMIT 1", (url,)).fetchone()
+    company = existing_company_row[0] if existing_company_row else None
+    now = _utc_now_iso()
+    conn.execute(
+        """
+        INSERT INTO job_suppressions (url, company, reason, scope, created_at, updated_at, created_by, active)
+        VALUES (?, ?, ?, 'url', ?, ?, ?, 1)
+        ON CONFLICT(url) DO UPDATE SET
+            company = COALESCE(excluded.company, job_suppressions.company),
+            reason = excluded.reason,
+            updated_at = excluded.updated_at,
+            created_by = excluded.created_by,
+            active = 1
+        """,
+        (url, company, reason, now, now, created_by),
+    )
+    conn.commit()
+
+
+def unsuppress_job_url(conn: Any, url: str) -> int:
+    now = _utc_now_iso()
+    conn.execute(
+        "UPDATE job_suppressions SET active = 0, updated_at = ? WHERE url = ? AND active = 1",
+        (now, url),
+    )
     changed = conn.execute("SELECT changes()").fetchone()
     conn.commit()
     return int(changed[0]) if changed else 0

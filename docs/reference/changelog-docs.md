@@ -1,7 +1,51 @@
 # Documentation Changelog
 
+## 2026-02-27
+
+- Noted the new column scrollbar behavior so each pipeline stage becomes scrollable when overflowed, and highlighted it in `docs/dashboard/frontend-ui.md` and `docs/dashboard/overview.md`.
+
+## 2026-02-26
+
+- Documented the refreshed board toolbar controls and scrolling behavior in `docs/dashboard/frontend-ui.md`, including the new Controls capsule, fixed-width action buttons, and two-viewport vertical scroll experience.
+- Added a manual job workflow note to `docs/dashboard/frontend-ui.md` explaining how manual creates enqueue backend enrichment/formatting while immediately opening the drawer and silently refreshing the kanban view.
+- Expanded `docs/dashboard/overview.md` with a “Board interaction primer” that calls out the new control capsule, consistent action button spacing, vertical scroll behavior, and default collapsed rail with tooltips.
+
 ## 2026-02-25
 
+- Performed docs-audit cleanup for stale dashboard/scrape references:
+  - added missing `recruitee` coverage in `docs/cli/scrape.md` data-source list
+  - added `recruitee` parser support note in `docs/cli/sources.md` import behavior
+  - corrected `formatted_description` docs from "plain text" to "Markdown" across backend API, storage, and enrichment integration docs
+  - updated dashboard UI docs for current side-rail navigation model (replacing old top-tab wording)
+  - expanded profile API body docs to include `education` and legacy degree fields
+  - corrected scoring docs for stacked eligibility penalties (`canada_eligible` + visa mismatch)
+  - refreshed file-reference docs to include `AnalyticsPage` and markdown description rendering path
+  - clarified `lifecycle` docs that `withdrawn` remains a prune-protected legacy status, not a settable status
+- Updated scoring docs for seniority targeting:
+  - `intern`/`co-op` and `senior`/`lead` now documented as equally penalized in match scoring
+  - seniority title heuristics updated to include `co-op` / `coop` under intern detection
+- Added analytics documentation coverage:
+  - new `GET /api/analytics/funnel` endpoint details in backend API docs
+  - frontend route and interaction docs for `/analytics`
+  - dashboard overview updates for funnel workflow and nav tab
+  - environment docs update for `DASHBOARD_CACHE_TTL_ANALYTICS_FC`
+  - documented Phase 1 analytics modules:
+    - delta comparisons vs previous window
+    - weekly goals and progress bars
+    - actionable alerts and goal-target query params
+  - documented Phase 2 analytics modules:
+    - cohort funnel table (weekly cohorts by posted date)
+    - source quality rankings (ATS + companies)
+    - analytics-to-board drill-down using URL filters (`ats`, `company`, `posted_after`, `posted_before`)
+  - documented Phase 3 analytics modules:
+    - forecast simulator with throughput scenario input
+    - confidence-band projections for 7-day and 30-day horizons
+    - `forecast_apps_per_week` analytics API query parameter
+  - documented Recruitee ATS support across:
+    - ATS integrations reference
+    - company-sources configuration
+    - database storage validation notes
+    - add-company probe coverage
 - Added dashboard cache documentation:
   - Redis-backed read-through cache behavior in backend API docs
   - environment variable references for `REDIS_URL` and `DASHBOARD_CACHE_TTL_*`
@@ -36,7 +80,7 @@
 - Updated dashboard backend/frontend docs to include `formatted_description` consumption and fallback behavior.
 - Updated CLI and architecture flow docs to reflect split scrape vs enrichment execution paths.
 
-## 2026-02-24
+## 2026-02-25
 
 - Added dedicated scoring rubric doc: `docs/dashboard/match-scoring.md` with exact inputs, weights, penalties, bands, and confidence rules.
 - Updated dashboard docs to include profile-based match scoring:

@@ -28,6 +28,7 @@ Optional but recommended:
 - `TURSO_AUTH_TOKEN`
 - `OPENROUTER_API_KEY`
 - `ENRICHMENT_MODEL`
+- `DESCRIPTION_FORMAT_MODEL`
 
 If `TURSO_URL` is absent, local SQLite `jobs.db` is used.
 
@@ -117,6 +118,7 @@ In the dashboard `Profile` page (`/profile`), set:
 - years of experience
 - skills
 - target role families
+- education entries (degree + field)
 - visa sponsorship need
 
 Then save profile to enable/rerank match scoring.

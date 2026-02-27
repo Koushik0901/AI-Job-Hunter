@@ -39,6 +39,14 @@ _ATS_PROBES: list[tuple[str, str, str, Any]] = [
         "GET",
         lambda r: r.status_code == 200 and "content" in r.json(),
     ),
+    (
+        "recruitee",
+        "https://{slug}.recruitee.com/api/offers",
+        "GET",
+        lambda r: r.status_code == 200 and (
+            (isinstance(r.json(), dict) and "offers" in r.json()) or isinstance(r.json(), list)
+        ),
+    ),
 ]
 
 
@@ -54,6 +62,11 @@ def probe_job_count(resp: requests.Response, ats_name: str) -> int:
             return len(data.get("results", [])) if isinstance(data, dict) else 0
         if ats_name == "smartrecruiters":
             return data.get("totalFound", len(data.get("content", [])))
+        if ats_name == "recruitee":
+            if isinstance(data, list):
+                return len(data)
+            offers = data.get("offers", [])
+            return len(offers) if isinstance(offers, list) else 0
     except Exception:
         pass
     if ats_name == "ashby":

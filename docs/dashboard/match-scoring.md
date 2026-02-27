@@ -56,13 +56,15 @@ Base score starts at `50`, then adds/subtracts the components below.
 
 Priority goal is recent-grad friendly ranking.
 
-- `intern` or `junior`: `+20`
+- `intern` (including title-detected `co-op`): `-25`
+- `junior`: `+20`
 - `mid`: `+8`
-- `senior`: `-18`
+- `senior`: `-25`
 - `staff` or `principal`: `-25`
 
 When enrichment seniority is missing, title heuristics are used:
 
+- intern signals: `intern`, `internship`, `co-op`, `coop`
 - junior signals: `junior`, `entry`, `associate`
 - senior signals: `senior`, `sr`, `staff`, `principal`, `lead`
 
@@ -84,13 +86,13 @@ Applies only when profile target families are set.
 - If job `role_family` in profile target families: `+8`
 - If job `role_family` not in target families: `-8`
 
-### 6) Eligibility penalty (`0 or -40`)
+### 6) Eligibility penalties (`0..-85`)
 
-Hard penalty for sponsorship mismatch:
+Hard penalties for eligibility blockers:
 
-- If profile `requires_visa_sponsorship = true`
-- and job `visa_sponsorship = "no"`
-- then apply `-40`
+- If job `canada_eligible = "no"`: apply `-45`
+- If profile `requires_visa_sponsorship = true` and job `visa_sponsorship = "no"`: apply `-40`
+- These penalties can stack.
 
 ## Confidence level
 

@@ -9,6 +9,7 @@ Implemented in `src/fetchers.py`.
 - Ashby
 - Workable
 - SmartRecruiters
+- Recruitee
 
 All source fetchers use `requests` with retry decorator (`retry_with_backoff`).
 
@@ -39,6 +40,12 @@ All source fetchers use `requests` with retry decorator (`retry_with_backoff`).
 - Listing from `/v1/companies/{slug}/postings`.
 - Description assembled from `jobAd.sections` fields.
 - Discovery probes may return 200 with zero jobs for invalid slugs.
+
+### Recruitee
+
+- Listing from `https://{slug}.recruitee.com/api/offers`.
+- Description uses listing payload when present, with detail fallback to `/api/offers/{id}`.
+- Slug extraction is hostname-based (`{slug}.recruitee.com`).
 
 ### HN "Who is Hiring"
 

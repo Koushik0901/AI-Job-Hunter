@@ -53,6 +53,8 @@ Protected statuses:
 - `rejected`
 - `withdrawn`
 
+`withdrawn` is treated as a legacy protected value for retention only; it is not an allowed target for `set-status`.
+
 ## DB resolution behavior
 
 - If `TURSO_URL` is set, Turso is used.

@@ -80,6 +80,7 @@ Rejects:
 - Ashby
 - Workable
 - SmartRecruiters
+- Recruitee
 - HN "Who is Hiring" comments (Algolia)
 
 ## Side effects

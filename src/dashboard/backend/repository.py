@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-from db import get_candidate_profile, upsert_candidate_profile
+from db import (
+    get_candidate_profile,
+    is_job_suppressed,
+    save_jobs,
+    suppress_job_url,
+    unsuppress_job_url,
+    upsert_candidate_profile,
+)
 from match_score import compute_match_score
 
 
@@ -57,6 +64,14 @@ def _normalized_status_sql(tracking_column: str, application_column: str) -> str
     return f"CASE WHEN {source} = 'withdrawn' THEN 'rejected' ELSE COALESCE({source}, 'not_applied') END"
 
 
+def _not_suppressed_sql(job_alias: str = "j") -> str:
+    return (
+        f"NOT EXISTS ("
+        f"SELECT 1 FROM job_suppressions js "
+        f"WHERE js.url = {job_alias}.url AND js.active = 1)"
+    )
+
+
 def list_jobs(
     conn: Any,
     *,
@@ -65,12 +80,16 @@ def list_jobs(
     ats: str | None,
     company: str | None,
     posted_after: str | None,
+    posted_before: str | None,
     sort: str,
     limit: int,
     offset: int,
+    include_suppressed: bool = False,
 ) -> tuple[list[dict[str, Any]], int]:
     where: list[str] = []
     params: list[Any] = []
+    if not include_suppressed:
+        where.append(_not_suppressed_sql("j"))
 
     if status:
         where.append(f"{_normalized_status_sql('t.status', 'j.application_status')} = ?")
@@ -88,6 +107,9 @@ def list_jobs(
     if posted_after:
         where.append("date(j.posted) >= date(?)")
         params.append(posted_after)
+    if posted_before:
+        where.append("date(j.posted) <= date(?)")
+        params.append(posted_before)
 
     where_sql = ""
     if where:
@@ -345,6 +367,63 @@ def upsert_tracking(conn: Any, url: str, patch: dict[str, Any]) -> None:
     conn.commit()
 
 
+def create_manual_job(conn: Any, payload: dict[str, Any]) -> dict[str, Any]:
+    url = str(payload.get("url") or "").strip()
+    if not url:
+        raise ValueError("url is required")
+    if is_job_suppressed(conn, url):
+        raise ValueError("This job URL is suppressed. Unsuppress it before adding.")
+
+    today = datetime.now(timezone.utc).date().isoformat()
+    job = {
+        "url": url,
+        "company": str(payload.get("company") or "").strip(),
+        "title": str(payload.get("title") or "").strip(),
+        "location": str(payload.get("location") or "").strip(),
+        "posted": str(payload.get("posted") or today).strip(),
+        "ats": str(payload.get("ats") or "manual").strip(),
+        "description": str(payload.get("description") or "").strip(),
+        "source": "manual",
+    }
+    save_jobs(conn, [job])
+    detail = get_job_detail(conn, url)
+    if not detail:
+        raise RuntimeError("Failed to save manual job")
+    return detail
+
+
+def suppress_job(conn: Any, *, url: str, reason: str | None, created_by: str = "ui") -> None:
+    suppress_job_url(conn, url=url, reason=reason, created_by=created_by)
+
+
+def unsuppress_job(conn: Any, *, url: str) -> int:
+    return unsuppress_job_url(conn, url)
+
+
+def list_active_suppressions(conn: Any, *, limit: int = 200) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT url, COALESCE(company, ''), reason, created_at, updated_at, created_by
+        FROM job_suppressions
+        WHERE active = 1
+        ORDER BY datetime(updated_at) DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    return [
+        {
+            "url": str(row[0]),
+            "company": str(row[1] or ""),
+            "reason": row[2],
+            "created_at": str(row[3]),
+            "updated_at": str(row[4]),
+            "created_by": str(row[5] or "ui"),
+        }
+        for row in rows
+    ]
+
+
 def list_events(conn: Any, url: str) -> list[dict[str, Any]]:
     rows = conn.execute(
         """
@@ -410,14 +489,28 @@ def delete_job(conn: Any, url: str) -> int:
 
 
 def get_stats(conn: Any) -> dict[str, Any]:
-    total_jobs = int(conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0])
-    tracked_jobs = int(conn.execute("SELECT COUNT(*) FROM job_tracking").fetchone()[0])
+    total_jobs = int(
+        conn.execute(
+            f"SELECT COUNT(*) FROM jobs j WHERE {_not_suppressed_sql('j')}"
+        ).fetchone()[0]
+    )
+    tracked_jobs = int(
+        conn.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM job_tracking t
+            INNER JOIN jobs j ON j.url = t.url
+            WHERE {_not_suppressed_sql('j')}
+            """
+        ).fetchone()[0]
+    )
 
     by_status_rows = conn.execute(
         f"""
         SELECT {_normalized_status_sql('t.status', 'j.application_status')} AS s, COUNT(*)
         FROM jobs j
         LEFT JOIN job_tracking t ON t.url = j.url
+        WHERE {_not_suppressed_sql('j')}
         GROUP BY s
         """
     ).fetchall()
@@ -427,7 +520,13 @@ def get_stats(conn: Any) -> dict[str, Any]:
 
     recent_activity_7d = int(
         conn.execute(
-            "SELECT COUNT(*) FROM job_events WHERE datetime(created_at) >= datetime('now', '-7 day')"
+            f"""
+            SELECT COUNT(*)
+            FROM job_events ev
+            INNER JOIN jobs j ON j.url = ev.url
+            WHERE datetime(ev.created_at) >= datetime('now', '-7 day')
+              AND {_not_suppressed_sql('j')}
+            """
         ).fetchone()[0]
     )
 
@@ -446,3 +545,474 @@ def get_profile(conn: Any) -> dict[str, Any]:
 
 def save_profile(conn: Any, payload: dict[str, Any]) -> dict[str, Any]:
     return upsert_candidate_profile(conn, payload)
+
+
+def get_funnel_analytics(
+    conn: Any,
+    *,
+    from_date: str | None,
+    to_date: str | None,
+    status_scope: str,
+    applications_goal_target: int,
+    interviews_goal_target: int,
+    forecast_apps_per_week: int | None = None,
+) -> dict[str, Any]:
+    stage_order_all = ["not_applied", "staging", "applied", "interviewing", "offer", "rejected"]
+    stage_order_pipeline = ["not_applied", "staging", "applied", "interviewing", "offer"]
+    stage_order = stage_order_all if status_scope == "all" else stage_order_pipeline
+    comparison_stage_order = stage_order
+
+    current_counts = _funnel_counts(conn, from_date=from_date, to_date=to_date)
+    reference_date = _resolve_reference_date(to_date)
+    previous_counts: dict[str, int] = {}
+    comparison_window: dict[str, Any] | None = None
+    if from_date:
+        try:
+            previous_window = _previous_window(from_date, to_date or reference_date.isoformat())
+        except ValueError:
+            previous_window = None
+        if previous_window:
+            previous_counts = _funnel_counts(
+                conn,
+                from_date=previous_window["from"],
+                to_date=previous_window["to"],
+            )
+            comparison_window = previous_window
+
+    conversions = _conversion_metrics(current_counts)
+    previous_conversions = _conversion_metrics(previous_counts) if previous_counts else {
+        "backlog_to_staging": 0.0,
+        "staging_to_applied": 0.0,
+        "applied_to_interviewing": 0.0,
+        "interviewing_to_offer": 0.0,
+        "backlog_to_offer": 0.0,
+    }
+    weekly_goals = _weekly_goals(
+        conn,
+        reference_date=reference_date,
+        applications_goal_target=applications_goal_target,
+        interviews_goal_target=interviews_goal_target,
+    )
+    alerts = _analytics_alerts(conn, reference_date=reference_date)
+    cohorts = _cohort_funnel(
+        conn,
+        from_date=from_date,
+        to_date=to_date,
+        stage_order=stage_order,
+    )
+    source_quality = _source_quality(
+        conn,
+        from_date=from_date,
+        to_date=to_date,
+    )
+    forecast = _forecast_summary(
+        current_counts=current_counts,
+        conversions=conversions,
+        applications_goal_target=applications_goal_target,
+        forecast_apps_per_week=forecast_apps_per_week,
+    )
+
+    return {
+        "stages": [{"status": status, "count": current_counts.get(status, 0)} for status in stage_order],
+        "conversions": conversions,
+        "totals": {
+            "tracked_total": sum(current_counts.get(status, 0) for status in stage_order),
+            "active_total": current_counts.get("staging", 0) + current_counts.get("applied", 0) + current_counts.get("interviewing", 0),
+            "offer_total": current_counts.get("offer", 0),
+        },
+        "status_totals": {status: current_counts.get(status, 0) for status in stage_order_all},
+        "deltas": {
+            "tracked_total": sum(current_counts.get(status, 0) for status in comparison_stage_order)
+            - sum(previous_counts.get(status, 0) for status in comparison_stage_order),
+            "active_total": (
+                current_counts.get("staging", 0) + current_counts.get("applied", 0) + current_counts.get("interviewing", 0)
+                - previous_counts.get("staging", 0) - previous_counts.get("applied", 0) - previous_counts.get("interviewing", 0)
+            ),
+            "offer_total": current_counts.get("offer", 0) - previous_counts.get("offer", 0),
+            "conversions": {
+                "backlog_to_staging": round(conversions["backlog_to_staging"] - previous_conversions["backlog_to_staging"], 4),
+                "staging_to_applied": round(conversions["staging_to_applied"] - previous_conversions["staging_to_applied"], 4),
+                "applied_to_interviewing": round(conversions["applied_to_interviewing"] - previous_conversions["applied_to_interviewing"], 4),
+                "interviewing_to_offer": round(conversions["interviewing_to_offer"] - previous_conversions["interviewing_to_offer"], 4),
+                "backlog_to_offer": round(conversions["backlog_to_offer"] - previous_conversions["backlog_to_offer"], 4),
+            },
+            "comparison_window": comparison_window,
+        },
+        "weekly_goals": weekly_goals,
+        "alerts": alerts,
+        "cohorts": cohorts,
+        "source_quality": source_quality,
+        "forecast": forecast,
+    }
+
+
+def _funnel_counts(
+    conn: Any,
+    *,
+    from_date: str | None,
+    to_date: str | None,
+) -> dict[str, int]:
+    where: list[str] = []
+    params: list[Any] = []
+    where.append(_not_suppressed_sql("j"))
+
+    if from_date:
+        where.append("date(j.posted) >= date(?)")
+        params.append(from_date)
+    if to_date:
+        where.append("date(j.posted) <= date(?)")
+        params.append(to_date)
+    if from_date or to_date:
+        where.append("j.posted IS NOT NULL AND j.posted != ''")
+
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    rows = conn.execute(
+        f"""
+        SELECT {_normalized_status_sql('t.status', 'j.application_status')} AS s, COUNT(*)
+        FROM jobs j
+        LEFT JOIN job_tracking t ON t.url = j.url
+        {where_sql}
+        GROUP BY s
+        """,
+        tuple(params),
+    ).fetchall()
+    return {str(r[0]): int(r[1]) for r in rows}
+
+
+def _conversion_metrics(counts: dict[str, int]) -> dict[str, float]:
+    def pct(numerator: int, denominator: int) -> float:
+        if denominator <= 0:
+            return 0.0
+        return round(numerator / denominator, 4)
+
+    backlog = counts.get("not_applied", 0)
+    staging = counts.get("staging", 0)
+    applied = counts.get("applied", 0)
+    interviewing = counts.get("interviewing", 0)
+    offer = counts.get("offer", 0)
+    return {
+        "backlog_to_staging": pct(staging, backlog),
+        "staging_to_applied": pct(applied, staging),
+        "applied_to_interviewing": pct(interviewing, applied),
+        "interviewing_to_offer": pct(offer, interviewing),
+        "backlog_to_offer": pct(offer, backlog),
+    }
+
+
+def _resolve_reference_date(to_date: str | None) -> date:
+    if not to_date:
+        return datetime.now(timezone.utc).date()
+    try:
+        return date.fromisoformat(to_date)
+    except ValueError:
+        return datetime.now(timezone.utc).date()
+
+
+def _previous_window(from_date: str, to_date: str) -> dict[str, Any]:
+    current_start = date.fromisoformat(from_date)
+    current_end = date.fromisoformat(to_date)
+    days = max(1, (current_end - current_start).days + 1)
+    previous_end = current_start - timedelta(days=1)
+    previous_start = previous_end - timedelta(days=days - 1)
+    return {
+        "from": previous_start.isoformat(),
+        "to": previous_end.isoformat(),
+        "days": days,
+    }
+
+
+def _weekly_goals(
+    conn: Any,
+    *,
+    reference_date: date,
+    applications_goal_target: int,
+    interviews_goal_target: int,
+) -> dict[str, Any]:
+    week_start = reference_date - timedelta(days=6)
+    start_iso = week_start.isoformat()
+    end_iso = reference_date.isoformat()
+    applications_actual = int(
+        conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM job_tracking
+            WHERE applied_at IS NOT NULL
+              AND date(applied_at) >= date(?)
+              AND date(applied_at) <= date(?)
+            """,
+            (start_iso, end_iso),
+        ).fetchone()[0]
+    )
+    interviews_actual = int(
+        conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM job_events
+            WHERE event_type IN ('recruiter_screen', 'technical_interview', 'onsite')
+              AND date(event_at) >= date(?)
+              AND date(event_at) <= date(?)
+            """,
+            (start_iso, end_iso),
+        ).fetchone()[0]
+    )
+
+    return {
+        "window_start": start_iso,
+        "window_end": end_iso,
+        "applications": {
+            "target": applications_goal_target,
+            "actual": applications_actual,
+            "progress": round(min(1.0, applications_actual / max(1, applications_goal_target)), 4),
+        },
+        "interviews": {
+            "target": interviews_goal_target,
+            "actual": interviews_actual,
+            "progress": round(min(1.0, interviews_actual / max(1, interviews_goal_target)), 4),
+        },
+    }
+
+
+def _analytics_alerts(conn: Any, *, reference_date: date) -> dict[str, int]:
+    reference_iso = reference_date.isoformat()
+    staging_stale_7d = int(
+        conn.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM jobs j
+            LEFT JOIN job_tracking t ON t.url = j.url
+            WHERE {_normalized_status_sql('t.status', 'j.application_status')} = 'staging'
+              AND date(COALESCE(t.updated_at, j.last_seen, j.posted)) <= date(?, '-7 day')
+              AND {_not_suppressed_sql('j')}
+            """,
+            (reference_iso,),
+        ).fetchone()[0]
+    )
+    interviewing_no_activity_5d = int(
+        conn.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM jobs j
+            LEFT JOIN job_tracking t ON t.url = j.url
+            LEFT JOIN (
+              SELECT url, MAX(event_at) AS latest_event_at
+              FROM job_events
+              GROUP BY url
+            ) ev ON ev.url = j.url
+            WHERE {_normalized_status_sql('t.status', 'j.application_status')} = 'interviewing'
+              AND {_not_suppressed_sql('j')}
+              AND (
+                ev.latest_event_at IS NULL
+                OR date(ev.latest_event_at) <= date(?, '-5 day')
+              )
+            """,
+            (reference_iso,),
+        ).fetchone()[0]
+    )
+    backlog_expiring_soon = int(
+        conn.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM jobs j
+            LEFT JOIN job_tracking t ON t.url = j.url
+            WHERE {_normalized_status_sql('t.status', 'j.application_status')} = 'not_applied'
+              AND j.posted IS NOT NULL
+              AND j.posted != ''
+              AND date(j.posted) BETWEEN date(?, '-21 day') AND date(?, '-18 day')
+              AND {_not_suppressed_sql('j')}
+            """,
+            (reference_iso, reference_iso),
+        ).fetchone()[0]
+    )
+    return {
+        "staging_stale_7d": staging_stale_7d,
+        "interviewing_no_activity_5d": interviewing_no_activity_5d,
+        "backlog_expiring_soon": backlog_expiring_soon,
+    }
+
+
+def _cohort_funnel(
+    conn: Any,
+    *,
+    from_date: str | None,
+    to_date: str | None,
+    stage_order: list[str],
+) -> list[dict[str, Any]]:
+    where: list[str] = ["j.posted IS NOT NULL", "j.posted != ''", _not_suppressed_sql("j")]
+    params: list[Any] = []
+    if from_date:
+        where.append("date(j.posted) >= date(?)")
+        params.append(from_date)
+    if to_date:
+        where.append("date(j.posted) <= date(?)")
+        params.append(to_date)
+    where_sql = "WHERE " + " AND ".join(where)
+    week_start_expr = "date(j.posted, '-' || ((CAST(strftime('%w', j.posted) AS INTEGER) + 6) % 7) || ' days')"
+    rows = conn.execute(
+        f"""
+        SELECT
+          {week_start_expr} AS week_start,
+          {_normalized_status_sql('t.status', 'j.application_status')} AS s,
+          COUNT(*)
+        FROM jobs j
+        LEFT JOIN job_tracking t ON t.url = j.url
+        {where_sql}
+        GROUP BY week_start, s
+        ORDER BY week_start DESC
+        """,
+        tuple(params),
+    ).fetchall()
+
+    buckets: dict[str, dict[str, int]] = {}
+    for week_start, status, count in rows:
+        week_key = str(week_start)
+        if week_key not in buckets:
+            buckets[week_key] = {}
+        buckets[week_key][str(status)] = int(count)
+
+    ordered_weeks = sorted(buckets.keys(), reverse=True)[:8]
+    result: list[dict[str, Any]] = []
+    for week_key in ordered_weeks:
+        status_counts = buckets[week_key]
+        tracked_total = sum(status_counts.get(status, 0) for status in stage_order)
+        offers = status_counts.get("offer", 0)
+        offer_rate = round(offers / tracked_total, 4) if tracked_total > 0 else 0.0
+        result.append(
+            {
+                "week_start": week_key,
+                "stages": [{"status": status, "count": status_counts.get(status, 0)} for status in stage_order],
+                "tracked_total": tracked_total,
+                "offer_rate": offer_rate,
+            }
+        )
+    return result
+
+
+def _source_quality(conn: Any, *, from_date: str | None, to_date: str | None) -> dict[str, list[dict[str, Any]]]:
+    return {
+        "ats": _source_quality_group(conn, group_expr="COALESCE(NULLIF(j.ats, ''), 'unknown')", from_date=from_date, to_date=to_date),
+        "companies": _source_quality_group(conn, group_expr="COALESCE(NULLIF(j.company, ''), 'Unknown company')", from_date=from_date, to_date=to_date),
+    }
+
+
+def _source_quality_group(
+    conn: Any,
+    *,
+    group_expr: str,
+    from_date: str | None,
+    to_date: str | None,
+) -> list[dict[str, Any]]:
+    where: list[str] = [_not_suppressed_sql("j")]
+    params: list[Any] = []
+    if from_date:
+        where.append("date(j.posted) >= date(?)")
+        params.append(from_date)
+    if to_date:
+        where.append("date(j.posted) <= date(?)")
+        params.append(to_date)
+    if from_date or to_date:
+        where.append("j.posted IS NOT NULL AND j.posted != ''")
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    rows = conn.execute(
+        f"""
+        SELECT
+          {group_expr} AS source_name,
+          {_normalized_status_sql('t.status', 'j.application_status')} AS s,
+          COUNT(*)
+        FROM jobs j
+        LEFT JOIN job_tracking t ON t.url = j.url
+        {where_sql}
+        GROUP BY source_name, s
+        """,
+        tuple(params),
+    ).fetchall()
+    grouped: dict[str, dict[str, int]] = {}
+    for source_name, status, count in rows:
+        source_key = str(source_name)
+        if source_key not in grouped:
+            grouped[source_key] = {}
+        grouped[source_key][str(status)] = int(count)
+
+    items: list[dict[str, Any]] = []
+    for source_key, counts in grouped.items():
+        tracked_total = (
+            counts.get("not_applied", 0)
+            + counts.get("staging", 0)
+            + counts.get("applied", 0)
+            + counts.get("interviewing", 0)
+            + counts.get("offer", 0)
+            + counts.get("rejected", 0)
+        )
+        active_total = counts.get("staging", 0) + counts.get("applied", 0) + counts.get("interviewing", 0)
+        offers = counts.get("offer", 0)
+        interviewing = counts.get("interviewing", 0)
+        offer_rate = round(offers / tracked_total, 4) if tracked_total > 0 else 0.0
+        interview_rate = round(interviewing / tracked_total, 4) if tracked_total > 0 else 0.0
+        items.append(
+            {
+                "name": source_key,
+                "tracked_total": tracked_total,
+                "active_total": active_total,
+                "offers": offers,
+                "offer_rate": offer_rate,
+                "interview_rate": interview_rate,
+            }
+        )
+
+    items.sort(key=lambda item: (item["offer_rate"], item["tracked_total"]), reverse=True)
+    return items[:10]
+
+
+def _forecast_summary(
+    *,
+    current_counts: dict[str, int],
+    conversions: dict[str, float],
+    applications_goal_target: int,
+    forecast_apps_per_week: int | None,
+) -> dict[str, Any]:
+    base_apps = max(1, int(forecast_apps_per_week or applications_goal_target))
+    tracked_total = (
+        current_counts.get("not_applied", 0)
+        + current_counts.get("staging", 0)
+        + current_counts.get("applied", 0)
+        + current_counts.get("interviewing", 0)
+        + current_counts.get("offer", 0)
+        + current_counts.get("rejected", 0)
+    )
+    interviewing_count = current_counts.get("interviewing", 0)
+    if tracked_total >= 60 and interviewing_count >= 10:
+        confidence_band = "high"
+        margin = 0.15
+    elif tracked_total >= 25 and interviewing_count >= 4:
+        confidence_band = "medium"
+        margin = 0.3
+    else:
+        confidence_band = "low"
+        margin = 0.5
+
+    interview_rate = float(conversions.get("applied_to_interviewing", 0.0))
+    offer_rate = float(conversions.get("interviewing_to_offer", 0.0))
+
+    def project(days: int) -> dict[str, Any]:
+        applications = base_apps * (days / 7.0)
+        interviews = applications * interview_rate
+        offers = interviews * offer_rate
+        low_multiplier = max(0.0, 1.0 - margin)
+        high_multiplier = 1.0 + margin
+        return {
+            "days": days,
+            "projected_interviews": round(interviews, 2),
+            "projected_offers": round(offers, 2),
+            "interviews_low": round(interviews * low_multiplier, 2),
+            "interviews_high": round(interviews * high_multiplier, 2),
+            "offers_low": round(offers * low_multiplier, 2),
+            "offers_high": round(offers * high_multiplier, 2),
+        }
+
+    return {
+        "applications_per_week": base_apps,
+        "interview_rate": round(interview_rate, 4),
+        "offer_rate_from_interview": round(offer_rate, 4),
+        "confidence_band": confidence_band,
+        "confidence_margin": margin,
+        "windows": [project(7), project(30)],
+    }

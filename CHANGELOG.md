@@ -4,10 +4,51 @@ All notable project changes are tracked in this file.
 
 This project follows a simple Keep a Changelog style with date-based entries.
 
+## 2026-02-27
+
+### Changed
+
+- Kanban columns now get independent internal scrollbars whenever they overflow their viewport height, so each stage (Backlog, Applied, etc.) scrolls when needed while the board still moves as a single page (`docs/dashboard/frontend-ui.md`, `docs/dashboard/overview.md`).
+
+## 2026-02-26
+
+### Changed
+
+- Board toolbar now houses view/sort/filter/search inside a single “Controls” capsule with active filter badges, leaving the action buttons (`Suppressed`, `Add Job`, `Refresh`) visually spaced and fixed-width.
+- The kanban grid is sized to roughly two viewports so the entire board scrolls vertically together while the backlog note stays visible; the side rail now defaults to a collapsed icon column with tooltip labels and reopens via the burger toggle.
+- Manual job creation opens the detail drawer instantly, queues enrichment/description formatting in the background, and silently refreshes the board once the LLM work completes so the UI stays responsive.
+- Dashboard documentation now documents the refreshed board controls, vertical scroll behavior, and manual-job workflow in `docs/dashboard/frontend-ui.md` plus the overview primer on board interactions.
+
 ## 2026-02-25
 
 ### Added
 
+- Funnel analytics feature slice:
+  - new backend endpoint `GET /api/analytics/funnel`
+  - date presets (`30d`, `90d`, `all`) and optional `from`/`to` override support
+  - stage counts and conversion metrics for pipeline progression
+  - new frontend `Analytics` page and nav route (`/analytics`)
+  - analytics Redis cache TTL via `DASHBOARD_CACHE_TTL_ANALYTICS_FC`
+  - Phase 1 analytics expansion:
+    - conversion deltas vs previous equal-length window
+    - weekly goals tracking (applications + interview activities)
+    - actionable alerts (`staging_stale_7d`, `interviewing_no_activity_5d`, `backlog_expiring_soon`)
+    - configurable goal targets via `applications_goal_target` and `interviews_goal_target`
+  - Phase 2 analytics expansion:
+    - cohort funnel by posted week (`cohorts`)
+    - source quality summaries (`source_quality.ats`, `source_quality.companies`)
+    - analytics UI sections for cohort table + ATS/company quality rankings
+    - click-through drill-down from analytics rows to board filters (`ats`, `company`, `posted_after`, `posted_before`)
+  - Phase 3 analytics expansion:
+    - forecast summary payload (`forecast`) with confidence bands and 7d/30d horizon windows
+    - optional API input `forecast_apps_per_week` for scenario planning
+    - analytics forecast simulator UI with instant scenario recalculation
+- Recruitee ATS integration:
+  - added `recruitee` as a supported `company_sources.ats_type`
+  - added Recruitee fetch/normalize/description support in scrape pipeline
+  - added Recruitee probe support in `add_company` discovery flow
+  - added Recruitee link parsing to source import service
+  - added regression tests for Recruitee slug/url parsing and normalization
 - Description formatting enrichment output:
   - new `job_enrichments.formatted_description` column
   - best-effort LLM formatting pass in `src/enrich.py`
@@ -62,6 +103,9 @@ This project follows a simple Keep a Changelog style with date-based entries.
   - `re_enrich_all`
   - `jd_reformat_missing`
   - `jd_reformat_all`
+- Match scoring seniority bias updated to demote out-of-scope roles equally:
+  - `intern`/`co-op` roles now receive the same `-25` penalty as `senior`/`staff`/`principal`
+  - title-based seniority detection now treats `co-op`/`coop` as intern-level
 
 ## 2026-02-24
 

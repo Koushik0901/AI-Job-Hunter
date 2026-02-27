@@ -6,8 +6,7 @@ interface KanbanColumnProps {
   count: number;
   isActiveDrop: boolean;
   onDropJob: (status: string, url: string) => void;
-  hasMore: boolean;
-  onLoadMore: () => void;
+  onReachEnd?: () => void;
   children: ReactNode;
 }
 
@@ -17,10 +16,12 @@ export function KanbanColumn({
   count,
   isActiveDrop,
   onDropJob,
-  hasMore,
-  onLoadMore,
+  onReachEnd,
   children,
 }: KanbanColumnProps) {
+  const toneClass = `tone-${id.replaceAll("_", "-")}`;
+  const countLabel = count === 1 ? "1 role" : `${count} roles`;
+
   return (
     <section
       className={`kanban-column ${isActiveDrop ? "drop-active" : ""}`}
@@ -35,16 +36,29 @@ export function KanbanColumn({
     >
       <header className="column-header">
         <div className="column-header-title">
-          <h3>{label}</h3>
-          <span className="column-count">{count}</span>
+          <span className={`column-tone ${toneClass}`} aria-hidden="true" />
+          <div className="column-heading">
+            <h3>{label}</h3>
+            <p>{countLabel}</p>
+          </div>
         </div>
+        <span className="column-count">{count}</span>
       </header>
-      <div className="column-items">{children}</div>
-      {hasMore && (
-        <button type="button" className="column-load-more" onClick={onLoadMore}>
-          Load more
-        </button>
-      )}
+      <div
+        className="column-items"
+        onScroll={(event) => {
+          if (!onReachEnd) {
+            return;
+          }
+          const target = event.currentTarget;
+          const remaining = target.scrollHeight - target.scrollTop - target.clientHeight;
+          if (remaining < 120) {
+            onReachEnd();
+          }
+        }}
+      >
+        {children}
+      </div>
     </section>
   );
 }

@@ -12,9 +12,11 @@ interface DetailDrawerProps {
   job: JobDetail | null;
   profile: CandidateProfile | null;
   events: JobEvent[];
+  enrichmentPending?: boolean;
   onClose: () => void;
   onAddSkillToProfile?: (skill: string) => Promise<void>;
   onDeleteJob?: (url: string) => Promise<void>;
+  onSuppressJob?: (url: string, reason?: string) => Promise<void>;
   onChangeTracking: (patch: {
     status?: TrackingStatus;
     priority?: Priority;
@@ -232,9 +234,11 @@ export function DetailDrawer({
   job,
   profile,
   events,
+  enrichmentPending = false,
   onClose,
   onAddSkillToProfile,
   onDeleteJob,
+  onSuppressJob,
   onChangeTracking,
 }: DetailDrawerProps) {
   const requiredSkills = job?.enrichment ? cleanSkills(job.enrichment.required_skills) : [];
@@ -245,6 +249,10 @@ export function DetailDrawer({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isSuppressing, setIsSuppressing] = useState(false);
+  const [isSuppressConfirmOpen, setIsSuppressConfirmOpen] = useState(false);
+  const [suppressReason, setSuppressReason] = useState("");
+  const [suppressError, setSuppressError] = useState<string | null>(null);
   useEffect(() => {
     setSkillActionState({});
     setOptimisticSkillAdds({});
@@ -253,14 +261,19 @@ export function DetailDrawer({
     setDeleteError(null);
     setIsDeleting(false);
     setIsDeleteConfirmOpen(false);
+    setSuppressError(null);
+    setIsSuppressing(false);
+    setIsSuppressConfirmOpen(false);
+    setSuppressReason("");
   }, [job?.url]);
   useEffect(() => {
     function onEscape(event: KeyboardEvent): void {
-      if (event.key === "Escape" && !isDeleting) {
+      if (event.key === "Escape" && !isDeleting && !isSuppressing) {
         setIsDeleteConfirmOpen(false);
+        setIsSuppressConfirmOpen(false);
       }
     }
-    if (isDeleteConfirmOpen) {
+    if (isDeleteConfirmOpen || isSuppressConfirmOpen) {
       window.addEventListener("keydown", onEscape);
       document.body.classList.add("modal-open");
     }
@@ -268,7 +281,7 @@ export function DetailDrawer({
       window.removeEventListener("keydown", onEscape);
       document.body.classList.remove("modal-open");
     };
-  }, [isDeleteConfirmOpen, isDeleting]);
+  }, [isDeleteConfirmOpen, isSuppressConfirmOpen, isDeleting, isSuppressing]);
 
   const fitData = useMemo(() => {
     if (!job?.enrichment) {
@@ -424,6 +437,19 @@ export function DetailDrawer({
       setIsDeleting(false);
     }
   }
+
+  async function handleSuppressJob(): Promise<void> {
+    if (!job || !onSuppressJob || isSuppressing) return;
+    setSuppressError(null);
+    setIsSuppressing(true);
+    try {
+      await onSuppressJob(job.url, suppressReason);
+      setIsSuppressConfirmOpen(false);
+    } catch (error) {
+      setSuppressError(error instanceof Error ? error.message : "Failed to suppress job");
+      setIsSuppressing(false);
+    }
+  }
   const descriptionText = job?.enrichment?.formatted_description || job?.description || "";
 
   return (
@@ -517,7 +543,7 @@ export function DetailDrawer({
                   </div>
 
                   <div className="fit-group">
-                    <p className="skills-label">Skill Alignment</p>
+                    <h4 className="fit-subheading">Skill Alignment</h4>
                     <div className="fit-matrix">
                       <article className="fit-panel fit-panel-pass">
                         <header className="fit-panel-head">
@@ -630,7 +656,7 @@ export function DetailDrawer({
                   </div>
 
                   <div className="fit-group">
-                    <p className="skills-label">Core Requirements</p>
+                    <h4 className="fit-subheading">Core Requirements</h4>
                     <div className="fit-list">
                       {fitData.coreChecks.map((item) => (
                         <article key={`core-fit-${item.label}`} className={`fit-card ${item.state}`}>
@@ -685,6 +711,11 @@ export function DetailDrawer({
 
             <section className="detail-block">
               <h3>Enrichment</h3>
+              {enrichmentPending && (
+                <p className="empty-text detail-block-note">
+                  Enrichment and markdown formatting are still processing in the background. This panel will update automatically.
+                </p>
+              )}
               {job.enrichment ? (
                 <>
                   <div className="fact-grid">
@@ -729,8 +760,28 @@ export function DetailDrawer({
             </section>
 
             <section className="detail-block">
+              <h3>Relevance</h3>
+              <p className="empty-text detail-block-note">Mark jobs that are out-of-scope to hide them and prevent future re-ingestion.</p>
+              {suppressError && <p className="delete-error">{suppressError}</p>}
+              <button
+                type="button"
+                className="delete-cta delete-cta-fit"
+                onClick={() => setIsSuppressConfirmOpen(true)}
+                disabled={!onSuppressJob}
+              >
+                <span className="delete-cta__text">Not a Fit</span>
+                <span className="delete-cta__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className="delete-cta__svg delete-cta__svg-slim">
+                    <path d="M3 12h18" />
+                    <path d="M12 3v18" />
+                  </svg>
+                </span>
+              </button>
+            </section>
+
+            <section className="detail-block">
               <h3>Danger Zone</h3>
-              <p className="empty-text">This permanently removes the job and linked records from the database.</p>
+              <p className="empty-text detail-block-note">This permanently removes the job and linked records from the database.</p>
               {deleteError && <p className="delete-error">{deleteError}</p>}
               <button
                 type="button"
@@ -802,6 +853,66 @@ export function DetailDrawer({
                 disabled={isDeleting}
               >
                 {isDeleting ? "Deleting..." : "Delete Job"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {isSuppressConfirmOpen && (
+        <div
+          className="confirm-modal-layer"
+          role="presentation"
+          onClick={() => {
+            if (!isSuppressing) setIsSuppressConfirmOpen(false);
+          }}
+        >
+          <section
+            className="confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="suppress-job-title"
+            aria-describedby="suppress-job-message"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="confirm-modal-head">
+              <div className="confirm-modal-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M3 12h18M3 6h18M3 18h18" />
+                </svg>
+              </div>
+              <h4 id="suppress-job-title">Suppress this job?</h4>
+            </header>
+            <p id="suppress-job-message" className="confirm-modal-message">
+              This hides <strong>{job?.title ?? "this job"}</strong> from the board and prevents future scrape updates for this exact URL.
+            </p>
+            <label className="full-width">
+              <span>Reason (optional)</span>
+              <input
+                type="text"
+                value={suppressReason}
+                onChange={(event) => setSuppressReason(event.target.value)}
+                placeholder="e.g. wrong location, seniority mismatch, irrelevant domain"
+              />
+            </label>
+            {suppressError && <p className="confirm-modal-error">{suppressError}</p>}
+            <div className="confirm-modal-actions">
+              <button
+                type="button"
+                className="ghost-btn compact"
+                onClick={() => setIsSuppressConfirmOpen(false)}
+                disabled={isSuppressing}
+                autoFocus
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="confirm-delete-btn"
+                onClick={() => void handleSuppressJob()}
+                disabled={isSuppressing}
+              >
+                {isSuppressing ? "Saving..." : "Suppress Job"}
               </button>
             </div>
           </section>

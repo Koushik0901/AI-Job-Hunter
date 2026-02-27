@@ -231,6 +231,48 @@ class MatchScoreTests(unittest.TestCase):
         self.assertLess(no_match["score"], yes_score)
         self.assertLessEqual(no_match["breakdown"]["eligibility_penalty"], -45)
 
+    def test_intern_and_senior_receive_same_seniority_penalty(self) -> None:
+        profile = {
+            "years_experience": 3,
+            "skills": ["python", "sql"],
+            "target_role_families": ["data scientist"],
+            "requires_visa_sponsorship": False,
+        }
+        intern_job = {
+            "title": "Machine Learning Intern",
+            "enrichment": {
+                "required_skills": ["python"],
+                "preferred_skills": [],
+                "years_exp_min": 1,
+                "role_family": "data scientist",
+            },
+        }
+        coop_job = {
+            "title": "Data Science Co-op",
+            "enrichment": {
+                "required_skills": ["python"],
+                "preferred_skills": [],
+                "years_exp_min": 1,
+                "role_family": "data scientist",
+            },
+        }
+        senior_job = {
+            "title": "Senior Data Scientist",
+            "enrichment": {
+                "required_skills": ["python"],
+                "preferred_skills": [],
+                "years_exp_min": 5,
+                "role_family": "data scientist",
+            },
+        }
+
+        intern_match = compute_match_score(intern_job, profile)
+        coop_match = compute_match_score(coop_job, profile)
+        senior_match = compute_match_score(senior_job, profile)
+        self.assertEqual(intern_match["breakdown"]["seniority_bias"], -25)
+        self.assertEqual(coop_match["breakdown"]["seniority_bias"], -25)
+        self.assertEqual(senior_match["breakdown"]["seniority_bias"], -25)
+
 
 if __name__ == "__main__":
     unittest.main()

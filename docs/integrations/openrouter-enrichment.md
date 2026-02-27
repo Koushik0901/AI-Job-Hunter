@@ -20,7 +20,7 @@ Validators coerce invalid model outputs into safe defaults for key enum/list fie
 Persisted row includes:
 
 - extracted structured fields
-- `formatted_description` (nullable plain text)
+- `formatted_description` (nullable Markdown)
 
 ## Output status values
 
@@ -64,13 +64,13 @@ When a `RateLimitSignal` is hit:
 
 ## Description formatting pass
 
-After successful structured extraction, a second LLM call rewrites the raw description into cleaner plain text for UI rendering.
+After successful structured extraction, a second LLM call rewrites the raw description into cleaner Markdown for UI rendering.
 
 Rules:
 
 - preserve all factual content
 - no hallucinations
-- no markdown fences/HTML
+- output Markdown only (no markdown fences/HTML/JSON)
 - best-effort only (nullable fallback)
 
 ## Prompt source of truth

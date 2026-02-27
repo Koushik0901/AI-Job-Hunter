@@ -136,6 +136,30 @@ def fetch_workable(account_slug: str) -> list[dict[str, Any]]:
     return [j for j in jobs if isinstance(j, dict)]
 
 
+@retry_with_backoff(max_attempts=3)
+def fetch_recruitee(company_slug: str) -> list[dict[str, Any]]:
+    base = f"https://{company_slug}.recruitee.com/api/offers"
+    urls = (base, base + "/")
+    last_error: Exception | None = None
+    for url in urls:
+        try:
+            resp = requests.get(url, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            if isinstance(data, dict):
+                offers = data.get("offers", [])
+                return offers if isinstance(offers, list) else []
+            if isinstance(data, list):
+                return data
+            return []
+        except requests.RequestException as exc:
+            last_error = exc
+            continue
+    if last_error is not None:
+        raise last_error
+    return []
+
+
 # ---------------------------------------------------------------------------
 # Description helpers
 # ---------------------------------------------------------------------------
@@ -207,6 +231,26 @@ def fetch_workable_description(account_slug: str, shortcode: str) -> str:
     return strip_html(description)
 
 
+@retry_with_backoff(max_attempts=2)
+def fetch_recruitee_description(company_slug: str, offer_id: str) -> str:
+    if not company_slug or not offer_id:
+        return ""
+    url = f"https://{company_slug}.recruitee.com/api/offers/{offer_id}"
+    resp = requests.get(url, timeout=30)
+    resp.raise_for_status()
+    data = resp.json()
+    offer = data.get("offer", data) if isinstance(data, dict) else {}
+    if not isinstance(offer, dict):
+        return ""
+    description = (
+        offer.get("description")
+        or offer.get("description_html")
+        or offer.get("content")
+        or ""
+    )
+    return strip_html(str(description))
+
+
 def enrich_descriptions(
     jobs: list[dict[str, Any]],
     raw_map: dict[str, dict[str, Any]],
@@ -238,6 +282,18 @@ def enrich_descriptions(
                 job_id = job.get("_job_id", "")
                 if slug and job_id:
                     return url, fetch_smartrecruiters_description(slug, job_id)
+            elif ats == "recruitee":
+                raw_desc = (
+                    job.get("description")
+                    or (raw_map.get(url, {}) if url else {}).get("description")
+                    or (raw_map.get(url, {}) if url else {}).get("description_html")
+                )
+                if raw_desc:
+                    return url, strip_html(str(raw_desc))
+                slug = job.get("_company_slug", "")
+                offer_id = job.get("_offer_id", "")
+                if slug and offer_id:
+                    return url, fetch_recruitee_description(slug, offer_id)
         except Exception as e:
             logger.warning("Failed to fetch description for %s: %s", url, e)
         return url, ""
@@ -355,6 +411,53 @@ def normalize_workable(raw: dict[str, Any], company: str) -> dict[str, Any]:
         "url": url,
         "posted": _normalize_datetime(raw.get("published")),
         "ats": "workable",
+    }
+
+
+def normalize_recruitee(raw: dict[str, Any], company: str) -> dict[str, Any]:
+    location = raw.get("location") or {}
+    location_str = ""
+    if isinstance(location, dict):
+        parts = [
+            str(location.get("city") or "").strip(),
+            str(location.get("region") or "").strip(),
+            str(location.get("country") or "").strip(),
+        ]
+        location_str = ", ".join(p for p in parts if p)
+    elif isinstance(location, str):
+        location_str = location.strip()
+
+    careers_url = (
+        raw.get("careers_url")
+        or raw.get("url")
+        or raw.get("job_url")
+        or ""
+    )
+    slug = str(raw.get("company_slug") or raw.get("company") or "").strip()
+    offer_id = str(raw.get("id") or raw.get("offer_id") or "").strip()
+    offer_slug = str(raw.get("slug") or "").strip()
+    if not careers_url and slug and offer_slug:
+        careers_url = f"https://{slug}.recruitee.com/o/{offer_slug}"
+    elif not careers_url and slug and offer_id:
+        careers_url = f"https://{slug}.recruitee.com/o/{offer_id}"
+
+    posted_raw = (
+        raw.get("created_at")
+        or raw.get("published_at")
+        or raw.get("updated_at")
+        or raw.get("open_at")
+    )
+    description = raw.get("description") or raw.get("description_html") or ""
+    return {
+        "company": company,
+        "title": raw.get("title", ""),
+        "location": location_str,
+        "url": str(careers_url),
+        "posted": _normalize_datetime(posted_raw),
+        "ats": "recruitee",
+        "description": strip_html(str(description)) if description else "",
+        "_company_slug": slug,
+        "_offer_id": offer_id,
     }
 
 

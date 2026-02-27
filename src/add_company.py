@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 # src/ is already in sys.path when running this script directly, but make it
@@ -36,6 +37,7 @@ _ATS_URL_TEMPLATES: dict[str, str] = {
     "ashby":           "https://jobs.ashbyhq.com/{slug}",
     "workable":        "https://apply.workable.com/api/v3/accounts/{slug}/jobs",
     "smartrecruiters": "https://api.smartrecruiters.com/v1/companies/{slug}/postings",
+    "recruitee":       "https://{slug}.recruitee.com/api/offers",
 }
 
 # Common corporate suffixes to strip when generating slug candidates
@@ -217,7 +219,7 @@ examples:
     elif len(new_hits) == 1:
         h = new_hits[0]
         answer = console.input(
-            f"\nAdd [cyan]{h['slug']}[/cyan] ([green]{h['ats']}[/green]) to DB? [y/N] "
+            f"\nAdd [cyan]{h['slug']}[/cyan] ([green]{h['ats']}[/green]) to DB? {escape('[y/N]')} "
         )
         if answer.strip().lower() == "y":
             to_add = [h]

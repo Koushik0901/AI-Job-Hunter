@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { AppShell } from "./components/layout/AppShell";
+import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { BoardPage } from "./pages/BoardPage";
 import { ProfilePage } from "./pages/ProfilePage";
 
@@ -30,6 +31,7 @@ export function App() {
     <Routes>
       <Route element={<AppShell isDark={isDark} onToggleTheme={() => setIsDark((value) => !value)} />}>
         <Route path="/" element={<BoardPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

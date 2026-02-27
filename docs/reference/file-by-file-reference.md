@@ -136,16 +136,17 @@ This page summarizes tracked project files and their runtime roles.
 
 ### `src/dashboard/frontend/*`
 
-- React/Vite dashboard app (route-based Board + Profile pages, dual-theme UI).
+- React/Vite dashboard app (route-based Board + Analytics + Profile pages, dual-theme UI).
 - Includes `framer-motion` animations for board and drawer transitions.
 - Key component responsibilities:
   - `App.tsx`: route registration and theme persistence.
-  - `components/layout/AppShell.tsx`: shared app shell and top navigation tabs (`Board`, `Profile`).
+  - `components/layout/AppShell.tsx`: shared app shell with side rail navigation (`Board`, `Analytics`, `Profile`).
   - `pages/BoardPage.tsx`: board orchestration, data fetches, status patching, drawer interaction.
+  - `pages/AnalyticsPage.tsx`: funnel analytics, goals/alerts, cohorts/source quality, and forecast scenarios.
   - `pages/ProfilePage.tsx`: profile load/edit/save workflow with manual save and dirty-state UX.
   - `components/KanbanColumn.tsx`: status column drop zone + card list frame.
   - `components/JobCard.tsx`: draggable job summary card.
-  - `components/DetailDrawer.tsx`: detail panel with tracking edits, enrichment, timeline.
+  - `components/DetailDrawer.tsx`: detail panel with tracking edits, enrichment, timeline, and markdown description rendering.
   - `components/ThemeToggle.tsx`: dark/light switch.
   - `components/reactbits/SpotlightSurface.tsx`: pointer-reactive spotlight wrapper.
   - `components/reactbits/ShimmerTag.tsx`: animated metadata/skill chip.

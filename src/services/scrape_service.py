@@ -14,11 +14,13 @@ from fetchers import (
     fetch_greenhouse,
     fetch_hn_jobs,
     fetch_lever,
+    fetch_recruitee,
     fetch_smartrecruiters,
     fetch_workable,
     normalize_ashby,
     normalize_greenhouse,
     normalize_lever,
+    normalize_recruitee,
     normalize_smartrecruiters,
     normalize_workable,
 )
@@ -79,6 +81,7 @@ FETCHERS = {
     "ashby": (fetch_ashby, normalize_ashby),
     "workable": (fetch_workable, normalize_workable),
     "smartrecruiters": (fetch_smartrecruiters, normalize_smartrecruiters),
+    "recruitee": (fetch_recruitee, normalize_recruitee),
 }
 
 
@@ -143,6 +146,10 @@ def extract_slug(ats_url: str, ats_type: str) -> str:
         idx = parts.index("companies")
         if idx + 1 < len(parts):
             return parts[idx + 1]
+    if ats == "recruitee":
+        host = urlparse(ats_url).hostname or ""
+        if host.endswith(".recruitee.com"):
+            return host.split(".")[0]
     return parts[-1]
 
 
@@ -191,13 +198,23 @@ def scrape_all(
             elif ats_type == "smartrecruiters":
                 job["_company_slug"] = slug
                 job["_job_id"] = str(raw.get("id", ""))
+            elif ats_type == "recruitee":
+                job["_company_slug"] = slug
+                job["_offer_id"] = str(raw.get("id", ""))
+                if not job.get("url"):
+                    offer_slug = str(raw.get("slug", "")).strip()
+                    offer_id = str(raw.get("id", "")).strip()
+                    if offer_slug:
+                        job["url"] = f"https://{slug}.recruitee.com/o/{offer_slug}"
+                    elif offer_id:
+                        job["url"] = f"https://{slug}.recruitee.com/o/{offer_id}"
 
             url = job.get("url", "")
             if url and url in seen_urls:
                 continue
             if url:
                 seen_urls.add(url)
-                if ats_type == "lever":
+                if ats_type in {"lever", "recruitee"}:
                     raw_map[url] = raw
 
             if not title_ok(job["title"]):

@@ -24,6 +24,8 @@ uv run python src/add_company.py "Company Name" [options]
 5. Prompts for selection (unless `--add`).
 6. Upserts selected rows into DB with `enabled=true`.
 
+Current ATS probes include: `greenhouse`, `lever`, `ashby`, `workable`, `smartrecruiters`, `recruitee`.
+
 ## Slug generation strategy
 
 From full and suffix-stripped names, generates:

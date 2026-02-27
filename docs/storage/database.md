@@ -45,6 +45,15 @@ Persistence is implemented in `src/db.py`.
 - `created_at` TEXT NOT NULL
 - `updated_at` TEXT NOT NULL
 
+`ats_type` validation currently allows:
+
+- `greenhouse`
+- `lever`
+- `ashby`
+- `workable`
+- `smartrecruiters`
+- `recruitee`
+
 Indexes:
 
 - unique `ats_url`
@@ -64,7 +73,7 @@ Indexes:
 - `minimum_degree`
 - `required_skills` (JSON string)
 - `preferred_skills` (JSON string)
-- `formatted_description` (plain text, nullable, UI-ready)
+- `formatted_description` (Markdown, nullable, UI-ready)
 - `salary_min`
 - `salary_max`
 - `salary_currency`

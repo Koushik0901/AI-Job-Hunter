@@ -143,7 +143,7 @@ def _fuzzy_overlap_ratio(target_skills: set[str], profile_skills: set[str]) -> f
 
 def _extract_title_seniority(title: str) -> str | None:
     t = _norm(title)
-    if re.search(r"\b(intern|internship)\b", t):
+    if re.search(r"\b(intern|internship|co[\s-]?op)\b", t):
         return "intern"
     if re.search(r"\b(junior|entry|associate)\b", t):
         return "junior"
@@ -231,7 +231,11 @@ def compute_match_score(job: dict[str, Any], profile: dict[str, Any]) -> dict[st
 
     # Seniority bias.
     seniority = _norm(str(enrichment.get("seniority") or "")) or _extract_title_seniority(title)
-    if seniority in {"intern", "junior"}:
+    if seniority == "intern":
+        breakdown["seniority_bias"] = -25
+        score -= 25
+        reasons.append("Intern/co-op role is out of target level")
+    elif seniority == "junior":
         breakdown["seniority_bias"] = 20
         score += 20
         reasons.append("Junior/entry-level seniority match")
@@ -239,9 +243,8 @@ def compute_match_score(job: dict[str, Any], profile: dict[str, Any]) -> dict[st
         breakdown["seniority_bias"] = 8
         score += 8
     elif seniority in {"senior", "staff", "principal"}:
-        penalty = -18 if seniority == "senior" else -25
-        breakdown["seniority_bias"] = penalty
-        score += penalty
+        breakdown["seniority_bias"] = -25
+        score -= 25
         reasons.append("Seniority above target")
 
     # Experience bias (strongly prefers <=4 years requirement).

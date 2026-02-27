@@ -1,8 +1,11 @@
 import type {
   CandidateProfile,
+  FunnelAnalyticsResponse,
   JobDetail,
   JobEvent,
   JobsListResponse,
+  ManualJobCreateRequest,
+  SuppressedJob,
   TrackingStatus,
   StatsResponse,
   TrackingPatchRequest,
@@ -35,6 +38,8 @@ interface GetJobsParams {
   q?: string;
   ats?: string;
   company?: string;
+  posted_after?: string;
+  posted_before?: string;
 }
 
 export function getJobsWithParams(params: GetJobsParams = {}): Promise<JobsListResponse> {
@@ -52,6 +57,12 @@ export function getJobsWithParams(params: GetJobsParams = {}): Promise<JobsListR
   }
   if (params.company?.trim()) {
     query.set("company", params.company.trim());
+  }
+  if (params.posted_after?.trim()) {
+    query.set("posted_after", params.posted_after.trim());
+  }
+  if (params.posted_before?.trim()) {
+    query.set("posted_before", params.posted_before.trim());
   }
   return request<JobsListResponse>(`/api/jobs?${query.toString()}`);
 }
@@ -81,6 +92,30 @@ export function deleteJob(url: string): Promise<{ deleted: number }> {
   });
 }
 
+export function createManualJob(payload: ManualJobCreateRequest): Promise<JobDetail> {
+  return request<JobDetail>("/api/jobs/manual", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function suppressJob(url: string, reason?: string): Promise<{ suppressed: number }> {
+  return request<{ suppressed: number }>(`/api/jobs/${encodeURIComponent(url)}/suppress`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason?.trim() || null }),
+  });
+}
+
+export function unsuppressJob(url: string): Promise<{ unsuppressed: number }> {
+  return request<{ unsuppressed: number }>(`/api/jobs/${encodeURIComponent(url)}/unsuppress`, {
+    method: "POST",
+  });
+}
+
+export function getSuppressions(limit = 200): Promise<SuppressedJob[]> {
+  return request<SuppressedJob[]>(`/api/suppressions?limit=${limit}`);
+}
+
 export function getProfile(): Promise<CandidateProfile> {
   return request<CandidateProfile>("/api/profile");
 }
@@ -90,4 +125,39 @@ export function putProfile(payload: CandidateProfile): Promise<CandidateProfile>
     method: "PUT",
     body: JSON.stringify(payload),
   });
+}
+
+export function addProfileSkill(skill: string): Promise<CandidateProfile> {
+  return request<CandidateProfile>("/api/profile/skills", {
+    method: "POST",
+    body: JSON.stringify({ skill }),
+  });
+}
+
+interface FunnelParams {
+  preset?: "30d" | "90d" | "all";
+  from?: string;
+  to?: string;
+  status_scope?: "pipeline" | "all";
+  applications_goal_target?: number;
+  interviews_goal_target?: number;
+  forecast_apps_per_week?: number;
+}
+
+export function getFunnelAnalytics(params: FunnelParams = {}): Promise<FunnelAnalyticsResponse> {
+  const query = new URLSearchParams();
+  query.set("preset", params.preset ?? "90d");
+  query.set("status_scope", params.status_scope ?? "pipeline");
+  if (params.from) query.set("from", params.from);
+  if (params.to) query.set("to", params.to);
+  if (typeof params.applications_goal_target === "number") {
+    query.set("applications_goal_target", String(params.applications_goal_target));
+  }
+  if (typeof params.interviews_goal_target === "number") {
+    query.set("interviews_goal_target", String(params.interviews_goal_target));
+  }
+  if (typeof params.forecast_apps_per_week === "number") {
+    query.set("forecast_apps_per_week", String(params.forecast_apps_per_week));
+  }
+  return request<FunnelAnalyticsResponse>(`/api/analytics/funnel?${query.toString()}`);
 }

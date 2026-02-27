@@ -66,6 +66,7 @@ Imports from curated GitHub community lists, dedupes against DB, and upserts new
   - Greenhouse
   - Lever
   - SmartRecruiters
+  - Recruitee
 - Deduplication keys:
   - existing DB `ats_url`
   - existing DB `slug`

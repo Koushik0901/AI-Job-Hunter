@@ -24,12 +24,14 @@ def slug_to_ats_url(slug: str, ats_type: str) -> str:
         return f"https://api.lever.co/v0/postings/{slug}"
     if ats_type == "smartrecruiters":
         return f"https://api.smartrecruiters.com/v1/companies/{slug}/postings"
+    if ats_type == "recruitee":
+        return f"https://{slug}.recruitee.com/api/offers"
     raise ValueError(f"Unknown ats_type: {ats_type}")
 
 
 def parse_companies_from_html_table(text: str) -> list[tuple[str, str, str]]:
     results: list[tuple[str, str, str]] = []
-    seen_slugs: set[str] = set()
+    seen_entries: set[tuple[str, str]] = set()
     for row_match in re.finditer(r"<tr>(.*?)</tr>", text, re.DOTALL):
         row = row_match.group(1)
         name_m = re.search(r"<strong><a[^>]*>([^<]+)</a></strong>", row)
@@ -39,21 +41,30 @@ def parse_companies_from_html_table(text: str) -> list[tuple[str, str, str]]:
         gh_m = re.search(r"(?:job-boards|boards(?:-api)?)\.greenhouse\.io/([A-Za-z0-9_-]+)", row)
         if gh_m:
             slug = gh_m.group(1)
-            if slug not in seen_slugs:
-                seen_slugs.add(slug)
+            key = ("greenhouse", slug.lower())
+            if key not in seen_entries:
+                seen_entries.add(key)
                 results.append((company_name, "greenhouse", slug))
         lv_m = re.search(r"jobs\.lever\.co/([A-Za-z0-9_-]+)", row)
         if lv_m:
             slug = lv_m.group(1)
-            if slug not in seen_slugs:
-                seen_slugs.add(slug)
+            key = ("lever", slug.lower())
+            if key not in seen_entries:
+                seen_entries.add(key)
                 results.append((company_name, "lever", slug))
+        rq_m = re.search(r"https?://([A-Za-z0-9-]+)\.recruitee\.com(?:/[^\"' <]*)?", row)
+        if rq_m:
+            slug = rq_m.group(1)
+            key = ("recruitee", slug.lower())
+            if key not in seen_entries:
+                seen_entries.add(key)
+                results.append((company_name, "recruitee", slug))
     return results
 
 
 def parse_companies_from_simplify(text: str) -> list[tuple[str, str, str]]:
     results: list[tuple[str, str, str]] = []
-    seen_slugs: set[str] = set()
+    seen_entries: set[tuple[str, str]] = set()
     last_company = ""
     for row_match in re.finditer(r"<tr>(.*?)</tr>", text, re.DOTALL):
         row = row_match.group(1)
@@ -75,35 +86,47 @@ def parse_companies_from_simplify(text: str) -> list[tuple[str, str, str]]:
         gh_m = re.search(r"(?:job-boards|boards(?:-api)?)\.greenhouse\.io/([A-Za-z0-9_-]+)", row)
         if gh_m:
             slug = gh_m.group(1)
-            if slug not in seen_slugs:
-                seen_slugs.add(slug)
+            key = ("greenhouse", slug.lower())
+            if key not in seen_entries:
+                seen_entries.add(key)
                 results.append((company_name, "greenhouse", slug))
         lv_m = re.search(r"jobs\.lever\.co/([A-Za-z0-9_-]+)", row)
         if lv_m:
             slug = lv_m.group(1)
-            if slug not in seen_slugs:
-                seen_slugs.add(slug)
+            key = ("lever", slug.lower())
+            if key not in seen_entries:
+                seen_entries.add(key)
                 results.append((company_name, "lever", slug))
         sr_m = re.search(r"apply\.smartrecruiters\.com/([A-Za-z0-9_-]+)/", row)
         if sr_m:
             slug = sr_m.group(1)
-            if slug not in seen_slugs:
-                seen_slugs.add(slug)
+            key = ("smartrecruiters", slug.lower())
+            if key not in seen_entries:
+                seen_entries.add(key)
                 results.append((company_name, "smartrecruiters", slug))
+        rq_m = re.search(r"https?://([A-Za-z0-9-]+)\.recruitee\.com(?:/[^\"' <]*)?", row)
+        if rq_m:
+            slug = rq_m.group(1)
+            key = ("recruitee", slug.lower())
+            if key not in seen_entries:
+                seen_entries.add(key)
+                results.append((company_name, "recruitee", slug))
     return results
 
 
 def parse_companies_from_markdown(text: str) -> list[tuple[str, str, str]]:
     results: list[tuple[str, str, str]] = []
-    seen_slugs: set[str] = set()
+    seen_entries: set[tuple[str, str]] = set()
     gh_pat = re.compile(r"([^\n]*boards\.greenhouse\.io/([A-Za-z0-9_-]+)[^\n]*)")
     lv_pat = re.compile(r"([^\n]*jobs\.lever\.co/([A-Za-z0-9_-]+)[^\n]*)")
-    for pat, ats_type in ((gh_pat, "greenhouse"), (lv_pat, "lever")):
+    rq_pat = re.compile(r"([^\n]*https?://([A-Za-z0-9-]+)\.recruitee\.com(?:/[^\s\)]*)?[^\n]*)")
+    for pat, ats_type in ((gh_pat, "greenhouse"), (lv_pat, "lever"), (rq_pat, "recruitee")):
         for m in pat.finditer(text):
             ctx, slug = m.group(1), m.group(2)
-            if slug in seen_slugs:
+            key = (ats_type, slug.lower())
+            if key in seen_entries:
                 continue
-            seen_slugs.add(slug)
+            seen_entries.add(key)
             name_m = re.search(r"\[([^\]]{1,60})\]", ctx)
             name = name_m.group(1).strip() if name_m else slug.replace("-", " ").title()
             results.append((name, ats_type, slug))

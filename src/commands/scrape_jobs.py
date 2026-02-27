@@ -8,6 +8,7 @@ from rich.console import Console
 from db import (
     get_candidate_profile,
     init_db,
+    load_active_suppressed_urls,
     load_enabled_company_sources,
     load_enrichments_for_urls,
     load_jobs_for_jd_reformat,
@@ -140,6 +141,13 @@ def run(args) -> None:
         apply_location_filter=not args.no_location_filter,
         enrich=not args.no_enrich,
     )
+    suppressed_urls = load_active_suppressed_urls(conn)
+    if suppressed_urls:
+        before = len(jobs)
+        jobs = [job for job in jobs if str(job.get("url") or "") not in suppressed_urls]
+        skipped = before - len(jobs)
+        if skipped > 0:
+            console.print(f"[dim]Suppression filter skipped {skipped} job(s).[/dim]")
 
     profile = get_candidate_profile(conn)
     url_to_enrichment = load_enrichments_for_urls(conn, [j.get("url", "") for j in jobs if j.get("url")])
