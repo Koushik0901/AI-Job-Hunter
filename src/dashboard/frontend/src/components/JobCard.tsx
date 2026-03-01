@@ -1,5 +1,4 @@
 import { motion } from "framer-motion";
-import type { DragEvent } from "react";
 import type { JobSummary } from "../types";
 import { ShimmerTag } from "./reactbits/ShimmerTag";
 
@@ -16,17 +15,11 @@ function formatDate(value: string): string {
 }
 
 export function JobCard({ job, onSelect, onPrefetch }: JobCardProps) {
-  function onDragStart(event: DragEvent<HTMLDivElement>): void {
-    event.dataTransfer.setData("text/job-url", job.url);
-  }
-
   return (
     <motion.div
       className="job-card"
       whileHover={{ y: -3 }}
       whileTap={{ scale: 0.99 }}
-      draggable
-      onDragStartCapture={onDragStart}
       onMouseEnter={() => onPrefetch?.(job.url)}
       onFocus={() => onPrefetch?.(job.url)}
     >

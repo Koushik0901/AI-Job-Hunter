@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
-import { addProfileSkill, createManualJob, deleteJob, getJobDetail, getJobEvents, getJobsWithParams, getProfile, getStats, getSuppressions, patchTracking, suppressJob, unsuppressJob } from "../api";
+import { toast } from "sonner";
+import { addProfileSkill, createManualJob, deleteJob, generateArtifactSuggestions, generateStarterArtifacts, getJobArtifacts, getJobDetail, getJobEvents, getJobsWithParams, getProfile, getStarterArtifactsStatus, getStats, getSuppressions, patchTracking, suppressJob, unsuppressJob } from "../api";
 import { DetailDrawer } from "../components/DetailDrawer";
 import { JobCard } from "../components/JobCard";
-import { KanbanColumn } from "../components/KanbanColumn";
+import { ScoreRecomputeStatus } from "../components/ScoreRecomputeStatus";
 import { ThemedLoader } from "../components/ThemedLoader";
 import { ThemedSelect } from "../components/ThemedSelect";
 import { SpotlightSurface } from "../components/reactbits/SpotlightSurface";
-import type { CandidateProfile, JobDetail, JobEvent, JobSummary, ManualJobCreateRequest, StatsResponse, SuppressedJob, TrackingPatchRequest, TrackingStatus } from "../types";
+import { Badge } from "../components/ui/badge";
+import { Kanban, KanbanBoard, KanbanColumn, KanbanItem, KanbanOverlay } from "../components/ui/kanban";
+import type { ArtifactStarterStatus, ArtifactSummary, CandidateProfile, JobDetail, JobEvent, JobSummary, ManualJobCreateRequest, StatsResponse, SuppressedJob, TrackingPatchRequest, TrackingStatus } from "../types";
 
 const STATUS_COLUMNS: Array<{ id: TrackingStatus; label: string }> = [
   { id: "not_applied", label: "Backlog" },
@@ -42,7 +45,9 @@ const BACKLOG_PAGE_SIZE = 30;
 const BACKLOG_MAX_AGE_DAYS = 21;
 const BOARD_CACHE_TTL_MS = 3 * 60 * 1000;
 const JOBS_QUERY_CACHE_CAP = 4;
-const BOARD_CACHE_SCHEMA_VERSION = 2;
+const BOARD_CACHE_SCHEMA_VERSION = 3;
+const BOARD_INITIAL_FETCH_LIMIT = 200;
+const BOARD_MAX_FETCH_LIMIT = 500;
 const MANUAL_ENRICH_POLL_INTERVAL_MS = 3500;
 const MANUAL_ENRICH_POLL_MAX_ATTEMPTS = 34;
 
@@ -56,6 +61,7 @@ type BoardPageCache = {
   profile: CandidateProfile | null;
   detailCache: Record<string, JobDetail>;
   eventsCache: Record<string, JobEvent[]>;
+  artifactCache: Record<string, ArtifactSummary[]>;
   searchQuery: string;
   viewMode: BoardView;
   sortOption: SortOption;
@@ -226,8 +232,11 @@ export function BoardPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailCache, setDetailCache] = useState<Record<string, JobDetail>>(() => (hasFreshCache ? boardPageCache?.detailCache ?? {} : {}));
   const [eventsCache, setEventsCache] = useState<Record<string, JobEvent[]>>(() => (hasFreshCache ? boardPageCache?.eventsCache ?? {} : {}));
+  const [artifactCache, setArtifactCache] = useState<Record<string, ArtifactSummary[]>>(() => (hasFreshCache ? boardPageCache?.artifactCache ?? {} : {}));
+  const [artifactsLoading, setArtifactsLoading] = useState(false);
+  const [artifactsGenerating, setArtifactsGenerating] = useState(false);
+  const [artifactStarterStatus, setArtifactStarterStatus] = useState<ArtifactStarterStatus | null>(null);
   const [pendingEnrichmentByUrl, setPendingEnrichmentByUrl] = useState<Record<string, true>>({});
-  const [activeDrop, setActiveDrop] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(() => !hasFreshCache);
   const [error, setError] = useState<string | null>(null);
   const [manualError, setManualError] = useState<string | null>(null);
@@ -269,14 +278,26 @@ export function BoardPage() {
   const detailInflightRef = useRef(new Set<string>());
   const eventsInflightRef = useRef(new Set<string>());
   const manualEnrichTimerRef = useRef<Record<string, number>>({});
+  const latestQueryKeyRef = useRef(initialQueryKey);
   const filterPanelRef = useRef<HTMLDivElement | null>(null);
   const browsePanelRef = useRef<HTMLDivElement | null>(null);
   const [backlogVisibleCount, setBacklogVisibleCount] = useState<number>(
     () => (hasFreshCache ? boardPageCache?.backlogVisibleCount ?? BACKLOG_PAGE_SIZE : BACKLOG_PAGE_SIZE),
   );
+  const [kanbanColumnsState, setKanbanColumnsState] = useState<Record<string, JobSummary[]>>(() => {
+    const seeded: Record<string, JobSummary[]> = {};
+    for (const column of STATUS_COLUMNS) {
+      seeded[column.id] = [];
+    }
+    return seeded;
+  });
   const lastFetchedAtRef = useRef<number>(hasFreshCache ? boardPageCache?.fetchedAt ?? 0 : 0);
 
   const queryKey = buildQueryKey(statusFilter, atsFilter, companyFilter, postedAfterFilter, postedBeforeFilter);
+
+  useEffect(() => {
+    latestQueryKeyRef.current = queryKey;
+  }, [queryKey]);
 
   async function loadBoard(options: { force?: boolean; silent?: boolean } = {}): Promise<void> {
     const force = options.force ?? false;
@@ -295,7 +316,8 @@ export function BoardPage() {
     }
     setError(null);
     try {
-      const [jobsData, statsData] = await Promise.all([
+      const loadKey = queryKey;
+      const [jobsData, statsData, profileData] = await Promise.all([
         getJobsWithParams({
           sort: "match_desc",
           status: statusFilter,
@@ -303,18 +325,47 @@ export function BoardPage() {
           company: companyFilter,
           posted_after: postedAfterFilter,
           posted_before: postedBeforeFilter,
+          limit: BOARD_INITIAL_FETCH_LIMIT,
+          offset: 0,
         }),
         getStats(),
+        getProfile().catch(() => null),
       ]);
       setJobs(jobsData.items);
       setJobsQueryCache(queryKey, jobsData.items);
       setStats(statsData);
+      setProfile(profileData);
       lastFetchedAtRef.current = Date.now();
-      try {
-        const profileData = await getProfile();
-        setProfile(profileData);
-      } catch {
-        setProfile(null);
+      const loadedCount = jobsData.items.length;
+      const remaining = Math.min(BOARD_MAX_FETCH_LIMIT, jobsData.total) - loadedCount;
+      if (remaining > 0) {
+        void getJobsWithParams({
+          sort: "match_desc",
+          status: statusFilter,
+          ats: atsFilter,
+          company: companyFilter,
+          posted_after: postedAfterFilter,
+          posted_before: postedBeforeFilter,
+          limit: remaining,
+          offset: loadedCount,
+        }).then((nextPage) => {
+          if (loadKey !== latestQueryKeyRef.current) {
+            return;
+          }
+          setJobs((current) => {
+            const seen = new Set(current.map((job) => job.url));
+            const merged = [...current];
+            for (const item of nextPage.items) {
+              if (!seen.has(item.url)) {
+                merged.push(item);
+              }
+            }
+            setJobsQueryCache(loadKey, merged);
+            return merged;
+          });
+        }).catch(() => {
+          // Keep the initial result when background pagination fails.
+        });
       }
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : "Unknown error");
@@ -352,6 +403,7 @@ export function BoardPage() {
       profile,
       detailCache,
       eventsCache,
+      artifactCache,
       searchQuery,
       viewMode,
       sortOption,
@@ -370,6 +422,7 @@ export function BoardPage() {
     profile,
     detailCache,
     eventsCache,
+    artifactCache,
     searchQuery,
     viewMode,
     sortOption,
@@ -470,6 +523,27 @@ export function BoardPage() {
       setDetailLoading(false);
     });
   }, [selectedUrl, detailCache, eventsCache]);
+
+  useEffect(() => {
+    if (!selectedUrl) {
+      return;
+    }
+    setArtifactStarterStatus(null);
+    if (artifactCache[selectedUrl]) {
+      return;
+    }
+    setArtifactsLoading(true);
+    void getJobArtifacts(selectedUrl)
+      .then((rows) => {
+        setArtifactCache((current) => ({ ...current, [selectedUrl]: rows }));
+      })
+      .catch(() => {
+        setArtifactCache((current) => ({ ...current, [selectedUrl]: [] }));
+      })
+      .finally(() => {
+        setArtifactsLoading(false);
+      });
+  }, [selectedUrl, artifactCache]);
 
   async function prefetchJobDetail(url: string): Promise<void> {
     if (detailCache[url] || detailInflightRef.current.has(url)) {
@@ -622,6 +696,15 @@ export function BoardPage() {
     return map;
   }, [filteredJobs]);
 
+  useEffect(() => {
+    const next: Record<string, JobSummary[]> = {};
+    for (const column of STATUS_COLUMNS) {
+      const rows = grouped.get(column.id) ?? [];
+      next[column.id] = column.id === "not_applied" ? rows.slice(0, backlogVisibleCount) : rows;
+    }
+    setKanbanColumnsState(next);
+  }, [backlogVisibleCount, grouped]);
+
   async function applyTrackingPatch(url: string, patch: TrackingPatchRequest): Promise<void> {
     const detail = await patchTracking(url, patch);
     setJobs((current) => current.map((job) => {
@@ -640,6 +723,14 @@ export function BoardPage() {
       setSelectedJob(detail);
     }
     setDetailCache((current) => ({ ...current, [url]: detail }));
+    if (detail.tracking_status === "staging") {
+      try {
+        const rows = await getJobArtifacts(url);
+        setArtifactCache((current) => ({ ...current, [url]: rows }));
+      } catch {
+        // Keep board flow resilient if artifact fetch fails.
+      }
+    }
     jobsQueryCache.clear();
 
     const newStats = await getStats();
@@ -698,6 +789,11 @@ export function BoardPage() {
       delete next[url];
       return next;
     });
+    setArtifactCache((current) => {
+      const next = { ...current };
+      delete next[url];
+      return next;
+    });
     if (selectedUrl === url) {
       setSelectedUrl(null);
       setSelectedJob(null);
@@ -729,6 +825,11 @@ export function BoardPage() {
       return next;
     });
     setEventsCache((current) => {
+      const next = { ...current };
+      delete next[url];
+      return next;
+    });
+    setArtifactCache((current) => {
       const next = { ...current };
       delete next[url];
       return next;
@@ -845,8 +946,84 @@ export function BoardPage() {
     }
   }
 
+  async function ensureStarterArtifacts(url: string): Promise<void> {
+    const pollStartedAt = Date.now();
+    let pollTimer: number | null = null;
+    let cancelled = false;
+    const poll = async (): Promise<void> => {
+      if (cancelled) return;
+      try {
+        const status = await getStarterArtifactsStatus(url);
+        if (cancelled) return;
+        setArtifactStarterStatus(status);
+        if (status.running) {
+          pollTimer = window.setTimeout(() => void poll(), 450);
+        }
+      } catch {
+        pollTimer = window.setTimeout(() => void poll(), 900);
+      }
+    };
+    void poll();
+    setArtifactsGenerating(true);
+    setArtifactsLoading(true);
+    try {
+      const rows = await generateStarterArtifacts(url, false);
+      setArtifactCache((current) => ({ ...current, [url]: rows }));
+      setArtifactStarterStatus({
+        job_url: url,
+        stage: "done",
+        progress_percent: 100,
+        running: false,
+        updated_at: new Date().toISOString(),
+      });
+    } finally {
+      cancelled = true;
+      if (pollTimer) {
+        window.clearTimeout(pollTimer);
+      }
+      if (Date.now() - pollStartedAt > 12000) {
+        setArtifactStarterStatus((current) => current ?? {
+          job_url: url,
+          stage: "done",
+          progress_percent: 100,
+          running: false,
+          updated_at: new Date().toISOString(),
+        });
+      }
+      setArtifactsGenerating(false);
+      setArtifactsLoading(false);
+    }
+  }
+
+  async function tailorBothArtifacts(url: string): Promise<void> {
+    let rows = artifactCache[url] ?? [];
+    if (rows.length === 0) {
+      await ensureStarterArtifacts(url);
+      rows = (artifactCache[url] ?? []).length > 0 ? (artifactCache[url] ?? []) : await getJobArtifacts(url);
+      setArtifactCache((current) => ({ ...current, [url]: rows }));
+    }
+    const resume = rows.find((item) => item.artifact_type === "resume");
+    const cover = rows.find((item) => item.artifact_type === "cover_letter");
+    const targets = [resume, cover].filter(Boolean) as ArtifactSummary[];
+    if (targets.length === 0) {
+      toast.error("No artifacts available to tailor");
+      return;
+    }
+    try {
+      const results = await Promise.all(
+        targets.map((artifact) => generateArtifactSuggestions(artifact.id, {
+          prompt: "Tailor this artifact to the linked job description with concise, high-impact edits.",
+          max_suggestions: 6,
+        })),
+      );
+      const total = results.reduce((sum, current) => sum + current.length, 0);
+      toast.success(`Generated ${total} suggestion(s) across resume and cover letter`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to tailor artifacts");
+    }
+  }
+
   async function onDropJob(status: string, url: string): Promise<void> {
-    setActiveDrop(null);
     const nextStatus = status as TrackingStatus;
     const existing = jobs.find((job) => job.url === url);
     if (!existing || existing.status === nextStatus) {
@@ -859,6 +1036,17 @@ export function BoardPage() {
     } catch {
       setJobs((current) => current.map((job) => (job.url === url ? { ...job, status: existing.status } : job)));
     }
+  }
+
+  function onKanbanValueChange(next: Record<string, JobSummary[]>): void {
+    setKanbanColumnsState(next);
+  }
+
+  function onKanbanItemMove(meta: { itemId: string; fromColumn: string; toColumn: string }): void {
+    if (meta.fromColumn === meta.toColumn) {
+      return;
+    }
+    void onDropJob(meta.toColumn, meta.itemId);
   }
 
   function loadMoreBacklog(total: number): void {
@@ -990,6 +1178,7 @@ export function BoardPage() {
               <button
                 type="button"
                 className={`ghost-btn compact toolbar-disclose-btn ${isBrowsePanelOpen ? "open" : ""}`}
+                data-icon={isBrowsePanelOpen ? "▴" : "▾"}
                 onClick={() => {
                   setIsBrowsePanelOpen((current) => {
                     const next = !current;
@@ -1028,7 +1217,7 @@ export function BoardPage() {
                       />
                     </label>
                     <div className="filter-anchor" ref={filterPanelRef}>
-                      <button type="button" className={`ghost-btn compact filter-btn ${isFilterOpen ? "open" : ""}`} onClick={openFilters}>
+                      <button type="button" className={`ghost-btn compact filter-btn ${isFilterOpen ? "open" : ""}`} data-icon="⚲" onClick={openFilters}>
                         Filter
                         {activeFilterCount > 0 && <span className="filter-badge">{activeFilterCount}</span>}
                       </button>
@@ -1078,8 +1267,8 @@ export function BoardPage() {
                             </label>
                           </div>
                           <div className="filter-actions">
-                            <button type="button" className="ghost-btn compact" onClick={clearFilters}>Clear</button>
-                            <button type="button" className="primary-btn" onClick={applyFilters}>Apply</button>
+                            <button type="button" className="ghost-btn compact" data-icon="⟲" onClick={clearFilters}>Clear</button>
+                            <button type="button" className="primary-btn" data-icon="✓" onClick={applyFilters}>Apply</button>
                           </div>
                         </div>
                       )}
@@ -1130,6 +1319,7 @@ export function BoardPage() {
           </section>
         </div>
       </section>
+      <ScoreRecomputeStatus />
       {activeFilterChips.length > 0 && (
         <section className="active-filters" aria-label="Active filters">
           {activeFilterChips.map((chip) => (
@@ -1186,37 +1376,56 @@ export function BoardPage() {
             Backlog only shows jobs posted in the last 3 weeks; all other stages show full history.
           </p>
           {viewMode === "kanban" ? (
-            <section className="kanban-board">
-              {STATUS_COLUMNS.map((column, index) => (
-                <motion.div
-                  initial={{ opacity: 0, y: 24 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.04 * index }}
-                  key={column.id}
-                  onDragEnter={() => setActiveDrop(column.id)}
-                >
-                  <KanbanColumn
-                    id={column.id}
-                    label={column.label}
-                    count={grouped.get(column.id)?.length ?? 0}
-                    isActiveDrop={activeDrop === column.id}
-                    onDropJob={(status, url) => void onDropJob(status, url)}
-                    onReachEnd={
-                      column.id === "not_applied"
-                        ? () => loadMoreBacklog(grouped.get(column.id)?.length ?? 0)
-                        : undefined
-                    }
+            <Kanban
+              value={kanbanColumnsState}
+              onValueChange={onKanbanValueChange}
+              getItemValue={(item) => item.url}
+              onItemMove={onKanbanItemMove}
+            >
+              <KanbanBoard className="kanban-board">
+                {STATUS_COLUMNS.map((column, index) => (
+                  <motion.div
+                    initial={{ opacity: 0, y: 24 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.04 * index }}
+                    key={column.id}
                   >
-                    {(column.id === "not_applied"
-                      ? (grouped.get(column.id) ?? []).slice(0, backlogVisibleCount)
-                      : (grouped.get(column.id) ?? [])
-                    ).map((job) => (
-                        <JobCard key={job.url} job={job} onSelect={setSelectedUrl} onPrefetch={prefetchJob} />
-                      ))}
-                  </KanbanColumn>
-                </motion.div>
-              ))}
-            </section>
+                    <KanbanColumn value={column.id} className="kanban-column">
+                      <header className="column-header">
+                        <div className="column-header-title">
+                          <span className={`column-tone tone-${column.id.replaceAll("_", "-")}`} aria-hidden="true" />
+                          <div className="column-heading">
+                            <h3>{column.label}</h3>
+                            <p>{(grouped.get(column.id)?.length ?? 0) === 1 ? "1 role" : `${grouped.get(column.id)?.length ?? 0} roles`}</p>
+                          </div>
+                        </div>
+                        <span className="column-count">{grouped.get(column.id)?.length ?? 0}</span>
+                      </header>
+                      <div className="column-items">
+                        {(kanbanColumnsState[column.id] ?? []).map((job) => (
+                          <KanbanItem key={job.url} value={job.url}>
+                            <JobCard job={job} onSelect={setSelectedUrl} onPrefetch={prefetchJob} />
+                          </KanbanItem>
+                        ))}
+                        {column.id === "not_applied" && (grouped.get(column.id)?.length ?? 0) > backlogVisibleCount && (
+                          <button
+                            type="button"
+                            className="ghost-btn compact"
+                            data-icon="↓"
+                            onClick={() => loadMoreBacklog(grouped.get(column.id)?.length ?? 0)}
+                          >
+                            Load More
+                          </button>
+                        )}
+                      </div>
+                    </KanbanColumn>
+                  </motion.div>
+                ))}
+              </KanbanBoard>
+              <KanbanOverlay>
+                <div className="kanban-overlay-card" />
+              </KanbanOverlay>
+            </Kanban>
           ) : (
             <section className="list-view">
               {filteredJobs.map((job) => (
@@ -1226,9 +1435,9 @@ export function BoardPage() {
                     <p>{job.company} • {job.location || "-"}</p>
                   </button>
                   <div className="list-row-meta">
-                    <span className="soft-chip">{(job.status ?? "not_applied").replaceAll("_", " ")}</span>
-                    <span className="soft-chip">{job.ats || "ATS"}</span>
-                    <span className="soft-chip">Posted {job.posted || "-"}</span>
+                    <Badge>{(job.status ?? "not_applied").replaceAll("_", " ")}</Badge>
+                    <Badge>{job.ats || "ATS"}</Badge>
+                    <Badge>Posted {job.posted || "-"}</Badge>
                   </div>
                 </article>
               ))}
@@ -1242,10 +1451,17 @@ export function BoardPage() {
             profile={profile}
             events={events}
             enrichmentPending={Boolean(selectedUrl && pendingEnrichmentByUrl[selectedUrl])}
+            artifacts={selectedUrl ? artifactCache[selectedUrl] ?? [] : []}
+            artifactsLoading={artifactsLoading}
+            artifactsGenerating={artifactsGenerating}
+            artifactStarterStage={artifactStarterStatus?.stage}
+            artifactStarterProgress={artifactStarterStatus?.progress_percent}
             onClose={() => setSelectedUrl(null)}
             onAddSkillToProfile={addSkillToProfile}
             onDeleteJob={removeJob}
             onSuppressJob={suppressJobFromBoard}
+            onGenerateArtifacts={ensureStarterArtifacts}
+            onTailorArtifacts={tailorBothArtifacts}
             onChangeTracking={async (patch) => {
               if (!selectedUrl) {
                 return;
@@ -1338,6 +1554,7 @@ export function BoardPage() {
               <button
                 type="button"
                 className="ghost-btn compact"
+                data-icon="↗"
                 onClick={() => setIsManualCreateOpen(false)}
                 disabled={isManualSaving}
               >
@@ -1346,6 +1563,7 @@ export function BoardPage() {
               <button
                 type="button"
                 className="primary-btn"
+                data-icon="✓"
                 onClick={() => void submitManualJob()}
                 disabled={isManualSaving}
               >
@@ -1398,6 +1616,7 @@ export function BoardPage() {
                     <button
                       type="button"
                       className="ghost-btn compact"
+                      data-icon="⟲"
                       disabled={restoringSuppressionUrl === item.url}
                       onClick={() => void restoreSuppressedUrl(item.url)}
                     >
@@ -1411,6 +1630,7 @@ export function BoardPage() {
               <button
                 type="button"
                 className="ghost-btn compact"
+                data-icon="↩"
                 onClick={() => setIsSuppressionPanelOpen(false)}
                 disabled={Boolean(restoringSuppressionUrl)}
               >

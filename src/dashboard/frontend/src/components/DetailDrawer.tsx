@@ -1,10 +1,24 @@
 import { motion } from "framer-motion";
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { CandidateProfile, JobDetail, JobEvent, Priority, TrackingStatus } from "../types";
+import { Link } from "react-router-dom";
+import type { ArtifactSummary, CandidateProfile, JobDetail, JobEvent, Priority, TrackingStatus } from "../types";
+import { preloadRouteChunk } from "../routePreload";
 import { AnimatedList } from "./reactbits/AnimatedList";
 import { ThemedLoader } from "./ThemedLoader";
 import { ThemedSelect } from "./ThemedSelect";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
+import { Badge } from "./ui/badge";
+import { Progress } from "./ui/progress";
 
 interface DetailDrawerProps {
   open: boolean;
@@ -12,11 +26,18 @@ interface DetailDrawerProps {
   job: JobDetail | null;
   profile: CandidateProfile | null;
   events: JobEvent[];
+  artifacts?: ArtifactSummary[];
+  artifactsLoading?: boolean;
+  artifactsGenerating?: boolean;
+  artifactStarterStage?: string;
+  artifactStarterProgress?: number;
   enrichmentPending?: boolean;
   onClose: () => void;
   onAddSkillToProfile?: (skill: string) => Promise<void>;
   onDeleteJob?: (url: string) => Promise<void>;
   onSuppressJob?: (url: string, reason?: string) => Promise<void>;
+  onGenerateArtifacts?: (url: string) => Promise<void>;
+  onTailorArtifacts?: (url: string) => Promise<void>;
   onChangeTracking: (patch: {
     status?: TrackingStatus;
     priority?: Priority;
@@ -234,11 +255,18 @@ export function DetailDrawer({
   job,
   profile,
   events,
+  artifacts = [],
+  artifactsLoading = false,
+  artifactsGenerating = false,
+  artifactStarterStage = "queued",
+  artifactStarterProgress = 0,
   enrichmentPending = false,
   onClose,
   onAddSkillToProfile,
   onDeleteJob,
   onSuppressJob,
+  onGenerateArtifacts,
+  onTailorArtifacts,
   onChangeTracking,
 }: DetailDrawerProps) {
   const requiredSkills = job?.enrichment ? cleanSkills(job.enrichment.required_skills) : [];
@@ -469,7 +497,7 @@ export function DetailDrawer({
           >
             <div className="drawer-top">
               <h2>{job.title}</h2>
-              <button type="button" onClick={onClose} className="ghost-btn">Close</button>
+              <button type="button" onClick={onClose} className="ghost-btn" data-icon="×">Close</button>
             </div>
             <p className="drawer-company">{job.company}</p>
             <a href={job.url} target="_blank" rel="noreferrer" className="external-link">Open Original Posting</a>
@@ -532,14 +560,69 @@ export function DetailDrawer({
             </div>
 
             <section className="detail-block">
+              <h3>Artifacts</h3>
+              <div className="fact-grid">
+                {["resume", "cover_letter"].map((kind) => {
+                  const artifact = artifacts.find((item) => item.artifact_type === kind);
+                  const label = kind === "resume" ? "Resume" : "Cover Letter";
+                  const openHref = `/jobs/${encodeURIComponent(job.url)}/artifacts/${kind}`;
+                  return (
+                    <p key={kind}>
+                      <strong>{label}:</strong>{" "}
+                      {artifact ? (
+                        <>
+                          {artifact.active_version?.label ?? "draft"} v{artifact.active_version?.version ?? 1}{" "}
+                          <Link to={openHref} className="external-link" style={{ display: "inline" }} onMouseEnter={() => preloadRouteChunk("artifacts")} onFocus={() => preloadRouteChunk("artifacts")}>
+                            Open
+                          </Link>
+                        </>
+                      ) : (
+                        "Not created"
+                      )}
+                    </p>
+                  );
+                })}
+              </div>
+              {artifactsGenerating && artifacts.length === 0 ? (
+                <div className="artifact-generate-progress" aria-live="polite">
+                  <p className="empty-text">Generating starter drafts ({artifactStarterStage.replaceAll("_", " ")})...</p>
+                  <Progress value={artifactStarterProgress} />
+                </div>
+              ) : artifactsLoading && artifacts.length === 0 ? (
+                <p className="empty-text">Loading artifacts...</p>
+              ) : artifacts.length === 0 ? (
+                <button
+                  type="button"
+                  className="ghost-btn compact"
+                  data-icon="＋"
+                  onClick={() => job && onGenerateArtifacts ? void onGenerateArtifacts(job.url) : undefined}
+                  disabled={!onGenerateArtifacts || artifactsLoading || artifactsGenerating}
+                >
+                  Generate starter drafts
+                </button>
+              ) : null}
+              {artifacts.length > 0 && (
+                <button
+                  type="button"
+                  className="ghost-btn compact primary"
+                  data-icon="✨"
+                  onClick={() => job && onTailorArtifacts ? void onTailorArtifacts(job.url) : undefined}
+                  disabled={!onTailorArtifacts}
+                >
+                  Tailor both artifacts
+                </button>
+              )}
+            </section>
+
+            <section className="detail-block">
               <h3>Fit Overview</h3>
               {fitData ? (
                 <>
                   <div className="fit-summary">
-                    <span className="soft-chip">Required {fitData.requiredMet}/{fitData.requiredChecks.length || 0}</span>
-                    <span className="soft-chip">Preferred {fitData.preferredMet}/{fitData.preferredChecks.length || 0}</span>
-                    <span className="soft-chip">Core checks {fitData.corePassCount}/{fitData.coreChecks.length}</span>
-                    <span className="soft-chip">Confidence {job.match?.confidence ?? "-"}</span>
+                    <Badge>Required {fitData.requiredMet}/{fitData.requiredChecks.length || 0}</Badge>
+                    <Badge>Preferred {fitData.preferredMet}/{fitData.preferredChecks.length || 0}</Badge>
+                    <Badge>Core checks {fitData.corePassCount}/{fitData.coreChecks.length}</Badge>
+                    <Badge>Confidence {job.match?.confidence ?? "-"}</Badge>
                   </div>
 
                   <div className="fit-group">
@@ -548,7 +631,7 @@ export function DetailDrawer({
                       <article className="fit-panel fit-panel-pass">
                         <header className="fit-panel-head">
                           <p>You already have these</p>
-                          <span className="soft-chip">{fitData.matchedRequired.length + fitData.matchedPreferred.length}</span>
+                          <Badge>{fitData.matchedRequired.length + fitData.matchedPreferred.length}</Badge>
                         </header>
                         <div className="fit-panel-groups">
                           <div className="fit-skill-group">
@@ -587,7 +670,7 @@ export function DetailDrawer({
                       <article className="fit-panel fit-panel-fail">
                         <header className="fit-panel-head">
                           <p>Gaps to close</p>
-                          <span className="soft-chip">{fitData.missingRequiredChecks.length + fitData.missingPreferredChecks.length}</span>
+                          <Badge>{fitData.missingRequiredChecks.length + fitData.missingPreferredChecks.length}</Badge>
                         </header>
                         <div className="fit-panel-groups">
                           <div className="fit-skill-group">
@@ -808,116 +891,50 @@ export function DetailDrawer({
         )}
       </aside>
 
-      {isDeleteConfirmOpen && (
-        <div
-          className="confirm-modal-layer"
-          role="presentation"
-          onClick={() => {
-            if (!isDeleting) setIsDeleteConfirmOpen(false);
-          }}
-        >
-          <section
-            className="confirm-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delete-job-title"
-            aria-describedby="delete-job-message"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="confirm-modal-head">
-              <div className="confirm-modal-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                </svg>
-              </div>
-              <h4 id="delete-job-title">Delete this job?</h4>
-            </header>
-            <p id="delete-job-message" className="confirm-modal-message">
+      <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this job?</AlertDialogTitle>
+            <AlertDialogDescription>
               This will permanently remove <strong>{job?.title ?? "this job"}</strong> and linked enrichment, tracking, and timeline records.
-            </p>
-            {deleteError && <p className="confirm-modal-error">{deleteError}</p>}
-            <div className="confirm-modal-actions">
-              <button
-                type="button"
-                className="ghost-btn compact"
-                onClick={() => setIsDeleteConfirmOpen(false)}
-                disabled={isDeleting}
-                autoFocus
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="confirm-delete-btn"
-                onClick={() => void handleDeleteJob()}
-                disabled={isDeleting}
-              >
-                {isDeleting ? "Deleting..." : "Delete Job"}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && <p className="confirm-modal-error">{deleteError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel className="ghost-btn compact" data-icon="×" disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="confirm-delete-btn" onClick={() => void handleDeleteJob()} disabled={isDeleting}>
+              {isDeleting ? "Deleting..." : "Delete Job"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      {isSuppressConfirmOpen && (
-        <div
-          className="confirm-modal-layer"
-          role="presentation"
-          onClick={() => {
-            if (!isSuppressing) setIsSuppressConfirmOpen(false);
-          }}
-        >
-          <section
-            className="confirm-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="suppress-job-title"
-            aria-describedby="suppress-job-message"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="confirm-modal-head">
-              <div className="confirm-modal-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M3 12h18M3 6h18M3 18h18" />
-                </svg>
-              </div>
-              <h4 id="suppress-job-title">Suppress this job?</h4>
-            </header>
-            <p id="suppress-job-message" className="confirm-modal-message">
+      <AlertDialog open={isSuppressConfirmOpen} onOpenChange={setIsSuppressConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Suppress this job?</AlertDialogTitle>
+            <AlertDialogDescription>
               This hides <strong>{job?.title ?? "this job"}</strong> from the board and prevents future scrape updates for this exact URL.
-            </p>
-            <label className="full-width">
-              <span>Reason (optional)</span>
-              <input
-                type="text"
-                value={suppressReason}
-                onChange={(event) => setSuppressReason(event.target.value)}
-                placeholder="e.g. wrong location, seniority mismatch, irrelevant domain"
-              />
-            </label>
-            {suppressError && <p className="confirm-modal-error">{suppressError}</p>}
-            <div className="confirm-modal-actions">
-              <button
-                type="button"
-                className="ghost-btn compact"
-                onClick={() => setIsSuppressConfirmOpen(false)}
-                disabled={isSuppressing}
-                autoFocus
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="confirm-delete-btn"
-                onClick={() => void handleSuppressJob()}
-                disabled={isSuppressing}
-              >
-                {isSuppressing ? "Saving..." : "Suppress Job"}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <label className="full-width">
+            <span>Reason (optional)</span>
+            <input
+              type="text"
+              value={suppressReason}
+              onChange={(event) => setSuppressReason(event.target.value)}
+              placeholder="e.g. wrong location, seniority mismatch, irrelevant domain"
+            />
+          </label>
+          {suppressError && <p className="confirm-modal-error">{suppressError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel className="ghost-btn compact" data-icon="×" disabled={isSuppressing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="confirm-delete-btn" onClick={() => void handleSuppressJob()} disabled={isSuppressing}>
+              {isSuppressing ? "Saving..." : "Suppress Job"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

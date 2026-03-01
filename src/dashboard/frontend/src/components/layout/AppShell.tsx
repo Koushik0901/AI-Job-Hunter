@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { ThemeToggle } from "../ThemeToggle";
+import { preloadRouteChunk } from "../../routePreload";
 
 interface AppShellProps {
   isDark: boolean;
@@ -71,15 +72,15 @@ export function AppShell({ isDark, onToggleTheme }: AppShellProps) {
         </div>
 
         <nav className="rail-nav" aria-label="Primary navigation">
-          <NavLink to="/" end className={({ isActive }) => `rail-link ${isActive ? "active" : ""}`} data-label="Board">
+          <NavLink to="/" end className={({ isActive }) => `rail-link ${isActive ? "active" : ""}`} data-label="Board" onMouseEnter={() => preloadRouteChunk("board")} onFocus={() => preloadRouteChunk("board")}>
             <span className="rail-link-icon" aria-hidden="true"><BoardIcon /></span>
             <span className="rail-link-text">Board</span>
           </NavLink>
-          <NavLink to="/analytics" className={({ isActive }) => `rail-link ${isActive ? "active" : ""}`} data-label="Analytics">
+          <NavLink to="/analytics" className={({ isActive }) => `rail-link ${isActive ? "active" : ""}`} data-label="Analytics" onMouseEnter={() => preloadRouteChunk("analytics")} onFocus={() => preloadRouteChunk("analytics")}>
             <span className="rail-link-icon" aria-hidden="true"><AnalyticsIcon /></span>
             <span className="rail-link-text">Analytics</span>
           </NavLink>
-          <NavLink to="/profile" className={({ isActive }) => `rail-link ${isActive ? "active" : ""}`} data-label="Profile">
+          <NavLink to="/profile" className={({ isActive }) => `rail-link ${isActive ? "active" : ""}`} data-label="Profile" onMouseEnter={() => preloadRouteChunk("profile")} onFocus={() => preloadRouteChunk("profile")}>
             <span className="rail-link-icon" aria-hidden="true"><ProfileIcon /></span>
             <span className="rail-link-text">Profile</span>
           </NavLink>

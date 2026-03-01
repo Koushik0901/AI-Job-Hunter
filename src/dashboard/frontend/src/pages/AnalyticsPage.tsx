@@ -329,6 +329,7 @@ export function AnalyticsPage() {
                 type="button"
                 key={option}
                 className={`ghost-btn compact ${preset === option ? "active" : ""}`}
+                data-icon={preset === option ? "●" : "◦"}
                 onClick={() => setPreset(option)}
               >
                 {option === "all" ? "All time" : `Last ${option.slice(0, -1)} days`}
@@ -368,7 +369,7 @@ export function AnalyticsPage() {
               }}
             />
           </label>
-          <button type="button" onClick={() => void load()} className="primary-btn">
+          <button type="button" onClick={() => void load()} className="primary-btn" data-icon="↻">
             Refresh
           </button>
         </div>

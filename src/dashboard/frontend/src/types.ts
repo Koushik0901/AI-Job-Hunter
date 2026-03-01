@@ -62,6 +62,7 @@ export interface JobDetail {
   tracking_updated_at: string | null;
   enrichment: JobEnrichment | null;
   match: JobMatchScore | null;
+  match_meta: JobMatchMeta | null;
 }
 
 export interface JobMatchScore {
@@ -72,6 +73,12 @@ export interface JobMatchScore {
   confidence: string;
 }
 
+export interface JobMatchMeta {
+  profile_version: number;
+  computed_at: string | null;
+  stale: boolean;
+}
+
 export interface CandidateProfile {
   years_experience: number;
   skills: string[];
@@ -80,7 +87,19 @@ export interface CandidateProfile {
   education: Array<{ degree: string; field: string | null }>;
   degree: string | null;
   degree_field: string | null;
+  score_version?: number;
   updated_at: string | null;
+}
+
+export interface ResumeProfile {
+  baseline_resume_json: Record<string, unknown>;
+  template_id: string;
+  updated_at: string | null;
+}
+
+export interface ResumeImportResponse {
+  source_path: string;
+  baseline_resume_json: Record<string, unknown>;
 }
 
 export interface JobEvent {
@@ -101,12 +120,83 @@ export interface StatsResponse {
   by_status: Record<string, number>;
 }
 
+export interface ScoreRecomputeStatus {
+  running: boolean;
+  queued_while_running: number;
+  last_started_at: string | null;
+  last_finished_at: string | null;
+  last_duration_ms: number | null;
+  last_total: number | null;
+  last_processed: number | null;
+  last_scope: string | null;
+  last_error: string | null;
+}
+
+export interface ArtifactVersion {
+  id: string;
+  artifact_id: string;
+  version: number;
+  label: "draft" | "tailored" | "final" | string;
+  content_json: Record<string, unknown> | null;
+  meta_json: Record<string, unknown>;
+  created_at: string;
+  created_by: string;
+  supersedes_version_id: string | null;
+  base_version_id: string | null;
+}
+
+export interface ArtifactSummary {
+  id: string;
+  job_url: string;
+  artifact_type: "resume" | "cover_letter" | string;
+  active_version_id: string | null;
+  active_version: ArtifactVersion | null;
+  created_at: string;
+}
+
+export interface ArtifactStarterStatus {
+  job_url: string;
+  stage: string;
+  progress_percent: number;
+  running: boolean;
+  updated_at: string | null;
+}
+
+export interface ArtifactSuggestion {
+  id: string;
+  artifact_id: string;
+  base_version_id: string;
+  base_hash: string | null;
+  target_path: string | null;
+  patch_json: Array<Record<string, unknown>>;
+  group_key: string | null;
+  summary: string | null;
+  state: "pending" | "accepted" | "rejected" | string;
+  created_at: string;
+  resolved_at: string | null;
+  supersedes_suggestion_id: string | null;
+}
+
 export interface TrackingPatchRequest {
   status?: TrackingStatus;
   priority?: Priority;
   applied_at?: string | null;
   next_step?: string | null;
   target_compensation?: string | null;
+}
+
+export interface CreateArtifactVersionRequest {
+  label: "draft" | "tailored" | "final";
+  content_json: Record<string, unknown>;
+  meta_json?: Record<string, unknown>;
+  created_by?: string;
+  base_version_id?: string | null;
+}
+
+export interface GenerateArtifactSuggestionsRequest {
+  prompt: string;
+  target_path?: string | null;
+  max_suggestions?: number;
 }
 
 export interface ManualJobCreateRequest {

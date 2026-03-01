@@ -19,6 +19,7 @@ from enrich import run_description_reformat_pipeline, run_enrichment_pipeline
 from match_score import compute_match_score
 from notify import notify_new_jobs
 from services.scrape_service import render_jobs_table, scrape_all
+from dashboard.backend import repository as dashboard_repository
 
 
 def register(subparsers) -> None:
@@ -170,6 +171,11 @@ def run(args) -> None:
 
     render_jobs_table(jobs, limit=args.limit)
     new_count, updated_count, new_jobs = save_jobs(conn, jobs)
+    if jobs:
+        dashboard_repository.recompute_match_scores(
+            conn,
+            urls=[str(job.get("url") or "") for job in jobs if str(job.get("url") or "").strip()],
+        )
     console.print(
         f"\n[bold]Database:[/bold] {db_label}  [green]{new_count} new[/green], [dim]{updated_count} updated[/dim]"
     )
@@ -192,6 +198,10 @@ def run(args) -> None:
             openrouter_model,
             description_format_model,
             console,
+        )
+        dashboard_repository.recompute_match_scores(
+            conn,
+            urls=[str(job.get("url") or "") for job in new_jobs if str(job.get("url") or "").strip()],
         )
 
     conn.close()

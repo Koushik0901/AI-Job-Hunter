@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
+import uuid
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Callable
 
 from db import (
+    bump_candidate_profile_score_version,
     get_candidate_profile,
+    get_resume_profile,
     is_job_suppressed,
     save_jobs,
     suppress_job_url,
     unsuppress_job_url,
     upsert_candidate_profile,
+    upsert_resume_profile,
 )
 from match_score import compute_match_score
 
@@ -57,6 +63,69 @@ def _build_enrichment_payload(raw: dict[str, Any]) -> dict[str, Any]:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _json_text(value: Any) -> str:
+    return json.dumps(value, separators=(",", ":"), ensure_ascii=True)
+
+
+def _hash_score_source(*, title: str, enrichment: dict[str, Any], profile_version: int) -> str:
+    payload = {"title": title, "enrichment": enrichment, "profile_version": profile_version}
+    return hashlib.sha1(_json_text(payload).encode("utf-8")).hexdigest()
+
+
+def _upsert_match_row(
+    conn: Any,
+    *,
+    url: str,
+    profile_version: int,
+    match: dict[str, Any],
+    source_hash: str,
+) -> None:
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO job_match_scores
+        (url, profile_version, score, band, breakdown_json, reasons_json, confidence, computed_at, source_hash)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            url,
+            profile_version,
+            int(match.get("score", 0) or 0),
+            str(match.get("band") or "low"),
+            _json_text(match.get("breakdown") or {}),
+            _json_text(match.get("reasons") or []),
+            str(match.get("confidence") or "low"),
+            _now_iso(),
+            source_hash,
+        ),
+    )
+
+
+def _parse_match_row(row: tuple[Any, ...]) -> dict[str, Any]:
+    breakdown: dict[str, int] = {}
+    reasons: list[str] = []
+    try:
+        parsed_breakdown = json.loads(str(row[3] or "{}"))
+        if isinstance(parsed_breakdown, dict):
+            breakdown = {str(k): int(v) for k, v in parsed_breakdown.items()}
+    except Exception:
+        breakdown = {}
+    try:
+        parsed_reasons = json.loads(str(row[4] or "[]"))
+        if isinstance(parsed_reasons, list):
+            reasons = [str(v) for v in parsed_reasons]
+    except Exception:
+        reasons = []
+    return {
+        "profile_version": int(row[0]),
+        "score": int(row[1]),
+        "band": str(row[2]),
+        "breakdown": breakdown,
+        "reasons": reasons,
+        "confidence": str(row[5] or "low"),
+        "computed_at": row[6],
+    }
 
 
 def _normalized_status_sql(tracking_column: str, application_column: str) -> str:
@@ -115,13 +184,16 @@ def list_jobs(
     if where:
         where_sql = "WHERE " + " AND ".join(where)
 
+    profile = get_candidate_profile(conn)
+    profile_version = int(profile.get("score_version") or 1)
+
     order_sql = "ORDER BY date(j.posted) DESC"
     if sort == "updated_desc":
         order_sql = "ORDER BY COALESCE(t.updated_at, j.last_seen) DESC"
     elif sort == "company_asc":
         order_sql = "ORDER BY j.company ASC, j.title ASC"
     elif sort == "match_desc":
-        order_sql = "ORDER BY date(j.posted) DESC"
+        order_sql = "ORDER BY COALESCE(ms.score, -1) DESC, date(j.posted) DESC"
 
     count_sql = f"""
         SELECT COUNT(*)
@@ -161,70 +233,96 @@ def list_jobs(
             e.red_flags,
             e.enriched_at,
             e.enrichment_status,
-            e.enrichment_model
+            e.enrichment_model,
+            ms.score,
+            ms.band
         FROM jobs j
         LEFT JOIN job_tracking t ON t.url = j.url
         LEFT JOIN job_enrichments e ON e.url = j.url
+        LEFT JOIN job_match_scores ms ON ms.url = j.url AND ms.profile_version = ?
         {where_sql}
         {order_sql}
     """
-    data_params: list[Any] = list(params)
+    data_params: list[Any] = [profile_version, *params]
     if sort != "match_desc":
         data_sql += "\nLIMIT ? OFFSET ?"
         data_params.extend([limit, offset])
     rows = conn.execute(data_sql, tuple(data_params)).fetchall()
-    profile = get_candidate_profile(conn)
-    items = [
-        {
-            "url": r[0],
-            "company": r[1],
-            "title": r[2],
-            "location": r[3],
-            "posted": r[4],
-            "ats": r[5],
-            "status": r[6],
-            "priority": r[7],
-            "updated_at": r[8],
-            "match_score": compute_match_score(
-                {
-                    "title": r[2],
-                    "enrichment": _build_enrichment_payload(
-                        {
-                            "work_mode": r[9],
-                            "remote_geo": r[10],
-                            "canada_eligible": r[11],
-                            "seniority": r[12],
-                            "role_family": r[13],
-                            "years_exp_min": r[14],
-                            "years_exp_max": r[15],
-                            "minimum_degree": r[16],
-                            "required_skills": r[17],
-                            "preferred_skills": r[18],
-                            "formatted_description": r[19],
-                            "salary_min": r[20],
-                            "salary_max": r[21],
-                            "salary_currency": r[22],
-                            "visa_sponsorship": r[23],
-                            "red_flags": r[24],
-                            "enriched_at": r[25],
-                            "enrichment_status": r[26],
-                            "enrichment_model": r[27],
-                        }
-                    ),
-                },
-                profile,
-            )["score"],
-        }
-        for r in rows
-    ]
-    for item in items:
-        score = item.get("match_score")
-        if isinstance(score, int):
-            item["match_band"] = "excellent" if score >= 80 else ("good" if score >= 65 else ("fair" if score >= 45 else "low"))
-        else:
-            item["match_band"] = None
+    missing: list[tuple[str, str, dict[str, Any]]] = []
+    items: list[dict[str, Any]] = []
+    for r in rows:
+        score = r[28]
+        band = r[29]
+        enrichment = _build_enrichment_payload(
+            {
+                "work_mode": r[9],
+                "remote_geo": r[10],
+                "canada_eligible": r[11],
+                "seniority": r[12],
+                "role_family": r[13],
+                "years_exp_min": r[14],
+                "years_exp_max": r[15],
+                "minimum_degree": r[16],
+                "required_skills": r[17],
+                "preferred_skills": r[18],
+                "formatted_description": r[19],
+                "salary_min": r[20],
+                "salary_max": r[21],
+                "salary_currency": r[22],
+                "visa_sponsorship": r[23],
+                "red_flags": r[24],
+                "enriched_at": r[25],
+                "enrichment_status": r[26],
+                "enrichment_model": r[27],
+            }
+        )
+        if score is None:
+            missing.append((r[0], r[2], enrichment))
+        items.append(
+            {
+                "url": r[0],
+                "company": r[1],
+                "title": r[2],
+                "location": r[3],
+                "posted": r[4],
+                "ats": r[5],
+                "status": r[6],
+                "priority": r[7],
+                "updated_at": r[8],
+                "match_score": int(score) if isinstance(score, int) else None,
+                "match_band": str(band) if band is not None else None,
+            }
+        )
+
+    if missing:
+        computed: dict[str, dict[str, Any]] = {}
+        for url, title, enrichment in missing:
+            match = compute_match_score({"title": title, "enrichment": enrichment}, profile)
+            source_hash = _hash_score_source(title=title, enrichment=enrichment, profile_version=profile_version)
+            _upsert_match_row(
+                conn,
+                url=url,
+                profile_version=profile_version,
+                match=match,
+                source_hash=source_hash,
+            )
+            computed[url] = match
+        conn.commit()
+        for item in items:
+            match = computed.get(str(item.get("url") or ""))
+            if match:
+                item["match_score"] = int(match["score"])
+                item["match_band"] = str(match["band"])
+        if sort == "match_desc":
+            items.sort(
+                key=lambda x: (int(x.get("match_score") or -1), str(x.get("posted") or "")),
+                reverse=True,
+            )
     if sort == "match_desc":
-        items.sort(key=lambda x: int(x.get("match_score") or 0), reverse=True)
+        items.sort(
+            key=lambda x: (int(x.get("match_score") or -1), str(x.get("posted") or "")),
+            reverse=True,
+        )
         items = items[offset:offset + limit]
     return items, total
 
@@ -304,7 +402,44 @@ def get_job_detail(conn: Any, url: str) -> dict[str, Any] | None:
         )
 
     profile = get_candidate_profile(conn)
-    match = compute_match_score({"title": row[2], "enrichment": enrichment or {}}, profile)
+    profile_version = int(profile.get("score_version") or 1)
+    score_row = conn.execute(
+        """
+        SELECT profile_version, score, band, breakdown_json, reasons_json, confidence, computed_at
+        FROM job_match_scores
+        WHERE url = ?
+        ORDER BY profile_version DESC
+        LIMIT 1
+        """,
+        (url,),
+    ).fetchone()
+    match = None
+    stale = True
+    computed_at = None
+    if score_row:
+        parsed = _parse_match_row(score_row)
+        match = {
+            "score": parsed["score"],
+            "band": parsed["band"],
+            "breakdown": parsed["breakdown"],
+            "reasons": parsed["reasons"],
+            "confidence": parsed["confidence"],
+        }
+        stale = int(parsed["profile_version"]) != profile_version
+        computed_at = parsed["computed_at"]
+    else:
+        # Prime detail score when missing to avoid showing empty score indefinitely.
+        match = compute_match_score({"title": row[2], "enrichment": enrichment or {}}, profile)
+        source_hash = _hash_score_source(title=row[2], enrichment=enrichment or {}, profile_version=profile_version)
+        _upsert_match_row(
+            conn,
+            url=url,
+            profile_version=profile_version,
+            match=match,
+            source_hash=source_hash,
+        )
+        conn.commit()
+        stale = False
 
     return {
         "url": row[0],
@@ -325,6 +460,11 @@ def get_job_detail(conn: Any, url: str) -> dict[str, Any] | None:
         "tracking_updated_at": row[15],
         "enrichment": enrichment,
         "match": match,
+        "match_meta": {
+            "profile_version": profile_version,
+            "computed_at": computed_at,
+            "stale": stale,
+        },
     }
 
 
@@ -365,6 +505,631 @@ def upsert_tracking(conn: Any, url: str, patch: dict[str, Any]) -> None:
 
     conn.execute("UPDATE jobs SET application_status = ? WHERE url = ?", (status, url))
     conn.commit()
+
+
+def get_tracking_status(conn: Any, url: str) -> str:
+    row = conn.execute(
+        f"""
+        SELECT {_normalized_status_sql('t.status', 'j.application_status')}
+        FROM jobs j
+        LEFT JOIN job_tracking t ON t.url = j.url
+        WHERE j.url = ?
+        """,
+        (url,),
+    ).fetchone()
+    if not row:
+        raise ValueError("job not found")
+    return str(row[0] or "not_applied")
+
+
+def _parse_json_object(raw: Any, *, fallback: dict[str, Any] | None = None) -> dict[str, Any]:
+    fallback_value = fallback if fallback is not None else {}
+    if raw is None:
+        return dict(fallback_value)
+    if isinstance(raw, dict):
+        return dict(raw)
+    if not isinstance(raw, str):
+        return dict(fallback_value)
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return dict(fallback_value)
+    if isinstance(parsed, dict):
+        return parsed
+    return dict(fallback_value)
+
+
+def _resolve_pointer_parent(doc: Any, pointer: str) -> tuple[Any, str]:
+    if not pointer or pointer == "/":
+        raise ValueError("pointer must target a property path")
+    if not pointer.startswith("/"):
+        raise ValueError("pointer must start with '/'")
+    parts = pointer.lstrip("/").split("/")
+    decoded = [part.replace("~1", "/").replace("~0", "~") for part in parts]
+    target = doc
+    for part in decoded[:-1]:
+        if isinstance(target, list):
+            index = int(part)
+            target = target[index]
+        elif isinstance(target, dict):
+            if part not in target:
+                raise KeyError(f"Path segment '{part}' not found")
+            target = target[part]
+        else:
+            raise TypeError("Unsupported path target")
+    return target, decoded[-1]
+
+
+def _apply_json_patch(doc: dict[str, Any], patch_ops: list[dict[str, Any]]) -> dict[str, Any]:
+    updated = copy.deepcopy(doc)
+    for op in patch_ops:
+        op_name = str(op.get("op") or "").strip().lower()
+        path = str(op.get("path") or "")
+        parent, key = _resolve_pointer_parent(updated, path)
+        if isinstance(parent, list):
+            if key == "-":
+                if op_name == "add":
+                    parent.append(op.get("value"))
+                    continue
+                raise ValueError("'-' index is only valid for add operations")
+            index = int(key)
+            if op_name == "remove":
+                parent.pop(index)
+                continue
+            if op_name == "add":
+                parent.insert(index, op.get("value"))
+                continue
+            if op_name == "replace":
+                parent[index] = op.get("value")
+                continue
+            raise ValueError(f"Unsupported patch op: {op_name}")
+        if isinstance(parent, dict):
+            if op_name == "remove":
+                parent.pop(key, None)
+                continue
+            if op_name in {"add", "replace"}:
+                parent[key] = op.get("value")
+                continue
+            raise ValueError(f"Unsupported patch op: {op_name}")
+        raise TypeError("Unsupported patch parent")
+    return updated
+
+
+def _sha256_json(value: dict[str, Any]) -> str:
+    payload = json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _default_resume_content(profile: dict[str, Any], job: dict[str, Any], resume_profile: dict[str, Any] | None = None) -> dict[str, Any]:
+    skills = [str(skill).strip() for skill in profile.get("skills", []) if str(skill).strip()]
+    summary = f"Targeting {job.get('title', 'this role')} opportunities with strengths in ML and data systems."
+    if skills:
+        summary = f"Targeting {job.get('title', 'this role')} roles with strengths in {', '.join(skills[:4])}."
+    base = {
+        "basics": {
+            "name": "",
+            "label": job.get("title") or "",
+            "summary": summary,
+        },
+        "work": [],
+        "education": profile.get("education", []),
+        "skills": [{"name": skill} for skill in skills],
+        "meta": {
+            "job_company": job.get("company", ""),
+            "job_title": job.get("title", ""),
+        },
+    }
+    baseline = (resume_profile or {}).get("baseline_resume_json")
+    if isinstance(baseline, dict) and baseline:
+        merged = copy.deepcopy(baseline)
+        meta = merged.get("meta") if isinstance(merged.get("meta"), dict) else {}
+        meta["job_company"] = job.get("company", "")
+        meta["job_title"] = job.get("title", "")
+        merged["meta"] = meta
+        basics = merged.get("basics") if isinstance(merged.get("basics"), dict) else {}
+        if not str(basics.get("label") or "").strip():
+            basics["label"] = job.get("title") or ""
+        merged["basics"] = basics
+        return merged
+    return base
+
+
+def _default_cover_letter_content(job: dict[str, Any]) -> dict[str, Any]:
+    company = str(job.get("company") or "Hiring Team")
+    role = str(job.get("title") or "the role")
+    return {
+        "frontmatter": {
+            "tone": "neutral",
+            "recipient": company,
+            "subject": f"Application for {role}",
+        },
+        "blocks": [
+            {"id": str(uuid.uuid4()), "type": "paragraph", "text": f"Dear {company},"},
+            {
+                "id": str(uuid.uuid4()),
+                "type": "paragraph",
+                "text": f"I am excited to apply for {role}. My background aligns strongly with the responsibilities and requirements outlined in the posting.",
+            },
+            {
+                "id": str(uuid.uuid4()),
+                "type": "paragraph",
+                "text": "I would welcome the opportunity to discuss how I can contribute to your team.",
+            },
+            {"id": str(uuid.uuid4()), "type": "paragraph", "text": "Sincerely,\n[Your Name]"},
+        ],
+    }
+
+
+def _artifact_row_to_summary(row: tuple[Any, ...]) -> dict[str, Any]:
+    active_version = None
+    if row[5] is not None:
+        active_version = {
+            "id": str(row[5]),
+            "artifact_id": str(row[0]),
+            "version": int(row[6]),
+            "label": str(row[7] or "draft"),
+            "content_json": _parse_json_object(row[8]),
+            "meta_json": _parse_json_object(row[9]),
+            "created_at": str(row[10]),
+            "created_by": str(row[11] or "system"),
+            "supersedes_version_id": str(row[12]) if row[12] else None,
+            "base_version_id": str(row[13]) if row[13] else None,
+        }
+    return {
+        "id": str(row[0]),
+        "job_url": str(row[1]),
+        "artifact_type": str(row[2]),
+        "active_version_id": str(row[3]) if row[3] else None,
+        "created_at": str(row[4]),
+        "active_version": active_version,
+    }
+
+
+def ensure_starter_artifacts_for_job(conn: Any, url: str) -> list[dict[str, Any]]:
+    return ensure_starter_artifacts_for_job_with_progress(conn, url)
+
+
+def ensure_starter_artifacts_for_job_with_progress(
+    conn: Any,
+    url: str,
+    progress_cb: Callable[[str, int], None] | None = None,
+) -> list[dict[str, Any]]:
+    job = get_job_detail(conn, url)
+    if not job:
+        raise ValueError("job not found")
+    profile = get_candidate_profile(conn)
+    resume_profile = get_resume_profile(conn)
+    created_at = _now_iso()
+    created: list[dict[str, Any]] = []
+    total_steps = 4
+    if progress_cb:
+        progress_cb("queued", 5)
+    for step_index, artifact_type in enumerate(("resume", "cover_letter"), start=1):
+        existing = conn.execute(
+            "SELECT id FROM job_artifacts WHERE job_url = ? AND artifact_type = ?",
+            (url, artifact_type),
+        ).fetchone()
+        stage_name = "creating_resume" if artifact_type == "resume" else "creating_cover_letter"
+        if progress_cb:
+            pct = 5 + int((step_index - 1) / total_steps * 80)
+            progress_cb(stage_name, pct)
+        if existing:
+            continue
+        artifact_id = str(uuid.uuid4())
+        conn.execute(
+            """
+            INSERT INTO job_artifacts (id, job_url, artifact_type, active_version_id, created_at)
+            VALUES (?, ?, ?, NULL, ?)
+            """,
+            (artifact_id, url, artifact_type, created_at),
+        )
+        initial_content = _default_resume_content(profile, job, resume_profile) if artifact_type == "resume" else _default_cover_letter_content(job)
+        version = create_artifact_version(
+            conn,
+            artifact_id=artifact_id,
+            label="draft",
+            content_json=initial_content,
+            meta_json={"templateId": "classic", "layout": {"fontSize": 11, "lineHeight": 1.35}},
+            created_by="system",
+            base_version_id=None,
+        )
+        created.append({"artifact_id": artifact_id, "version_id": version["id"], "artifact_type": artifact_type})
+    if progress_cb:
+        progress_cb("finalizing", 95)
+    conn.commit()
+    if progress_cb:
+        progress_cb("done", 100)
+    return created
+
+
+def list_job_artifacts(conn: Any, job_url: str) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT
+            a.id,
+            a.job_url,
+            a.artifact_type,
+            a.active_version_id,
+            a.created_at,
+            v.id,
+            v.version,
+            v.label,
+            v.content_json,
+            v.meta_json,
+            v.created_at,
+            v.created_by,
+            v.supersedes_version_id,
+            v.base_version_id
+        FROM job_artifacts a
+        LEFT JOIN artifact_versions v ON v.id = a.active_version_id
+        WHERE a.job_url = ?
+        ORDER BY a.artifact_type ASC
+        """,
+        (job_url,),
+    ).fetchall()
+    return [_artifact_row_to_summary(row) for row in rows]
+
+
+def get_artifact(conn: Any, artifact_id: str) -> dict[str, Any] | None:
+    row = conn.execute(
+        """
+        SELECT
+            a.id,
+            a.job_url,
+            a.artifact_type,
+            a.active_version_id,
+            a.created_at,
+            v.id,
+            v.version,
+            v.label,
+            v.content_json,
+            v.meta_json,
+            v.created_at,
+            v.created_by,
+            v.supersedes_version_id,
+            v.base_version_id
+        FROM job_artifacts a
+        LEFT JOIN artifact_versions v ON v.id = a.active_version_id
+        WHERE a.id = ?
+        """,
+        (artifact_id,),
+    ).fetchone()
+    if not row:
+        return None
+    return _artifact_row_to_summary(row)
+
+
+def delete_artifact(conn: Any, artifact_id: str) -> dict[str, Any]:
+    row = conn.execute(
+        "SELECT job_url, artifact_type FROM job_artifacts WHERE id = ?",
+        (artifact_id,),
+    ).fetchone()
+    if not row:
+        return {"deleted": 0, "job_url": None, "artifact_type": None}
+    job_url = str(row[0]) if row[0] else None
+    artifact_type = str(row[1]) if row[1] else None
+    conn.execute("DELETE FROM artifact_suggestions WHERE artifact_id = ?", (artifact_id,))
+    conn.execute("DELETE FROM artifact_versions WHERE artifact_id = ?", (artifact_id,))
+    conn.execute("DELETE FROM job_artifacts WHERE id = ?", (artifact_id,))
+    changed = conn.execute("SELECT changes()").fetchone()
+    conn.commit()
+    return {
+        "deleted": int(changed[0]) if changed else 0,
+        "job_url": job_url,
+        "artifact_type": artifact_type,
+    }
+
+
+def delete_job_artifact_by_type(conn: Any, job_url: str, artifact_type: str) -> dict[str, Any]:
+    row = conn.execute(
+        "SELECT id FROM job_artifacts WHERE job_url = ? AND artifact_type = ?",
+        (job_url, artifact_type),
+    ).fetchone()
+    if not row or not row[0]:
+        return {"deleted": 0, "job_url": job_url, "artifact_type": artifact_type}
+    return delete_artifact(conn, str(row[0]))
+
+
+def list_artifact_versions(conn: Any, artifact_id: str, limit: int = 200) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT
+            id, artifact_id, version, label, content_json, meta_json, created_at, created_by, supersedes_version_id, base_version_id
+        FROM artifact_versions
+        WHERE artifact_id = ?
+        ORDER BY version DESC
+        LIMIT ?
+        """,
+        (artifact_id, limit),
+    ).fetchall()
+    return [
+        {
+            "id": str(row[0]),
+            "artifact_id": str(row[1]),
+            "version": int(row[2]),
+            "label": str(row[3] or "draft"),
+            "content_json": _parse_json_object(row[4]),
+            "meta_json": _parse_json_object(row[5]),
+            "created_at": str(row[6]),
+            "created_by": str(row[7] or "system"),
+            "supersedes_version_id": str(row[8]) if row[8] else None,
+            "base_version_id": str(row[9]) if row[9] else None,
+        }
+        for row in rows
+    ]
+
+
+def create_artifact_version(
+    conn: Any,
+    *,
+    artifact_id: str,
+    label: str,
+    content_json: dict[str, Any],
+    meta_json: dict[str, Any],
+    created_by: str,
+    base_version_id: str | None = None,
+) -> dict[str, Any]:
+    now = _now_iso()
+    retries = 2
+    last_error: Exception | None = None
+    for _ in range(retries):
+        try:
+            current_row = conn.execute(
+                "SELECT active_version_id FROM job_artifacts WHERE id = ?",
+                (artifact_id,),
+            ).fetchone()
+            if not current_row:
+                raise ValueError("artifact not found")
+            current_active = str(current_row[0]) if current_row and current_row[0] else None
+            max_row = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) FROM artifact_versions WHERE artifact_id = ?",
+                (artifact_id,),
+            ).fetchone()
+            next_version = int(max_row[0] or 0) + 1
+            version_id = str(uuid.uuid4())
+            conn.execute(
+                """
+                INSERT INTO artifact_versions
+                (id, artifact_id, version, label, content_json, meta_json, created_at, created_by, supersedes_version_id, base_version_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    version_id,
+                    artifact_id,
+                    next_version,
+                    label,
+                    _json_text(content_json),
+                    _json_text(meta_json),
+                    now,
+                    created_by,
+                    current_active,
+                    base_version_id,
+                ),
+            )
+            conn.execute(
+                "UPDATE job_artifacts SET active_version_id = ? WHERE id = ?",
+                (version_id, artifact_id),
+            )
+            conn.commit()
+            return {
+                "id": version_id,
+                "artifact_id": artifact_id,
+                "version": next_version,
+                "label": label,
+                "content_json": content_json,
+                "meta_json": meta_json,
+                "created_at": now,
+                "created_by": created_by,
+                "supersedes_version_id": current_active,
+                "base_version_id": base_version_id,
+            }
+        except Exception as error:
+            last_error = error
+            message = str(error).lower()
+            if "unique" not in message:
+                raise
+    if last_error:
+        raise last_error
+    raise RuntimeError("failed to create artifact version")
+
+
+def list_artifact_suggestions(conn: Any, artifact_id: str, pending_only: bool = False) -> list[dict[str, Any]]:
+    where = "WHERE artifact_id = ?"
+    params: list[Any] = [artifact_id]
+    if pending_only:
+        where += " AND state = 'pending'"
+    rows = conn.execute(
+        f"""
+        SELECT
+            id,
+            artifact_id,
+            base_version_id,
+            base_hash,
+            target_path,
+            patch_json,
+            group_key,
+            summary,
+            state,
+            created_at,
+            resolved_at,
+            supersedes_suggestion_id
+        FROM artifact_suggestions
+        {where}
+        ORDER BY datetime(created_at) DESC
+        """,
+        tuple(params),
+    ).fetchall()
+    suggestions: list[dict[str, Any]] = []
+    for row in rows:
+        patch_list = []
+        try:
+            parsed = json.loads(str(row[5] or "[]"))
+            if isinstance(parsed, list):
+                patch_list = [dict(item) for item in parsed if isinstance(item, dict)]
+        except Exception:
+            patch_list = []
+        suggestions.append(
+            {
+                "id": str(row[0]),
+                "artifact_id": str(row[1]),
+                "base_version_id": str(row[2]),
+                "base_hash": str(row[3]) if row[3] else None,
+                "target_path": str(row[4]) if row[4] else None,
+                "patch_json": patch_list,
+                "group_key": str(row[6]) if row[6] else None,
+                "summary": str(row[7]) if row[7] else None,
+                "state": str(row[8]),
+                "created_at": str(row[9]),
+                "resolved_at": str(row[10]) if row[10] else None,
+                "supersedes_suggestion_id": str(row[11]) if row[11] else None,
+            }
+        )
+    return suggestions
+
+
+def create_artifact_suggestions(
+    conn: Any,
+    *,
+    artifact_id: str,
+    base_version_id: str,
+    suggestions: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    base_row = conn.execute(
+        "SELECT content_json FROM artifact_versions WHERE id = ? AND artifact_id = ?",
+        (base_version_id, artifact_id),
+    ).fetchone()
+    if not base_row:
+        raise ValueError("base version not found")
+    base_content = _parse_json_object(base_row[0])
+    base_hash = _sha256_json(base_content)
+    created_at = _now_iso()
+    created: list[dict[str, Any]] = []
+    for entry in suggestions:
+        suggestion_id = str(uuid.uuid4())
+        patch_json = entry.get("patch_json") if isinstance(entry.get("patch_json"), list) else []
+        conn.execute(
+            """
+            INSERT INTO artifact_suggestions
+            (id, artifact_id, base_version_id, base_hash, target_path, patch_json, group_key, summary, state, created_at, resolved_at, supersedes_suggestion_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?)
+            """,
+            (
+                suggestion_id,
+                artifact_id,
+                base_version_id,
+                base_hash,
+                entry.get("target_path"),
+                _json_text(patch_json),
+                entry.get("group_key"),
+                entry.get("summary"),
+                created_at,
+                entry.get("supersedes_suggestion_id"),
+            ),
+        )
+        created.append(
+            {
+                "id": suggestion_id,
+                "artifact_id": artifact_id,
+                "base_version_id": base_version_id,
+                "base_hash": base_hash,
+                "target_path": entry.get("target_path"),
+                "patch_json": patch_json,
+                "group_key": entry.get("group_key"),
+                "summary": entry.get("summary"),
+                "state": "pending",
+                "created_at": created_at,
+                "resolved_at": None,
+                "supersedes_suggestion_id": entry.get("supersedes_suggestion_id"),
+            }
+        )
+    conn.commit()
+    return created
+
+
+def accept_artifact_suggestion(
+    conn: Any,
+    *,
+    suggestion_id: str,
+    edited_patch_json: list[dict[str, Any]] | None,
+    allow_outdated: bool,
+    created_by: str,
+) -> dict[str, Any]:
+    row = conn.execute(
+        """
+        SELECT id, artifact_id, base_version_id, base_hash, patch_json, state
+        FROM artifact_suggestions
+        WHERE id = ?
+        """,
+        (suggestion_id,),
+    ).fetchone()
+    if not row:
+        raise ValueError("suggestion not found")
+    if str(row[5]) != "pending":
+        raise ValueError("suggestion already resolved")
+    artifact_id = str(row[1])
+    base_version_id = str(row[2])
+    patch_json_raw = edited_patch_json if edited_patch_json is not None else json.loads(str(row[4] or "[]"))
+
+    artifact = get_artifact(conn, artifact_id)
+    if not artifact or not artifact.get("active_version_id"):
+        raise ValueError("artifact not found")
+    active_version_id = str(artifact["active_version_id"])
+    if active_version_id != base_version_id and not allow_outdated:
+        raise ValueError("outdated suggestion")
+
+    base_version_row = conn.execute(
+        "SELECT content_json, meta_json FROM artifact_versions WHERE id = ? AND artifact_id = ?",
+        (base_version_id, artifact_id),
+    ).fetchone()
+    if not base_version_row:
+        raise ValueError("base version missing")
+    base_content = _parse_json_object(base_version_row[0])
+    base_hash = _sha256_json(base_content)
+    stored_hash = str(row[3]) if row[3] else None
+    if stored_hash and stored_hash != base_hash and not allow_outdated:
+        raise ValueError("outdated suggestion")
+    next_content = _apply_json_patch(base_content, [dict(op) for op in patch_json_raw if isinstance(op, dict)])
+    meta_json = _parse_json_object(base_version_row[1])
+    new_version = create_artifact_version(
+        conn,
+        artifact_id=artifact_id,
+        label="draft",
+        content_json=next_content,
+        meta_json=meta_json,
+        created_by=created_by,
+        base_version_id=base_version_id,
+    )
+    resolved_at = _now_iso()
+    conn.execute(
+        "UPDATE artifact_suggestions SET state = 'accepted', resolved_at = ? WHERE id = ?",
+        (resolved_at, suggestion_id),
+    )
+    conn.commit()
+    return {
+        "suggestion_id": suggestion_id,
+        "state": "accepted",
+        "resolved_at": resolved_at,
+        "new_version": new_version,
+    }
+
+
+def reject_artifact_suggestion(conn: Any, suggestion_id: str) -> dict[str, Any]:
+    row = conn.execute("SELECT state FROM artifact_suggestions WHERE id = ?", (suggestion_id,)).fetchone()
+    if not row:
+        raise ValueError("suggestion not found")
+    if str(row[0]) != "pending":
+        raise ValueError("suggestion already resolved")
+    resolved_at = _now_iso()
+    conn.execute(
+        "UPDATE artifact_suggestions SET state = 'rejected', resolved_at = ? WHERE id = ?",
+        (resolved_at, suggestion_id),
+    )
+    conn.commit()
+    return {
+        "suggestion_id": suggestion_id,
+        "state": "rejected",
+        "resolved_at": resolved_at,
+    }
 
 
 def create_manual_job(conn: Any, payload: dict[str, Any]) -> dict[str, Any]:
@@ -479,9 +1244,29 @@ def delete_event(conn: Any, event_id: int) -> int:
 
 
 def delete_job(conn: Any, url: str) -> int:
+    artifact_rows = conn.execute(
+        "SELECT id FROM job_artifacts WHERE job_url = ?",
+        (url,),
+    ).fetchall()
+    artifact_ids = [str(row[0]) for row in artifact_rows if row and row[0] is not None]
+    if artifact_ids:
+        placeholders = ", ".join("?" for _ in artifact_ids)
+        conn.execute(
+            f"DELETE FROM artifact_suggestions WHERE artifact_id IN ({placeholders})",
+            tuple(artifact_ids),
+        )
+        conn.execute(
+            f"DELETE FROM artifact_versions WHERE artifact_id IN ({placeholders})",
+            tuple(artifact_ids),
+        )
+        conn.execute(
+            f"DELETE FROM job_artifacts WHERE id IN ({placeholders})",
+            tuple(artifact_ids),
+        )
     conn.execute("DELETE FROM job_events WHERE url = ?", (url,))
     conn.execute("DELETE FROM job_tracking WHERE url = ?", (url,))
     conn.execute("DELETE FROM job_enrichments WHERE url = ?", (url,))
+    conn.execute("DELETE FROM job_match_scores WHERE url = ?", (url,))
     conn.execute("DELETE FROM jobs WHERE url = ?", (url,))
     changed = conn.execute("SELECT changes()").fetchone()
     conn.commit()
@@ -545,6 +1330,108 @@ def get_profile(conn: Any) -> dict[str, Any]:
 
 def save_profile(conn: Any, payload: dict[str, Any]) -> dict[str, Any]:
     return upsert_candidate_profile(conn, payload)
+
+
+def bump_profile_score_version(conn: Any) -> int:
+    return bump_candidate_profile_score_version(conn)
+
+
+def get_resume_profile_data(conn: Any) -> dict[str, Any]:
+    return get_resume_profile(conn)
+
+
+def save_resume_profile_data(conn: Any, payload: dict[str, Any]) -> dict[str, Any]:
+    return upsert_resume_profile(conn, payload)
+
+
+def recompute_match_scores(
+    conn: Any,
+    *,
+    urls: list[str] | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> int:
+    profile = get_candidate_profile(conn)
+    profile_version = int(profile.get("score_version") or 1)
+    where = ""
+    params: list[Any] = []
+    if urls:
+        placeholders = ", ".join("?" for _ in urls)
+        where = f"WHERE j.url IN ({placeholders})"
+        params.extend(urls)
+    rows = conn.execute(
+        f"""
+        SELECT
+            j.url,
+            COALESCE(j.title, ''),
+            e.work_mode,
+            e.remote_geo,
+            e.canada_eligible,
+            e.seniority,
+            e.role_family,
+            e.years_exp_min,
+            e.years_exp_max,
+            e.minimum_degree,
+            e.required_skills,
+            e.preferred_skills,
+            e.formatted_description,
+            e.salary_min,
+            e.salary_max,
+            e.salary_currency,
+            e.visa_sponsorship,
+            e.red_flags,
+            e.enriched_at,
+            e.enrichment_status,
+            e.enrichment_model
+        FROM jobs j
+        LEFT JOIN job_enrichments e ON e.url = j.url
+        {where}
+        """,
+        tuple(params),
+    ).fetchall()
+    if not rows:
+        if progress_callback is not None:
+            progress_callback(0, 0)
+        return 0
+    count = 0
+    total = len(rows)
+    for row in rows:
+        enrichment = _build_enrichment_payload(
+            {
+                "work_mode": row[2],
+                "remote_geo": row[3],
+                "canada_eligible": row[4],
+                "seniority": row[5],
+                "role_family": row[6],
+                "years_exp_min": row[7],
+                "years_exp_max": row[8],
+                "minimum_degree": row[9],
+                "required_skills": row[10],
+                "preferred_skills": row[11],
+                "formatted_description": row[12],
+                "salary_min": row[13],
+                "salary_max": row[14],
+                "salary_currency": row[15],
+                "visa_sponsorship": row[16],
+                "red_flags": row[17],
+                "enriched_at": row[18],
+                "enrichment_status": row[19],
+                "enrichment_model": row[20],
+            }
+        )
+        match = compute_match_score({"title": row[1], "enrichment": enrichment}, profile)
+        source_hash = _hash_score_source(title=row[1], enrichment=enrichment, profile_version=profile_version)
+        _upsert_match_row(
+            conn,
+            url=row[0],
+            profile_version=profile_version,
+            match=match,
+            source_hash=source_hash,
+        )
+        count += 1
+        if progress_callback is not None and (count == total or count % 50 == 0):
+            progress_callback(count, total)
+    conn.commit()
+    return count
 
 
 def get_funnel_analytics(

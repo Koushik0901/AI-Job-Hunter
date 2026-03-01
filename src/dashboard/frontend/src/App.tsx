@@ -1,9 +1,13 @@
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
 import { AppShell } from "./components/layout/AppShell";
-import { AnalyticsPage } from "./pages/AnalyticsPage";
-import { BoardPage } from "./pages/BoardPage";
-import { ProfilePage } from "./pages/ProfilePage";
+import { ThemedLoader } from "./components/ThemedLoader";
+import { loadAnalyticsPage, loadArtifactsEditorPage, loadBoardPage, loadProfilePage } from "./routePreload";
+
+const BoardPage = lazy(async () => loadBoardPage().then((module) => ({ default: module.BoardPage })));
+const ArtifactsEditorPage = lazy(async () => loadArtifactsEditorPage().then((module) => ({ default: module.ArtifactsEditorPage })));
+const AnalyticsPage = lazy(async () => loadAnalyticsPage().then((module) => ({ default: module.AnalyticsPage })));
+const ProfilePage = lazy(async () => loadProfilePage().then((module) => ({ default: module.ProfilePage })));
 
 export function App() {
   const hasMounted = useRef(false);
@@ -28,13 +32,16 @@ export function App() {
   }, [isDark]);
 
   return (
-    <Routes>
-      <Route element={<AppShell isDark={isDark} onToggleTheme={() => setIsDark((value) => !value)} />}>
-        <Route path="/" element={<BoardPage />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <Suspense fallback={<ThemedLoader label="Loading page" />}>
+      <Routes>
+        <Route element={<AppShell isDark={isDark} onToggleTheme={() => setIsDark((value) => !value)} />}>
+          <Route path="/" element={<BoardPage />} />
+          <Route path="/jobs/:jobUrl/artifacts/:artifactType" element={<ArtifactsEditorPage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

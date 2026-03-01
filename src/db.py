@@ -250,6 +250,7 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
             education                 TEXT NOT NULL DEFAULT '[]',
             degree                    TEXT,
             degree_field              TEXT,
+            score_version             INTEGER NOT NULL DEFAULT 1,
             updated_at                TEXT NOT NULL
         )
     """)
@@ -265,6 +266,81 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
         conn.execute("ALTER TABLE candidate_profile ADD COLUMN degree_field TEXT")
     except Exception:
         pass
+    try:
+        conn.execute("ALTER TABLE candidate_profile ADD COLUMN score_version INTEGER NOT NULL DEFAULT 1")
+    except Exception:
+        pass
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS job_match_scores (
+            url               TEXT PRIMARY KEY REFERENCES jobs(url),
+            profile_version   INTEGER NOT NULL,
+            score             INTEGER NOT NULL,
+            band              TEXT NOT NULL,
+            breakdown_json    TEXT NOT NULL,
+            reasons_json      TEXT NOT NULL,
+            confidence        TEXT NOT NULL,
+            computed_at       TEXT NOT NULL,
+            source_hash       TEXT NOT NULL
+        )
+    """)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_job_match_scores_profile_score ON job_match_scores(profile_version, score DESC)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_job_match_scores_computed_at ON job_match_scores(computed_at DESC)"
+    )
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS resume_profile (
+            id                    INTEGER PRIMARY KEY,
+            baseline_resume_json  TEXT NOT NULL DEFAULT '{}',
+            template_id           TEXT,
+            updated_at            TEXT NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS job_artifacts (
+            id                 TEXT PRIMARY KEY,
+            job_url            TEXT NOT NULL REFERENCES jobs(url),
+            artifact_type      TEXT NOT NULL,
+            active_version_id  TEXT,
+            created_at         TEXT NOT NULL
+        )
+    """)
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_job_artifacts_job_type ON job_artifacts(job_url, artifact_type)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_job_artifacts_job_url ON job_artifacts(job_url)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS artifact_versions (
+            id                     TEXT PRIMARY KEY,
+            artifact_id            TEXT NOT NULL REFERENCES job_artifacts(id),
+            version                INTEGER NOT NULL,
+            label                  TEXT NOT NULL,
+            content_json           TEXT,
+            meta_json              TEXT NOT NULL DEFAULT '{}',
+            created_at             TEXT NOT NULL,
+            created_by             TEXT NOT NULL DEFAULT 'system',
+            supersedes_version_id  TEXT,
+            base_version_id        TEXT
+        )
+    """)
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_artifact_versions_artifact_version ON artifact_versions(artifact_id, version)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_artifact_versions_artifact_created ON artifact_versions(artifact_id, created_at DESC)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS artifact_suggestions (
+            id                        TEXT PRIMARY KEY,
+            artifact_id               TEXT NOT NULL REFERENCES job_artifacts(id),
+            base_version_id           TEXT NOT NULL REFERENCES artifact_versions(id),
+            base_hash                 TEXT,
+            target_path               TEXT,
+            patch_json                TEXT NOT NULL,
+            group_key                 TEXT,
+            summary                   TEXT,
+            state                     TEXT NOT NULL DEFAULT 'pending',
+            created_at                TEXT NOT NULL,
+            resolved_at               TEXT,
+            supersedes_suggestion_id  TEXT
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_artifact_suggestions_artifact_state ON artifact_suggestions(artifact_id, state, created_at DESC)")
     conn.commit()
     return conn
 
@@ -707,7 +783,7 @@ def _parse_json_array(raw: Any) -> list[str]:
 def get_candidate_profile(conn: Any) -> dict[str, Any]:
     row = conn.execute(
         """
-        SELECT years_experience, skills, target_role_families, requires_visa_sponsorship, education, degree, degree_field, updated_at
+        SELECT years_experience, skills, target_role_families, requires_visa_sponsorship, education, degree, degree_field, score_version, updated_at
         FROM candidate_profile
         WHERE id = 1
         """
@@ -721,6 +797,7 @@ def get_candidate_profile(conn: Any) -> dict[str, Any]:
             "education": [],
             "degree": None,
             "degree_field": None,
+            "score_version": 1,
             "updated_at": None,
         }
     education = _parse_education_array(row[4])
@@ -734,7 +811,8 @@ def get_candidate_profile(conn: Any) -> dict[str, Any]:
         "education": education,
         "degree": row[5],
         "degree_field": row[6],
-        "updated_at": row[7],
+        "score_version": int(row[7] or 1),
+        "updated_at": row[8],
     }
 
 
@@ -754,12 +832,16 @@ def upsert_candidate_profile(conn: Any, profile: dict[str, Any]) -> dict[str, An
     primary_degree = education[0] if education else {"degree": None, "field": None}
     degree = primary_degree.get("degree")
     degree_field = primary_degree.get("field")
+    existing = conn.execute("SELECT score_version FROM candidate_profile WHERE id = 1").fetchone()
+    existing_version = int(existing[0]) if existing and existing[0] is not None else 1
+    score_version = int(profile.get("score_version", existing_version) or existing_version)
+    score_version = max(1, score_version)
     updated_at = _utc_now_iso()
     conn.execute(
         """
         INSERT OR REPLACE INTO candidate_profile
-        (id, years_experience, skills, target_role_families, requires_visa_sponsorship, education, degree, degree_field, updated_at)
-        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, years_experience, skills, target_role_families, requires_visa_sponsorship, education, degree, degree_field, score_version, updated_at)
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             years_experience,
@@ -769,11 +851,83 @@ def upsert_candidate_profile(conn: Any, profile: dict[str, Any]) -> dict[str, An
             json.dumps(education, ensure_ascii=True),
             degree,
             degree_field,
+            score_version,
             updated_at,
         ),
     )
     conn.commit()
     return get_candidate_profile(conn)
+
+
+def bump_candidate_profile_score_version(conn: Any) -> int:
+    existing = conn.execute("SELECT score_version FROM candidate_profile WHERE id = 1").fetchone()
+    current = int(existing[0]) if existing and existing[0] is not None else 1
+    next_version = max(1, current + 1)
+    updated_at = _utc_now_iso()
+    if existing:
+        conn.execute(
+            "UPDATE candidate_profile SET score_version = ?, updated_at = ? WHERE id = 1",
+            (next_version, updated_at),
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO candidate_profile
+            (id, years_experience, skills, target_role_families, requires_visa_sponsorship, education, degree, degree_field, score_version, updated_at)
+            VALUES (1, 0, '[]', '[]', 0, '[]', NULL, NULL, ?, ?)
+            """,
+            (next_version, updated_at),
+        )
+    conn.commit()
+    return next_version
+
+
+def get_resume_profile(conn: Any) -> dict[str, Any]:
+    row = conn.execute(
+        """
+        SELECT baseline_resume_json, template_id, updated_at
+        FROM resume_profile
+        WHERE id = 1
+        """
+    ).fetchone()
+    if not row:
+        return {
+            "baseline_resume_json": {},
+            "template_id": "classic",
+            "updated_at": None,
+        }
+    baseline_raw = row[0]
+    baseline: dict[str, Any] = {}
+    if isinstance(baseline_raw, str):
+        try:
+            parsed = json.loads(baseline_raw)
+            if isinstance(parsed, dict):
+                baseline = parsed
+        except json.JSONDecodeError:
+            baseline = {}
+    return {
+        "baseline_resume_json": baseline,
+        "template_id": str(row[1] or "classic"),
+        "updated_at": row[2],
+    }
+
+
+def upsert_resume_profile(conn: Any, profile: dict[str, Any]) -> dict[str, Any]:
+    baseline = profile.get("baseline_resume_json")
+    if not isinstance(baseline, dict):
+        baseline = {}
+    template_id = str(profile.get("template_id") or "classic").strip() or "classic"
+    updated_at = _utc_now_iso()
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO resume_profile
+        (id, baseline_resume_json, template_id, updated_at)
+        VALUES (1, ?, ?, ?)
+        """,
+        (json.dumps(baseline, ensure_ascii=True), template_id, updated_at),
+    )
+    conn.commit()
+    return get_resume_profile(conn)
 
 
 def _parse_education_array(raw: Any) -> list[dict[str, str | None]]:

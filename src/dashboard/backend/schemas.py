@@ -51,6 +51,7 @@ class JobDetail(BaseModel):
     tracking_updated_at: str | None = None
     enrichment: "JobEnrichment | None" = None
     match: "JobMatchScore | None" = None
+    match_meta: "JobMatchMeta | None" = None
 
 
 class JobEnrichment(BaseModel):
@@ -83,6 +84,12 @@ class JobMatchScore(BaseModel):
     confidence: str
 
 
+class JobMatchMeta(BaseModel):
+    profile_version: int
+    computed_at: str | None = None
+    stale: bool
+
+
 class EducationEntry(BaseModel):
     degree: str = Field(min_length=1, max_length=200)
     field: str | None = None
@@ -96,7 +103,23 @@ class CandidateProfile(BaseModel):
     education: list[EducationEntry] = Field(default_factory=list)
     degree: str | None = None
     degree_field: str | None = None
+    score_version: int | None = None
     updated_at: str | None = None
+
+
+class ResumeProfile(BaseModel):
+    baseline_resume_json: dict[str, object] = Field(default_factory=dict)
+    template_id: str = "classic"
+    updated_at: str | None = None
+
+
+class ResumeImportRequest(BaseModel):
+    source_path: str | None = None
+
+
+class ResumeImportResponse(BaseModel):
+    source_path: str
+    baseline_resume_json: dict[str, object] = Field(default_factory=dict)
 
 
 class AddProfileSkillRequest(BaseModel):
@@ -147,6 +170,91 @@ class StatsResponse(BaseModel):
     active_pipeline: int
     recent_activity_7d: int
     by_status: dict[str, int]
+
+
+class ScoreRecomputeStatus(BaseModel):
+    running: bool
+    queued_while_running: int
+    last_started_at: str | None = None
+    last_finished_at: str | None = None
+    last_duration_ms: int | None = None
+    last_total: int | None = None
+    last_processed: int | None = None
+    last_scope: str | None = None
+    last_error: str | None = None
+
+
+class ArtifactSummary(BaseModel):
+    id: str
+    job_url: str
+    artifact_type: str
+    active_version_id: str | None = None
+    active_version: "ArtifactVersion | None" = None
+    created_at: str
+
+
+class ArtifactVersion(BaseModel):
+    id: str
+    artifact_id: str
+    version: int
+    label: str
+    content_json: dict[str, object] | None = None
+    meta_json: dict[str, object] = Field(default_factory=dict)
+    created_at: str
+    created_by: str
+    supersedes_version_id: str | None = None
+    base_version_id: str | None = None
+
+
+class ArtifactSuggestion(BaseModel):
+    id: str
+    artifact_id: str
+    base_version_id: str
+    base_hash: str | None = None
+    target_path: str | None = None
+    patch_json: list[dict[str, object]] = Field(default_factory=list)
+    group_key: str | None = None
+    summary: str | None = None
+    state: str
+    created_at: str
+    resolved_at: str | None = None
+    supersedes_suggestion_id: str | None = None
+
+
+class GenerateStarterArtifactsRequest(BaseModel):
+    force: bool = False
+
+
+class ArtifactStarterStatus(BaseModel):
+    job_url: str
+    stage: str
+    progress_percent: int = Field(ge=0, le=100)
+    running: bool = False
+    updated_at: str | None = None
+
+
+class CreateArtifactVersionRequest(BaseModel):
+    label: str = Field(default="draft", pattern="^(draft|tailored|final)$")
+    content_json: dict[str, object]
+    meta_json: dict[str, object] = Field(default_factory=dict)
+    created_by: str = Field(default="ui", min_length=1, max_length=80)
+    base_version_id: str | None = None
+
+
+class GenerateArtifactSuggestionsRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=4000)
+    target_path: str | None = Field(default=None, max_length=400)
+    max_suggestions: int = Field(default=5, ge=1, le=20)
+
+
+class SuggestionResolveRequest(BaseModel):
+    edited_patch_json: list[dict[str, object]] | None = None
+    allow_outdated: bool = False
+    created_by: str = Field(default="ui", min_length=1, max_length=80)
+
+
+class ArtifactExportRequest(BaseModel):
+    format: str = Field(default="pdf", pattern="^(pdf)$")
 
 
 class FunnelWindow(BaseModel):
