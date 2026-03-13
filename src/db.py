@@ -608,6 +608,25 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _parse_timestamp(raw: Any) -> datetime | None:
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    normalized = text.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        try:
+            parsed = datetime.fromisoformat(f"{normalized}T00:00:00+00:00")
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def _job_id_for_url(conn: Any, url: str) -> str | None:
     row = conn.execute("SELECT id FROM jobs WHERE url = ?", (url,)).fetchone()
     if not row or not row[0]:
@@ -861,6 +880,82 @@ def set_application_status(conn: Any, url: str, status: str | None) -> int:
 def load_active_suppressed_urls(conn: Any) -> set[str]:
     rows = conn.execute("SELECT url FROM job_suppressions WHERE active = 1").fetchall()
     return {str(row[0]) for row in rows if row and row[0]}
+
+
+def list_overdue_staging_jobs(conn: Any, *, reference_at: datetime | None = None) -> list[dict[str, Any]]:
+    reference = reference_at or datetime.now(timezone.utc)
+    rows = conn.execute(
+        """
+        WITH staging_jobs AS (
+            SELECT
+                j.id,
+                j.url,
+                j.company,
+                j.title,
+                j.location,
+                j.posted,
+                t.staging_entered_at,
+                t.staging_due_at,
+                COALESCE(t.staging_entered_at, t.updated_at, j.last_seen, j.posted) AS effective_entered_at,
+                COALESCE(
+                    t.staging_due_at,
+                    datetime(COALESCE(t.staging_entered_at, t.updated_at, j.last_seen, j.posted), '+48 hours')
+                ) AS effective_due_at
+            FROM jobs j
+            LEFT JOIN job_tracking t ON t.job_id = j.id
+            WHERE COALESCE(t.status, j.application_status) = 'staging'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM job_suppressions s
+                  WHERE s.active = 1
+                    AND (
+                        s.job_id = j.id
+                        OR ((s.job_id IS NULL OR trim(s.job_id) = '') AND s.url = j.url)
+                    )
+              )
+        )
+        SELECT
+            id,
+            url,
+            company,
+            title,
+            location,
+            posted,
+            staging_entered_at,
+            staging_due_at,
+            effective_entered_at,
+            effective_due_at
+        FROM staging_jobs
+        WHERE datetime(effective_due_at) <= datetime(?)
+        ORDER BY datetime(effective_due_at) ASC, lower(company) ASC, lower(title) ASC
+        """,
+        (reference.isoformat(),),
+    ).fetchall()
+    overdue_jobs: list[dict[str, Any]] = []
+    for row in rows:
+        entered_at = _parse_timestamp(row[6] or row[8])
+        due_at = _parse_timestamp(row[7] or row[9])
+        age_hours: int | None = None
+        overdue_hours: int | None = None
+        if entered_at is not None:
+            age_hours = max(0, int((reference - entered_at).total_seconds() // 3600))
+        if due_at is not None:
+            overdue_hours = max(0, int((reference - due_at).total_seconds() // 3600))
+        overdue_jobs.append(
+            {
+                "job_id": str(row[0] or ""),
+                "url": str(row[1] or ""),
+                "company": str(row[2] or ""),
+                "title": str(row[3] or ""),
+                "location": str(row[4] or ""),
+                "posted": str(row[5] or ""),
+                "staging_entered_at": entered_at.isoformat() if entered_at else None,
+                "staging_due_at": due_at.isoformat() if due_at else None,
+                "staging_age_hours": age_hours,
+                "overdue_hours": overdue_hours,
+            }
+        )
+    return overdue_jobs
 
 
 def is_job_suppressed(conn: Any, url: str) -> bool:

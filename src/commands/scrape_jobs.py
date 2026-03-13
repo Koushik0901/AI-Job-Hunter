@@ -5,8 +5,8 @@ from pathlib import Path
 
 from rich.console import Console
 
-from db import init_db
-from notify import notify_new_jobs
+from db import init_db, list_overdue_staging_jobs
+from notify import notify_new_jobs, notify_overdue_staging_jobs
 from services.scrape_service import render_jobs_table
 from services.workspace_operation_service import execute_workspace_operation
 
@@ -110,27 +110,31 @@ def run(args) -> None:
 
     jobs = list(summary.get("jobs") or [])
     new_jobs = list(summary.get("new_jobs") or [])
+    overdue_staging_jobs = list_overdue_staging_jobs(conn)
     console.print(f"\n[bold green]Done.[/bold green] Found {len(jobs)} matching jobs.\n")
-    if not jobs:
+    if jobs:
+        render_jobs_table(jobs, limit=args.limit)
+    else:
         console.print("[yellow]No jobs matched the filters.[/yellow]")
-        conn.close()
-        return
-
-    render_jobs_table(jobs, limit=args.limit)
     console.print(
         f"\n[bold]Database:[/bold] {db_label}  "
         f"[green]{int(summary.get('new_count', 0) or 0)} new[/green], "
         f"[dim]{int(summary.get('updated_count', 0) or 0)} updated[/dim]"
     )
 
-    if not args.no_notify and new_jobs:
+    if not args.no_notify:
         token = os.getenv("TELEGRAM_TOKEN", "")
         chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
         if token and chat_id:
-            notify_new_jobs(new_jobs, token, chat_id, console)
+            if new_jobs:
+                notify_new_jobs(new_jobs, token, chat_id, console)
+            else:
+                console.print("[dim]No new jobs - no Telegram notification sent.[/dim]")
+            if overdue_staging_jobs:
+                notify_overdue_staging_jobs(overdue_staging_jobs, token, chat_id, console)
+            else:
+                console.print("[dim]No overdue staging jobs - no Telegram notification sent.[/dim]")
         else:
             console.print("[dim]Telegram not configured - set TELEGRAM_TOKEN and TELEGRAM_CHAT_ID[/dim]")
-    elif not new_jobs:
-        console.print("[dim]No new jobs - no Telegram notification sent.[/dim]")
 
     conn.close()
