@@ -29,6 +29,15 @@ function AnalyticsIcon() {
   );
 }
 
+function ArtifactsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="4" y="5" width="16" height="14" rx="1.8" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M9 9h6M9 13h6M9 17h4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function ProfileIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -40,6 +49,24 @@ function ProfileIcon() {
         strokeWidth="1.8"
         strokeLinecap="round"
       />
+    </svg>
+  );
+}
+
+function EvidenceVaultIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M5 7.5A2.5 2.5 0 0 1 7.5 5h9A2.5 2.5 0 0 1 19 7.5v9A2.5 2.5 0 0 1 16.5 19h-9A2.5 2.5 0 0 1 5 16.5z" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M9 12h6M12 9v6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function WorkspaceIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M5 7h14M5 12h14M5 17h8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="17.5" cy="17" r="1.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
     </svg>
   );
 }
@@ -76,9 +103,21 @@ export function AppShell({ isDark, onToggleTheme }: AppShellProps) {
             <span className="rail-link-icon" aria-hidden="true"><BoardIcon /></span>
             <span className="rail-link-text">Board</span>
           </NavLink>
+          <NavLink to="/artifacts" className={({ isActive }) => `rail-link ${isActive ? "active" : ""}`} data-label="Artifacts" onMouseEnter={() => preloadRouteChunk("artifacts-hub")} onFocus={() => preloadRouteChunk("artifacts-hub")}>
+            <span className="rail-link-icon" aria-hidden="true"><ArtifactsIcon /></span>
+            <span className="rail-link-text">Artifacts</span>
+          </NavLink>
           <NavLink to="/analytics" className={({ isActive }) => `rail-link ${isActive ? "active" : ""}`} data-label="Analytics" onMouseEnter={() => preloadRouteChunk("analytics")} onFocus={() => preloadRouteChunk("analytics")}>
             <span className="rail-link-icon" aria-hidden="true"><AnalyticsIcon /></span>
             <span className="rail-link-text">Analytics</span>
+          </NavLink>
+          <NavLink to="/workspace" className={({ isActive }) => `rail-link ${isActive ? "active" : ""}`} data-label="Workspace" onMouseEnter={() => preloadRouteChunk("workspace")} onFocus={() => preloadRouteChunk("workspace")}>
+            <span className="rail-link-icon" aria-hidden="true"><WorkspaceIcon /></span>
+            <span className="rail-link-text">Workspace</span>
+          </NavLink>
+          <NavLink to="/evidence-vault" className={({ isActive }) => `rail-link ${isActive ? "active" : ""}`} data-label="Evidence Vault" onMouseEnter={() => preloadRouteChunk("evidence-vault")} onFocus={() => preloadRouteChunk("evidence-vault")}>
+            <span className="rail-link-icon" aria-hidden="true"><EvidenceVaultIcon /></span>
+            <span className="rail-link-text">Evidence Vault</span>
           </NavLink>
           <NavLink to="/profile" className={({ isActive }) => `rail-link ${isActive ? "active" : ""}`} data-label="Profile" onMouseEnter={() => preloadRouteChunk("profile")} onFocus={() => preloadRouteChunk("profile")}>
             <span className="rail-link-icon" aria-hidden="true"><ProfileIcon /></span>

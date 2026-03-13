@@ -115,25 +115,45 @@ def fetch_ashby(org_slug: str) -> list[dict[str, Any]]:
 @retry_with_backoff(max_attempts=3)
 def fetch_workable(account_slug: str) -> list[dict[str, Any]]:
     url = f"https://apply.workable.com/api/v3/accounts/{account_slug}/jobs"
-    resp = requests.post(url, json={}, timeout=30)
-    resp.raise_for_status()
-    data = resp.json() if resp.content else {}
-    jobs = data.get("results", []) if isinstance(data, dict) else []
-    for job in jobs:
-        if not isinstance(job, dict):
-            continue
-        shortcode = str(job.get("shortcode") or "").strip()
-        if shortcode and not job.get("absolute_url"):
-            job["absolute_url"] = f"https://apply.workable.com/{account_slug}/j/{shortcode}"
-        location = job.get("location")
-        if isinstance(location, dict):
-            parts = [
-                str(location.get("city") or "").strip(),
-                str(location.get("region") or "").strip(),
-                str(location.get("country") or "").strip(),
-            ]
-            job["_location_str"] = ", ".join(p for p in parts if p)
-    return [j for j in jobs if isinstance(j, dict)]
+    jobs: list[dict[str, Any]] = []
+    seen_shortcodes: set[str] = set()
+    token: str | None = None
+
+    while True:
+        payload: dict[str, str] = {}
+        if token:
+            payload["token"] = token
+        resp = requests.post(url, json=payload, timeout=30)
+        resp.raise_for_status()
+        data = resp.json() if resp.content else {}
+        page_jobs = data.get("results", []) if isinstance(data, dict) else []
+
+        for job in page_jobs:
+            if not isinstance(job, dict):
+                continue
+            shortcode = str(job.get("shortcode") or "").strip()
+            if shortcode and shortcode in seen_shortcodes:
+                continue
+            if shortcode:
+                seen_shortcodes.add(shortcode)
+            if shortcode and not job.get("absolute_url"):
+                job["absolute_url"] = f"https://apply.workable.com/{account_slug}/j/{shortcode}"
+            location = job.get("location")
+            if isinstance(location, dict):
+                parts = [
+                    str(location.get("city") or "").strip(),
+                    str(location.get("region") or "").strip(),
+                    str(location.get("country") or "").strip(),
+                ]
+                job["_location_str"] = ", ".join(p for p in parts if p)
+            jobs.append(job)
+
+        next_token = str(data.get("nextPage") or "").strip() if isinstance(data, dict) else ""
+        if not next_token or next_token == token:
+            break
+        token = next_token
+
+    return jobs
 
 
 @retry_with_backoff(max_attempts=3)
@@ -223,7 +243,7 @@ def fetch_ashby_description(org_slug: str, job_id: str) -> str:
 
 @retry_with_backoff(max_attempts=2)
 def fetch_workable_description(account_slug: str, shortcode: str) -> str:
-    url = f"https://apply.workable.com/api/v3/accounts/{account_slug}/jobs/{shortcode}"
+    url = f"https://apply.workable.com/api/v2/accounts/{account_slug}/jobs/{shortcode}"
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
     data = resp.json()
@@ -524,22 +544,59 @@ _HN_ML_KEYWORDS = frozenset([
     "artificial intelligence",
 ])
 
+_HN_LOCATION_PATTERNS = (
+    r"\bremote\b",
+    r"\bhybrid\b",
+    r"\bonsite\b",
+    r"\bon-site\b",
+    r"\bcanada\b",
+    r"\bunited states\b",
+    r"\busa\b",
+    r"\bus\b",
+    r"\bnew york\b",
+    r"\bsan francisco\b",
+    r"\btoronto\b",
+    r"\bvancouver\b",
+    r"\bmontreal\b",
+    r"\blondon\b",
+    r"\bberlin\b",
+    r"\beurope\b",
+    r"\buk\b",
+)
+
+_HN_METADATA_HINTS = (
+    "full-time",
+    "full time",
+    "part-time",
+    "part time",
+    "contract",
+    "internship",
+    "intern",
+)
+
+_HN_GENERIC_TITLES = {"multiple roles", "multiple openings", "various"}
+
 
 def _find_hn_hiring_thread() -> int | None:
     """Return the objectID of the most recent 'Ask HN: Who is Hiring?' thread."""
     try:
         resp = requests.get(
-            "https://hn.algolia.com/api/v1/search",
+            "https://hn.algolia.com/api/v1/search_by_date",
             params={
-                "query": "Ask HN Who is hiring",
-                "tags": "story",
-                "hitsPerPage": 5,
+                "query": "Ask HN: Who is hiring?",
+                "tags": "story,author_whoishiring",
+                "hitsPerPage": 20,
             },
             timeout=15,
         )
         resp.raise_for_status()
         for hit in resp.json().get("hits", []):
-            if hit.get("author") == "whoishiring" and "Who is Hiring?" in (hit.get("title") or ""):
+            title = str(hit.get("title") or "")
+            if (
+                hit.get("author") == "whoishiring"
+                and "Who is hiring?" in title
+                and "Who wants to be hired?" not in title
+            ):
                 return int(hit["objectID"])
     except Exception as e:
         logger.warning("HN thread lookup failed: %s", e)
@@ -574,7 +631,7 @@ def fetch_hn_jobs() -> list[dict[str, Any]]:
 
         hits = data.get("hits", [])
         for hit in hits:
-            text = (hit.get("comment_text") or "").lower()
+            text = _hn_plain_text(hit.get("comment_text") or "").lower()
             if any(kw in text for kw in _HN_ML_KEYWORDS):
                 jobs.append(normalize_hn(hit))
 
@@ -588,28 +645,16 @@ def fetch_hn_jobs() -> list[dict[str, Any]]:
 
 def normalize_hn(raw: dict[str, Any]) -> dict[str, Any]:
     """Normalize an HN comment into a standard job dict."""
-    text = (raw.get("comment_text") or "").strip()
-    first_line = text.split("\n")[0] if text else ""
-    # Strip HTML tags from first line (Algolia returns HTML-encoded comments)
-    first_line_plain = strip_html(first_line)
-    segments = [s.strip() for s in first_line_plain.split("|")]
+    text = _hn_plain_text(raw.get("comment_text") or "")
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    first_line_plain = lines[0] if lines else ""
+    segments = _hn_split_segments(first_line_plain)
 
-    company = segments[0] if segments else "Unknown"
-    if not company:
-        company = "Unknown"
+    company, location = _hn_company_and_location(segments[0] if segments else "")
+    company = company or "Unknown"
 
-    location = ""
-    title = first_line_plain[:120] if first_line_plain else ""
-    # Try to find a location segment and a title/role segment
-    for seg in segments[1:]:
-        seg_lower = seg.lower()
-        if not location and any(kw in seg_lower for kw in (
-            "remote", "canada", "us", "usa", "new york", "san francisco", "toronto",
-            "vancouver", "montreal", "london", "berlin", "hybrid",
-        )):
-            location = seg
-        elif any(kw in seg_lower for kw in _HN_ML_KEYWORDS):
-            title = seg[:120]
+    location = _hn_extract_location(segments, location)
+    title = _hn_extract_title(segments)
 
     return {
         "company": company,
@@ -620,3 +665,103 @@ def normalize_hn(raw: dict[str, Any]) -> dict[str, Any]:
         "ats": "hn_hiring",
         "description": strip_html(text),
     }
+
+
+def _hn_plain_text(html_text: str) -> str:
+    if not html_text:
+        return ""
+    text = unescape(html_text)
+    text = re.sub(r"(?i)<\s*(p|br|div|li)\b[^>]*>", "\n", text)
+    text = re.sub(r"(?i)</\s*(p|div|li)\s*>", "\n", text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = text.replace("\xa0", " ")
+    lines = [re.sub(r"\s+", " ", line).strip(" \t|") for line in text.splitlines()]
+    return "\n".join(line for line in lines if line)
+
+
+def _hn_split_segments(first_line_plain: str) -> list[str]:
+    parts = re.split(r"\s+\|\s+|\s+[—–]\s+|\s+-\s+", first_line_plain)
+    cleaned = [part.strip(" |") for part in parts if part.strip(" |")]
+    return cleaned if cleaned else ([first_line_plain.strip()] if first_line_plain.strip() else [])
+
+
+def _hn_is_location_segment(segment: str) -> bool:
+    lowered = segment.lower()
+    return any(re.search(pattern, lowered) for pattern in _HN_LOCATION_PATTERNS)
+
+
+def _hn_is_metadata_segment(segment: str) -> bool:
+    lowered = segment.lower()
+    if any(hint in lowered for hint in _HN_METADATA_HINTS):
+        return True
+    if lowered.startswith("http://") or lowered.startswith("https://"):
+        return True
+    if re.search(r"\$\d", lowered):
+        return True
+    return False
+
+
+def _hn_company_and_location(segment: str) -> tuple[str, str]:
+    cleaned = re.sub(r"^\s*hiring:\s*", "", segment, flags=re.I).strip()
+    location = ""
+    match = re.match(r"^(.*?)\s*\(([^)]*)\)\s*$", cleaned)
+    if match:
+        candidate_company = match.group(1).strip()
+        candidate_location = match.group(2).strip()
+        if _hn_is_location_segment(candidate_location):
+            cleaned = candidate_company
+            location = candidate_location
+    return cleaned, location
+
+
+def _hn_trim_title_context(segment: str) -> str:
+    value = re.split(r"\bapply\b\s*:?", segment, maxsplit=1, flags=re.I)[0]
+    value = re.split(r"https?://\S+", value, maxsplit=1)[0]
+    return value.strip(" |-–—")
+
+
+def _hn_extract_location(segments: list[str], initial_location: str) -> str:
+    if initial_location:
+        return initial_location
+    for segment in segments[1:]:
+        trimmed = _hn_trim_title_context(segment)
+        if trimmed and _hn_is_location_segment(trimmed):
+            return trimmed
+    return ""
+
+
+def _hn_extract_title(segments: list[str]) -> str:
+    title = ""
+    context = ""
+
+    for segment in segments[1:]:
+        trimmed = _hn_trim_title_context(segment)
+        if not trimmed:
+            continue
+        if _hn_is_location_segment(trimmed):
+            continue
+        if _hn_is_metadata_segment(trimmed):
+            continue
+        if not title:
+            title = trimmed
+            continue
+        if not context:
+            context = trimmed
+            break
+
+    if title and context:
+        context_lower = context.lower()
+        if (
+            len(context) <= 80
+            and (
+                any(keyword in context_lower for keyword in _HN_ML_KEYWORDS)
+                or re.search(r"\b(ai|ml|llm|nlp|data)\b", context_lower)
+            )
+        ):
+            title = f"{title} - {context}"
+
+    if not title:
+        fallback = segments[1] if len(segments) > 1 else (segments[0] if segments else "")
+        title = _hn_trim_title_context(fallback) or "HN opportunity"
+
+    return title[:120] if title else "HN opportunity"

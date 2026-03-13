@@ -1,24 +1,23 @@
-# Telegram Integration
+# 🚀 Telegram Integration
 
-Implemented in `src/notify.py`.
+Telegram is used for new-job notifications from scrape flows.
 
-## Functions
+---
 
-- `_load_dotenv(path)`: minimal KEY=VALUE loader
-- `bucket_country(location)`: `Canada` / `USA / Remote` / `Other`
-- `format_telegram_message(new_jobs, run_date)`: grouped HTML message chunks
-- `send_telegram(token, chat_id, text)`: POST to Bot API
-- `notify_new_jobs(...)`: sends all chunks with 1s delay between chunks
+## ✨ Required Env
 
-## Message behavior
+- `TELEGRAM_TOKEN`
+- `TELEGRAM_CHAT_ID`
 
-- Header includes job count and UTC run date.
-- Jobs grouped by country bucket.
-- Uses HTML formatting (`parse_mode=HTML`).
-- Enforces Telegram message length cap (4096 chars) by chunking.
+---
 
-## Delivery behavior
+## ✨ Behavior
 
-- Only new jobs trigger notifications in scrape flow.
-- Missing token/chat id prints guidance and skips send.
-- send exceptions are logged; pipeline continues.
+- New jobs are summarized and posted.
+- Notification stage can be disabled with `--no-notify`.
+
+---
+
+## ✨ Verification
+
+Run scrape once with notifications enabled and confirm message delivery in target chat.

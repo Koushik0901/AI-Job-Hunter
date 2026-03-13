@@ -5,21 +5,10 @@ from pathlib import Path
 
 from rich.console import Console
 
-from db import (
-    get_candidate_profile,
-    init_db,
-    load_active_suppressed_urls,
-    load_enabled_company_sources,
-    load_enrichments_for_urls,
-    load_jobs_for_jd_reformat,
-    load_unenriched_jobs,
-    save_jobs,
-)
-from enrich import run_description_reformat_pipeline, run_enrichment_pipeline
-from match_score import compute_match_score
+from db import init_db
 from notify import notify_new_jobs
-from services.scrape_service import render_jobs_table, scrape_all
-from dashboard.backend import repository as dashboard_repository
+from services.scrape_service import render_jobs_table
+from services.workspace_operation_service import execute_workspace_operation
 
 
 def register(subparsers) -> None:
@@ -68,101 +57,59 @@ def run(args) -> None:
         db_label = args.db
     conn = init_db(db_url, db_auth_token)
     console = Console(stderr=True)
-
-    openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
-    openrouter_model = _env_or_default("ENRICHMENT_MODEL", "openai/gpt-oss-120b")
-    description_format_model = _env_or_default("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-20b:paid")
     if not (os.getenv("DESCRIPTION_FORMAT_MODEL") or "").strip():
         console.print(
-            f"[yellow]DESCRIPTION_FORMAT_MODEL missing/empty; using default: {description_format_model}[/yellow]"
+            f"[yellow]DESCRIPTION_FORMAT_MODEL missing/empty; using default: {_env_or_default('DESCRIPTION_FORMAT_MODEL', 'openai/gpt-oss-20b:paid')}[/yellow]"
         )
 
-    if args.enrich_backfill or args.re_enrich_all or args.jd_reformat_missing or args.jd_reformat_all:
+    try:
         if args.jd_reformat_missing or args.jd_reformat_all:
-            jobs_to_enrich = load_jobs_for_jd_reformat(conn, missing_only=args.jd_reformat_missing)
-            label = "JD reformat missing" if args.jd_reformat_missing else "JD reformat all"
-            console.print(f"[bold]{label}:[/bold] {len(jobs_to_enrich)} job(s) to process in {db_label}")
-            if not jobs_to_enrich:
-                console.print("[dim]Nothing to process.[/dim]")
-            elif not openrouter_api_key:
-                console.print("[yellow]OPENROUTER_API_KEY not set - cannot run JD reformat.[/yellow]")
-            else:
-                run_description_reformat_pipeline(
-                    jobs_to_enrich,
-                    conn,
-                    openrouter_api_key,
-                    description_format_model,
-                    console,
-                )
+            summary = execute_workspace_operation(
+                conn,
+                "jd_reformat",
+                {"missing_only": args.jd_reformat_missing},
+                console=console,
+            )
+            console.print(
+                f"[bold]{'JD reformat missing' if args.jd_reformat_missing else 'JD reformat all'}:[/bold] "
+                f"{int(summary.get('jobs_processed', 0) or 0)} job(s) processed in {db_label}"
+            )
             conn.close()
             return
 
-        if args.re_enrich_all:
-            jobs_to_enrich = load_unenriched_jobs(conn, force=True)
-            label = "Re-enrich all"
-        else:
-            jobs_to_enrich = load_unenriched_jobs(conn, force=False)
-            label = "Enrich backfill"
-        console.print(f"[bold]{label}:[/bold] {len(jobs_to_enrich)} job(s) to enrich in {db_label}")
-        if not jobs_to_enrich:
-            console.print("[dim]Nothing to enrich.[/dim]")
-        elif not openrouter_api_key:
-            console.print("[yellow]OPENROUTER_API_KEY not set - cannot enrich.[/yellow]")
-        else:
-            run_enrichment_pipeline(
-                jobs_to_enrich,
+        if args.enrich_backfill or args.re_enrich_all:
+            summary = execute_workspace_operation(
                 conn,
-                openrouter_api_key,
-                openrouter_model,
-                description_format_model,
-                console,
+                "re_enrich_all" if args.re_enrich_all else "enrich_backfill",
+                {},
+                console=console,
             )
-        conn.close()
-        return
+            console.print(
+                f"[bold]{'Re-enrich all' if args.re_enrich_all else 'Enrich backfill'}:[/bold] "
+                f"{int(summary.get('jobs_processed', 0) or 0)} job(s) processed in {db_label}"
+            )
+            conn.close()
+            return
 
-    companies = load_enabled_company_sources(conn)
-    if not companies:
-        console.print(
-            "[red]No enabled company sources found in DB.[/red] "
-            "Add companies with `uv run python src/add_company.py \"Company Name\"` "
-            "or import from community lists via `uv run python src/cli.py sources import`."
+        summary = execute_workspace_operation(
+            conn,
+            "scrape",
+            {
+                "no_location_filter": args.no_location_filter,
+                "no_enrich": args.no_enrich,
+                "no_enrich_llm": args.no_enrich_llm,
+                "sort_by": args.sort_by,
+                "include_jobs": True,
+            },
+            console=console,
         )
+    except RuntimeError as error:
+        console.print(f"[red]{error}[/red]")
         conn.close()
-        raise SystemExit(1)
+        raise SystemExit(1) from error
 
-    ats_counts = {}
-    for c in companies:
-        ats_counts[c.get("ats_type", "unknown")] = ats_counts.get(c.get("ats_type", "unknown"), 0) + 1
-    console.print(
-        f"[bold]Scraping {len(companies)} companies across {len(ats_counts)} ATS platforms...[/bold]\n"
-    )
-
-    jobs = scrape_all(
-        companies,
-        apply_location_filter=not args.no_location_filter,
-        enrich=not args.no_enrich,
-    )
-    suppressed_urls = load_active_suppressed_urls(conn)
-    if suppressed_urls:
-        before = len(jobs)
-        jobs = [job for job in jobs if str(job.get("url") or "") not in suppressed_urls]
-        skipped = before - len(jobs)
-        if skipped > 0:
-            console.print(f"[dim]Suppression filter skipped {skipped} job(s).[/dim]")
-
-    profile = get_candidate_profile(conn)
-    url_to_enrichment = load_enrichments_for_urls(conn, [j.get("url", "") for j in jobs if j.get("url")])
-    for job in jobs:
-        job_enrichment = url_to_enrichment.get(job.get("url", ""), {})
-        match = compute_match_score({"title": job.get("title", ""), "enrichment": job_enrichment}, profile)
-        job["match_score"] = match["score"]
-        job["match_band"] = match["band"]
-
-    if args.sort_by == "match":
-        jobs.sort(key=lambda j: int(j.get("match_score", 0)), reverse=True)
-    else:
-        jobs.sort(key=lambda j: j.get("posted") or "", reverse=True)
-
+    jobs = list(summary.get("jobs") or [])
+    new_jobs = list(summary.get("new_jobs") or [])
     console.print(f"\n[bold green]Done.[/bold green] Found {len(jobs)} matching jobs.\n")
     if not jobs:
         console.print("[yellow]No jobs matched the filters.[/yellow]")
@@ -170,14 +117,10 @@ def run(args) -> None:
         return
 
     render_jobs_table(jobs, limit=args.limit)
-    new_count, updated_count, new_jobs = save_jobs(conn, jobs)
-    if jobs:
-        dashboard_repository.recompute_match_scores(
-            conn,
-            urls=[str(job.get("url") or "") for job in jobs if str(job.get("url") or "").strip()],
-        )
     console.print(
-        f"\n[bold]Database:[/bold] {db_label}  [green]{new_count} new[/green], [dim]{updated_count} updated[/dim]"
+        f"\n[bold]Database:[/bold] {db_label}  "
+        f"[green]{int(summary.get('new_count', 0) or 0)} new[/green], "
+        f"[dim]{int(summary.get('updated_count', 0) or 0)} updated[/dim]"
     )
 
     if not args.no_notify and new_jobs:
@@ -189,19 +132,5 @@ def run(args) -> None:
             console.print("[dim]Telegram not configured - set TELEGRAM_TOKEN and TELEGRAM_CHAT_ID[/dim]")
     elif not new_jobs:
         console.print("[dim]No new jobs - no Telegram notification sent.[/dim]")
-
-    if new_jobs and not args.no_enrich_llm and openrouter_api_key:
-        run_enrichment_pipeline(
-            new_jobs,
-            conn,
-            openrouter_api_key,
-            openrouter_model,
-            description_format_model,
-            console,
-        )
-        dashboard_repository.recompute_match_scores(
-            conn,
-            urls=[str(job.get("url") or "") for job in new_jobs if str(job.get("url") or "").strip()],
-        )
 
     conn.close()

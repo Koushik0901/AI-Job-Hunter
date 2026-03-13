@@ -31,12 +31,18 @@ class ProfileAndRepositoryTests(unittest.TestCase):
             if os.path.exists(self.db_path):
                 os.unlink(self.db_path)
 
+    def _job_id(self, url: str) -> str:
+        job_id = repository.get_job_id_by_url(self.conn, url)
+        self.assertIsNotNone(job_id)
+        return str(job_id)
+
     def test_profile_round_trip(self) -> None:
         saved = repository.save_profile(
             self.conn,
             {
                 "years_experience": 2,
                 "skills": ["Python", "SQL"],
+                "desired_job_titles": ["ML Engineer"],
                 "target_role_families": ["ml engineer"],
                 "requires_visa_sponsorship": False,
             },
@@ -44,6 +50,7 @@ class ProfileAndRepositoryTests(unittest.TestCase):
         loaded = repository.get_profile(self.conn)
         self.assertEqual(saved["years_experience"], 2)
         self.assertEqual(loaded["skills"], ["Python", "SQL"])
+        self.assertEqual(loaded["desired_job_titles"], ["ML Engineer"])
         self.assertEqual(loaded["target_role_families"], ["ml engineer"])
         self.assertFalse(loaded["requires_visa_sponsorship"])
         self.assertEqual(loaded["score_version"], 1)
@@ -90,25 +97,56 @@ class ProfileAndRepositoryTests(unittest.TestCase):
                 }
             ],
         )
-        repository.upsert_tracking(self.conn, "https://example.com/starter-job", {"status": "staging"})
+        job_id = self._job_id("https://example.com/starter-job")
+        repository.upsert_tracking(self.conn, job_id, {"status": "staging"})
         progress: list[tuple[str, int]] = []
 
         repository.ensure_starter_artifacts_for_job_with_progress(
             self.conn,
-            "https://example.com/starter-job",
+            job_id,
             lambda stage, percent: progress.append((stage, percent)),
         )
         repository.ensure_starter_artifacts_for_job_with_progress(
             self.conn,
-            "https://example.com/starter-job",
+            job_id,
             lambda stage, percent: progress.append((stage, percent)),
         )
 
-        artifacts = repository.list_job_artifacts(self.conn, "https://example.com/starter-job")
+        artifacts = repository.list_job_artifacts(self.conn, job_id)
         self.assertEqual(len(artifacts), 2)
         self.assertIn(("done", 100), progress)
         self.assertTrue(any(stage == "creating_resume" for stage, _ in progress))
         self.assertTrue(any(stage == "creating_cover_letter" for stage, _ in progress))
+
+    def test_starter_artifacts_bootstrap_clean_blank_templates(self) -> None:
+        save_jobs(
+            self.conn,
+            [
+                {
+                    "url": "https://example.com/blank-start",
+                    "company": "Example Company",
+                    "title": "Platform Engineer",
+                    "location": "Remote",
+                    "posted": "2026-03-01",
+                    "ats": "greenhouse",
+                    "description": "x",
+                }
+            ],
+        )
+        job_id = self._job_id("https://example.com/blank-start")
+        repository.upsert_tracking(self.conn, job_id, {"status": "staging"})
+
+        repository.ensure_starter_artifacts_for_job(self.conn, job_id)
+        artifacts = repository.list_job_artifacts(self.conn, job_id)
+        by_type = {str(item["artifact_type"]): item for item in artifacts}
+
+        resume_text = str(((by_type["resume"].get("active_version") or {}).get("content_text")) or "")
+        cover_letter_text = str(((by_type["cover_letter"].get("active_version") or {}).get("content_text")) or "")
+
+        self.assertIn("Your Name", resume_text)
+        self.assertIn("Hiring Manager", cover_letter_text)
+        self.assertNotIn("Koushik", resume_text)
+        self.assertNotIn("koushik", cover_letter_text.lower())
 
     def test_resume_baseline_schema_validation(self) -> None:
         _validate_resume_baseline_json(
@@ -128,6 +166,7 @@ class ProfileAndRepositoryTests(unittest.TestCase):
             {
                 "years_experience": 1,
                 "skills": ["python", "pytorch", "sql"],
+                "desired_job_titles": ["Junior ML Engineer"],
                 "target_role_families": ["ml engineer"],
                 "requires_visa_sponsorship": False,
             },
@@ -198,8 +237,10 @@ class ProfileAndRepositoryTests(unittest.TestCase):
         self.assertEqual(total, 2)
         self.assertEqual(items[0]["url"], "https://example.com/junior")
         self.assertGreaterEqual(int(items[0]["match_score"]), int(items[1]["match_score"]))
+        self.assertTrue(bool(items[0]["desired_title_match"]))
+        self.assertFalse(bool(items[1]["desired_title_match"]))
 
-        detail = repository.get_job_detail(self.conn, "https://example.com/junior")
+        detail = repository.get_job_detail(self.conn, self._job_id("https://example.com/junior"))
         self.assertIsNotNone(detail)
         self.assertEqual(
             detail["enrichment"]["formatted_description"],
@@ -207,6 +248,7 @@ class ProfileAndRepositoryTests(unittest.TestCase):
         )
         self.assertIsNotNone(detail.get("match_meta"))
         self.assertFalse(bool(detail["match_meta"]["stale"]))
+        self.assertTrue(bool(detail["desired_title_match"]))
 
     def test_match_desc_with_pagination_still_ranks_after_missing_score_compute(self) -> None:
         repository.save_profile(
@@ -320,14 +362,15 @@ class ProfileAndRepositoryTests(unittest.TestCase):
         )
         recomputed = repository.recompute_match_scores(self.conn, urls=["https://example.com/scored"])
         self.assertEqual(recomputed, 1)
-        detail = repository.get_job_detail(self.conn, "https://example.com/scored")
+        scored_job_id = self._job_id("https://example.com/scored")
+        detail = repository.get_job_detail(self.conn, scored_job_id)
         self.assertIsNotNone(detail)
         self.assertIsNotNone(detail["match"])
         self.assertFalse(bool(detail["match_meta"]["stale"]))
 
         next_version = repository.bump_profile_score_version(self.conn)
         self.assertGreaterEqual(next_version, 2)
-        stale_detail = repository.get_job_detail(self.conn, "https://example.com/scored")
+        stale_detail = repository.get_job_detail(self.conn, scored_job_id)
         self.assertTrue(bool(stale_detail["match_meta"]["stale"]))
 
     def test_funnel_analytics_counts_and_conversions(self) -> None:
@@ -380,10 +423,10 @@ class ProfileAndRepositoryTests(unittest.TestCase):
         ]
         save_jobs(self.conn, jobs)
 
-        repository.upsert_tracking(self.conn, "https://example.com/staging", {"status": "staging"})
-        repository.upsert_tracking(self.conn, "https://example.com/applied", {"status": "applied"})
-        repository.upsert_tracking(self.conn, "https://example.com/interview", {"status": "interviewing"})
-        repository.upsert_tracking(self.conn, "https://example.com/offer", {"status": "offer"})
+        repository.upsert_tracking(self.conn, self._job_id("https://example.com/staging"), {"status": "staging"})
+        repository.upsert_tracking(self.conn, self._job_id("https://example.com/applied"), {"status": "applied"})
+        repository.upsert_tracking(self.conn, self._job_id("https://example.com/interview"), {"status": "interviewing"})
+        repository.upsert_tracking(self.conn, self._job_id("https://example.com/offer"), {"status": "offer"})
 
         result = repository.get_funnel_analytics(
             self.conn,
@@ -435,7 +478,7 @@ class ProfileAndRepositoryTests(unittest.TestCase):
         self.assertEqual(created["url"], "https://example.com/manual-role")
         self.assertEqual(created["title"], "Applied ML Engineer")
 
-        repository.suppress_job(self.conn, url="https://example.com/manual-role", reason="Not in target region")
+        repository.suppress_job(self.conn, job_id=created["id"], reason="Not in target region")
         items, total = repository.list_jobs(
             self.conn,
             status=None,
@@ -452,7 +495,19 @@ class ProfileAndRepositoryTests(unittest.TestCase):
         self.assertEqual(items, [])
 
     def test_save_jobs_skips_suppressed_urls(self) -> None:
-        repository.suppress_job(self.conn, url="https://example.com/suppressed", reason="Not relevant")
+        created = repository.create_manual_job(
+            self.conn,
+            {
+                "url": "https://example.com/suppressed",
+                "company": "Suppressed Co",
+                "title": "Role",
+                "location": "Remote",
+                "posted": "2026-02-12",
+                "ats": "manual",
+                "description": "x",
+            },
+        )
+        repository.suppress_job(self.conn, job_id=created["id"], reason="Not relevant")
         new_count, updated_count, new_jobs = save_jobs(
             self.conn,
             [
@@ -486,10 +541,11 @@ class ProfileAndRepositoryTests(unittest.TestCase):
                 }
             ],
         )
-        created = repository.ensure_starter_artifacts_for_job(self.conn, "https://example.com/artifact-role")
+        artifact_role_id = self._job_id("https://example.com/artifact-role")
+        created = repository.ensure_starter_artifacts_for_job(self.conn, artifact_role_id)
         self.assertEqual(len(created), 2)
 
-        rows = repository.list_job_artifacts(self.conn, "https://example.com/artifact-role")
+        rows = repository.list_job_artifacts(self.conn, artifact_role_id)
         self.assertEqual(len(rows), 2)
         self.assertSetEqual({row["artifact_type"] for row in rows}, {"resume", "cover_letter"})
         for row in rows:
@@ -497,9 +553,9 @@ class ProfileAndRepositoryTests(unittest.TestCase):
             self.assertEqual(row["active_version"]["label"], "draft")
             self.assertEqual(row["active_version"]["version"], 1)
 
-        created_again = repository.ensure_starter_artifacts_for_job(self.conn, "https://example.com/artifact-role")
+        created_again = repository.ensure_starter_artifacts_for_job(self.conn, artifact_role_id)
         self.assertEqual(created_again, [])
-        rows_again = repository.list_job_artifacts(self.conn, "https://example.com/artifact-role")
+        rows_again = repository.list_job_artifacts(self.conn, artifact_role_id)
         self.assertEqual(len(rows_again), 2)
 
     def test_artifact_versioning_and_suggestion_outdated_guard(self) -> None:
@@ -517,9 +573,10 @@ class ProfileAndRepositoryTests(unittest.TestCase):
                 }
             ],
         )
-        repository.ensure_starter_artifacts_for_job(self.conn, "https://example.com/artifact-ops")
+        artifact_ops_id = self._job_id("https://example.com/artifact-ops")
+        repository.ensure_starter_artifacts_for_job(self.conn, artifact_ops_id)
         resume = next(
-            row for row in repository.list_job_artifacts(self.conn, "https://example.com/artifact-ops")
+            row for row in repository.list_job_artifacts(self.conn, artifact_ops_id)
             if row["artifact_type"] == "resume"
         )
         self.assertIsNotNone(resume["active_version"])
@@ -594,9 +651,10 @@ class ProfileAndRepositoryTests(unittest.TestCase):
                 }
             ],
         )
-        repository.ensure_starter_artifacts_for_job(self.conn, "https://example.com/artifact-append")
+        artifact_append_id = self._job_id("https://example.com/artifact-append")
+        repository.ensure_starter_artifacts_for_job(self.conn, artifact_append_id)
         resume = next(
-            row for row in repository.list_job_artifacts(self.conn, "https://example.com/artifact-append")
+            row for row in repository.list_job_artifacts(self.conn, artifact_append_id)
             if row["artifact_type"] == "resume"
         )
         base = resume["active_version"]
@@ -640,8 +698,9 @@ class ProfileAndRepositoryTests(unittest.TestCase):
                 }
             ],
         )
-        repository.ensure_starter_artifacts_for_job(self.conn, "https://example.com/delete-artifacts")
-        artifacts = repository.list_job_artifacts(self.conn, "https://example.com/delete-artifacts")
+        delete_job_id = self._job_id("https://example.com/delete-artifacts")
+        repository.ensure_starter_artifacts_for_job(self.conn, delete_job_id)
+        artifacts = repository.list_job_artifacts(self.conn, delete_job_id)
         resume = next(row for row in artifacts if row["artifact_type"] == "resume")
         active = resume["active_version"]
         repository.create_artifact_suggestions(
@@ -658,9 +717,9 @@ class ProfileAndRepositoryTests(unittest.TestCase):
             ],
         )
 
-        deleted = repository.delete_job(self.conn, "https://example.com/delete-artifacts")
+        deleted = repository.delete_job(self.conn, delete_job_id)
         self.assertEqual(deleted, 1)
-        self.assertEqual(repository.list_job_artifacts(self.conn, "https://example.com/delete-artifacts"), [])
+        self.assertEqual(repository.list_job_artifacts(self.conn, delete_job_id), [])
         remaining_versions = self.conn.execute("SELECT COUNT(*) FROM artifact_versions").fetchone()
         remaining_suggestions = self.conn.execute("SELECT COUNT(*) FROM artifact_suggestions").fetchone()
         self.assertEqual(int(remaining_versions[0] if remaining_versions else 0), 0)
@@ -681,12 +740,13 @@ class ProfileAndRepositoryTests(unittest.TestCase):
                 }
             ],
         )
-        repository.suppress_job(self.conn, url="https://example.com/revive", reason="temp")
+        revive_job_id = self._job_id("https://example.com/revive")
+        repository.suppress_job(self.conn, job_id=revive_job_id, reason="temp")
         active = repository.list_active_suppressions(self.conn, limit=50)
         self.assertEqual(len(active), 1)
-        self.assertEqual(active[0]["url"], "https://example.com/revive")
+        self.assertEqual(active[0]["job_id"], revive_job_id)
 
-        changed = repository.unsuppress_job(self.conn, url="https://example.com/revive")
+        changed = repository.unsuppress_job(self.conn, job_id=revive_job_id)
         self.assertEqual(changed, 1)
         active_after = repository.list_active_suppressions(self.conn, limit=50)
         self.assertEqual(active_after, [])

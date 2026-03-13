@@ -40,6 +40,14 @@ TITLE_INCLUDE = [
     "llm",
     "computer vision",
     "generative ai",
+    "ai software engineer",
+    "software engineer - ai",
+    "software engineer ai",
+    "software engineer - ai agents",
+    "software engineer - agentic ai",
+    "ai agents",
+    "ai agent",
+    "agentic ai",
 ]
 
 TITLE_EXCLUDE = [
@@ -131,6 +139,19 @@ def passes_location_filter(location: str) -> bool:
     return False
 
 
+def _passes_job_title_filter(job: dict[str, Any], title_ok) -> bool:
+    title = str(job.get("title", "") or "")
+    if title_ok(title):
+        return True
+    if str(job.get("ats", "") or "") == "hn_hiring":
+        description = str(job.get("description", "") or "").lower()
+        title_lower = title.lower()
+        if any(kw in title_lower for kw in TITLE_EXCLUDE):
+            return False
+        return any(kw in description for kw in TITLE_INCLUDE)
+    return False
+
+
 def extract_slug(ats_url: str, ats_type: str) -> str:
     parts = [p for p in urlparse(ats_url).path.strip("/").split("/") if p]
     if not parts:
@@ -217,7 +238,7 @@ def scrape_all(
                 if ats_type in {"lever", "recruitee"}:
                     raw_map[url] = raw
 
-            if not title_ok(job["title"]):
+            if not _passes_job_title_filter(job, title_ok):
                 continue
             if apply_location_filter and not passes_location_filter(job["location"]):
                 continue
@@ -227,7 +248,7 @@ def scrape_all(
         hn_jobs = fetch_hn_jobs()
         hn_added = 0
         for job in hn_jobs:
-            if not title_ok(job["title"]):
+            if not _passes_job_title_filter(job, title_ok):
                 continue
             if apply_location_filter and not passes_location_filter(job["location"]):
                 continue

@@ -61,6 +61,8 @@ type KanbanProps<T> = {
   onValueChange: (next: KanbanRecord<T>) => void;
   getItemValue: (item: T) => string;
   onItemMove?: (meta: MoveMeta) => void;
+  onDragStartItem?: (itemId: string) => void;
+  onDragEndItem?: () => void;
   children: React.ReactNode;
 };
 
@@ -69,6 +71,8 @@ export function Kanban<T>({
   onValueChange,
   getItemValue,
   onItemMove,
+  onDragStartItem,
+  onDragEndItem,
   children,
 }: KanbanProps<T>): JSX.Element {
   const [activeItemId, setActiveItemId] = React.useState<string | null>(null);
@@ -82,13 +86,15 @@ export function Kanban<T>({
     const id = String(event.active.id);
     setActiveItemId(id);
     setActiveColumn(findContainerByItemId(value, getItemValue, id));
-  }, [getItemValue, value]);
+    onDragStartItem?.(id);
+  }, [getItemValue, onDragStartItem, value]);
 
   const onDragEnd = React.useCallback((event: DragEndEvent) => {
     const activeId = String(event.active.id);
     const overId = event.over ? String(event.over.id) : null;
     setActiveItemId(null);
     setActiveColumn(null);
+    onDragEndItem?.();
     if (!overId) return;
 
     const fromColumn = findContainerByItemId(value, getItemValue, activeId);
@@ -128,7 +134,7 @@ export function Kanban<T>({
     next[toColumn] = toItems;
     onValueChange(next);
     onItemMove?.({ itemId: activeId, fromColumn, toColumn });
-  }, [getItemValue, onItemMove, onValueChange, value]);
+  }, [getItemValue, onDragEndItem, onItemMove, onValueChange, value]);
 
   return (
     <KanbanContext.Provider
@@ -222,7 +228,7 @@ export function KanbanItem({
       data-state={isDragging ? "dragging" : undefined}
       className={["ui-kanban-item", className, activeItemId === value ? "is-active" : ""].filter(Boolean).join(" ")}
       {...attributes}
-      {...(asHandle ? listeners : {})}
+      {...listeners}
     >
       {children}
     </Comp>

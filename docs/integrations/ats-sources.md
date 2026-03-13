@@ -1,9 +1,6 @@
-# ATS and Source Integrations
+# 🚀 ATS Integrations
 
-Implemented in `src/fetchers.py`.
-
-## ATS support
-
+Supported connectors:
 - Greenhouse
 - Lever
 - Ashby
@@ -11,65 +8,30 @@ Implemented in `src/fetchers.py`.
 - SmartRecruiters
 - Recruitee
 
-All source fetchers use `requests` with retry decorator (`retry_with_backoff`).
+Plus HN hiring thread ingestion.
 
-## Source-specific notes
+---
 
-### Greenhouse
+## ✨ Connector Contract
 
-- Listing: `/v1/boards/{token}/jobs`
-- Description requires second request per job (`content` HTML field).
+Each fetcher returns normalized job records with common fields:
+- company
+- title
+- location
+- url
+- posted
+- ats
+- description (when available)
 
-### Lever
+---
 
-- Listing API already includes enough fields to synthesize description.
-- No second HTTP call for description.
+## ✨ Source Selection
 
-### Ashby
+Scrape input comes from `company_sources` table (`enabled=1`).
 
-- Listing extracted from embedded JSON in board HTML (`jobPostings` key).
-- Description from job detail page `__NEXT_DATA__` JSON.
+---
 
-### Workable
+## ✨ Practical Caveats
 
-- Listing endpoint is POST request with empty JSON payload.
-- Description fetched by shortcode endpoint.
-
-### SmartRecruiters
-
-- Listing from `/v1/companies/{slug}/postings`.
-- Description assembled from `jobAd.sections` fields.
-- Discovery probes may return 200 with zero jobs for invalid slugs.
-
-### Recruitee
-
-- Listing from `https://{slug}.recruitee.com/api/offers`.
-- Description uses listing payload when present, with detail fallback to `/api/offers/{id}`.
-- Slug extraction is hostname-based (`{slug}.recruitee.com`).
-
-### HN "Who is Hiring"
-
-- Uses Algolia search API.
-- Finds latest hiring thread by `author=whoishiring` and title match.
-- Filters comments by ML/AI keyword set.
-- Normalizes comment first line into company/title/location heuristics.
-
-## Date normalization
-
-`_normalize_datetime` accepts:
-
-- unix seconds or milliseconds
-- ISO strings
-- `%Y-%m-%d`
-- `%Y/%m/%d`
-- `%m/%d/%Y`
-
-Returns `YYYY-MM-DD` or empty string.
-
-## Description enrichment stage
-
-`enrich_descriptions()`:
-
-- runs concurrent description fetches (`max_workers=10`)
-- mutates each job dict `description` in place
-- logs and tolerates per-job failures
+- Some ATS endpoints return 200 with zero jobs for bad slugs.
+- Probe and add flows filter low-signal false positives.

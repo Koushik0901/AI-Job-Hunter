@@ -1,5 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { getProfile, getResumeProfile, importResumeProfileFromFile, putProfile, putResumeProfile } from "../api";
+import { Link } from "react-router-dom";
+import {
+  getCoverLetterTemplates,
+  getProfile,
+  getResumeProfile,
+  getResumeTemplates,
+  getTemplateSettings,
+  getTemplateSource,
+  importResumeProfileFromFile,
+  putProfile,
+  putResumeProfile,
+  putTemplateSettings,
+  validateTemplate,
+} from "../api";
+import { useEvidenceVault } from "../hooks/useEvidenceVault";
 import { ScoreRecomputeStatus } from "../components/ScoreRecomputeStatus";
 import { ThemedLoader } from "../components/ThemedLoader";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../components/ui/accordion";
@@ -15,8 +29,10 @@ import {
 import { Button } from "../components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { FileUpload } from "../components/ui/file-upload";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { Switch } from "../components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import type { CandidateProfile, ResumeProfile } from "../types";
+import type { CandidateProfile, ResumeProfile, TemplateSettings } from "../types";
 import { toast } from "sonner";
 
 type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
@@ -24,6 +40,7 @@ type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 const EMPTY_PROFILE: CandidateProfile = {
   years_experience: 0,
   skills: [],
+  desired_job_titles: [],
   target_role_families: [],
   requires_visa_sponsorship: false,
   education: [],
@@ -35,8 +52,17 @@ const EMPTY_PROFILE: CandidateProfile = {
 const EMPTY_RESUME_PROFILE: ResumeProfile = {
   baseline_resume_json: {},
   template_id: "classic",
+  use_template_typography: true,
+  document_typography_override: {},
   updated_at: null,
 };
+
+const DOCUMENT_FONT_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "Georgia, 'Times New Roman', serif", label: "Classic Serif" },
+  { value: "'IBM Plex Sans', 'Segoe UI', sans-serif", label: "IBM Plex Sans" },
+  { value: "'Plus Jakarta Sans', 'Segoe UI', sans-serif", label: "Plus Jakarta Sans" },
+  { value: "'Source Sans 3', 'Segoe UI', sans-serif", label: "Source Sans 3" },
+];
 
 function normalizeTags(values: string[]): string[] {
   const seen = new Set<string>();
@@ -75,6 +101,7 @@ function profileFingerprint(profile: CandidateProfile): string {
     degree: (profile.degree ?? "").trim(),
     degree_field: (profile.degree_field ?? "").trim(),
     skills: normalizeTags(profile.skills),
+    desired_job_titles: normalizeTags(profile.desired_job_titles),
     target_role_families: normalizeTags(profile.target_role_families),
   };
   return JSON.stringify(comparable);
@@ -130,9 +157,10 @@ function highlightsHtmlFromLines(lines: string[]): string {
 }
 
 export function ProfilePage() {
+  const evidenceVault = useEvidenceVault();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"scoring" | "resume">("scoring");
+  const [activeTab, setActiveTab] = useState<"scoring" | "resume" | "evidence">("scoring");
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -146,11 +174,32 @@ export function ProfilePage() {
   const [resumeJsonInput, setResumeJsonInput] = useState("{}");
   const [resumeEditorMode, setResumeEditorMode] = useState<"form" | "json">("form");
   const [resumeUploading, setResumeUploading] = useState(false);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templateSaveState, setTemplateSaveState] = useState<SaveState>("idle");
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const [resumeTemplates, setResumeTemplates] = useState<Array<{ id: string; name: string }>>([]);
+  const [coverLetterTemplates, setCoverLetterTemplates] = useState<Array<{ id: string; name: string }>>([]);
+  const [templateSettingsOriginal, setTemplateSettingsOriginal] = useState<TemplateSettings>({
+    resume_template_id: "classic",
+    cover_letter_template_id: "classic",
+    updated_at: null,
+  });
+  const [templateSettingsDraft, setTemplateSettingsDraft] = useState<TemplateSettings>({
+    resume_template_id: "classic",
+    cover_letter_template_id: "classic",
+    updated_at: null,
+  });
+  const [templatePreviewOpen, setTemplatePreviewOpen] = useState(false);
+  const [templatePreviewTitle, setTemplatePreviewTitle] = useState("");
+  const [templatePreviewSource, setTemplatePreviewSource] = useState("");
+  const [templateValidationMessages, setTemplateValidationMessages] = useState<string[]>([]);
+  const [templatePreviewLoading, setTemplatePreviewLoading] = useState(false);
   const [resumeImportDialogOpen, setResumeImportDialogOpen] = useState(false);
   const [resumeImportPreviewOpen, setResumeImportPreviewOpen] = useState(false);
   const [resumeImportSourcePath, setResumeImportSourcePath] = useState("");
   const [resumeImportPreviewJson, setResumeImportPreviewJson] = useState<Record<string, unknown> | null>(null);
   const [skillsInput, setSkillsInput] = useState("");
+  const [desiredTitlesInput, setDesiredTitlesInput] = useState("");
   const [familiesInput, setFamiliesInput] = useState("");
   const [educationDegreeInput, setEducationDegreeInput] = useState("");
   const [educationFieldInput, setEducationFieldInput] = useState("");
@@ -170,16 +219,41 @@ export function ProfilePage() {
   const resumeFingerprint = useMemo(() => {
     return JSON.stringify({
       template_id: (resumeDraft.template_id || "classic").trim() || "classic",
+      use_template_typography: Boolean(resumeDraft.use_template_typography ?? true),
+      document_typography_override: (resumeDraft.document_typography_override ?? {}) as Record<string, unknown>,
       baseline_resume_json: parsedResumeJson.value ?? resumeDraft.baseline_resume_json ?? {},
     });
-  }, [parsedResumeJson.value, resumeDraft.baseline_resume_json, resumeDraft.template_id]);
+  }, [
+    parsedResumeJson.value,
+    resumeDraft.baseline_resume_json,
+    resumeDraft.template_id,
+    resumeDraft.use_template_typography,
+    resumeDraft.document_typography_override,
+  ]);
   const resumeOriginalFingerprint = useMemo(() => {
     return JSON.stringify({
       template_id: (resumeOriginal.template_id || "classic").trim() || "classic",
+      use_template_typography: Boolean(resumeOriginal.use_template_typography ?? true),
+      document_typography_override: (resumeOriginal.document_typography_override ?? {}) as Record<string, unknown>,
       baseline_resume_json: resumeOriginal.baseline_resume_json ?? {},
     });
-  }, [resumeOriginal.baseline_resume_json, resumeOriginal.template_id]);
+  }, [
+    resumeOriginal.baseline_resume_json,
+    resumeOriginal.template_id,
+    resumeOriginal.use_template_typography,
+    resumeOriginal.document_typography_override,
+  ]);
   const isResumeDirty = resumeFingerprint !== resumeOriginalFingerprint;
+  const isTemplateDirty = useMemo(
+    () => JSON.stringify({
+      resume_template_id: (templateSettingsDraft.resume_template_id || "classic").trim() || "classic",
+      cover_letter_template_id: (templateSettingsDraft.cover_letter_template_id || "classic").trim() || "classic",
+    }) !== JSON.stringify({
+      resume_template_id: (templateSettingsOriginal.resume_template_id || "classic").trim() || "classic",
+      cover_letter_template_id: (templateSettingsOriginal.cover_letter_template_id || "classic").trim() || "classic",
+    }),
+    [templateSettingsDraft, templateSettingsOriginal],
+  );
   const resumeBaseline = useMemo<Record<string, unknown>>(() => (
     parsedResumeJson.value ?? (resumeDraft.baseline_resume_json ?? {})
   ), [parsedResumeJson.value, resumeDraft.baseline_resume_json]);
@@ -251,19 +325,40 @@ export function ProfilePage() {
     async function loadProfile(): Promise<void> {
       setLoading(true);
       setLoadError(null);
+      setTemplatesLoading(true);
       try {
-        const [profile, resume] = await Promise.all([getProfile(), getResumeProfile()]);
+        const [profile, resume, settings, resumeTemplateList, coverTemplateList] = await Promise.all([
+          getProfile(),
+          getResumeProfile(),
+          getTemplateSettings(),
+          getResumeTemplates(),
+          getCoverLetterTemplates(),
+        ]);
         if (cancelled) return;
+        const normalizedResume: ResumeProfile = {
+          baseline_resume_json: (resume.baseline_resume_json ?? {}) as Record<string, unknown>,
+          template_id: (resume.template_id || "classic").trim() || "classic",
+          use_template_typography: Boolean(resume.use_template_typography ?? true),
+          document_typography_override: (resume.document_typography_override ?? {}) as Record<string, unknown>,
+          updated_at: resume.updated_at ?? null,
+        };
         setOriginal(profile);
         setDraft(profile);
-        setResumeOriginal(resume);
-        setResumeDraft(resume);
-        setResumeJsonInput(JSON.stringify(resume.baseline_resume_json ?? {}, null, 2));
+        setResumeOriginal(normalizedResume);
+        setResumeDraft(normalizedResume);
+        setResumeJsonInput(JSON.stringify(normalizedResume.baseline_resume_json ?? {}, null, 2));
+        setTemplateSettingsOriginal(settings);
+        setTemplateSettingsDraft(settings);
+        setResumeTemplates(resumeTemplateList);
+        setCoverLetterTemplates(coverTemplateList);
       } catch (error) {
         if (cancelled) return;
         setLoadError(error instanceof Error ? error.message : "Failed to load profile");
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setTemplatesLoading(false);
+          setLoading(false);
+        }
       }
     }
 
@@ -284,6 +379,7 @@ export function ProfilePage() {
       degree: normalizeEducation(draft.education ?? [])[0]?.degree ?? null,
       degree_field: normalizeEducation(draft.education ?? [])[0]?.field ?? null,
       skills: normalizeTags(draft.skills),
+      desired_job_titles: normalizeTags(draft.desired_job_titles),
       target_role_families: normalizeTags(draft.target_role_families),
       updated_at: draft.updated_at,
     };
@@ -293,6 +389,7 @@ export function ProfilePage() {
       setOriginal(saved);
       setDraft(saved);
       setSkillsInput("");
+      setDesiredTitlesInput("");
       setFamiliesInput("");
       setEducationDegreeInput("");
       setEducationFieldInput("");
@@ -319,6 +416,8 @@ export function ProfilePage() {
     const payload: ResumeProfile = {
       baseline_resume_json: parsedResumeJson.value,
       template_id: (resumeDraft.template_id || "classic").trim() || "classic",
+      use_template_typography: Boolean(resumeDraft.use_template_typography ?? true),
+      document_typography_override: (resumeDraft.document_typography_override ?? {}) as Record<string, unknown>,
       updated_at: resumeDraft.updated_at,
     };
     try {
@@ -335,6 +434,48 @@ export function ProfilePage() {
       setResumeSaveError(error instanceof Error ? error.message : "Failed to save resume profile");
       setResumeSaveState("error");
       toast.error(error instanceof Error ? error.message : "Failed to save resume profile");
+    }
+  }
+
+  async function saveTemplateSettingsProfile(): Promise<void> {
+    setTemplateError(null);
+    setTemplateSaveState("saving");
+    try {
+      const saved = await putTemplateSettings({
+        resume_template_id: (templateSettingsDraft.resume_template_id || "classic").trim() || "classic",
+        cover_letter_template_id: (templateSettingsDraft.cover_letter_template_id || "classic").trim() || "classic",
+        updated_at: templateSettingsDraft.updated_at,
+      });
+      setTemplateSettingsOriginal(saved);
+      setTemplateSettingsDraft(saved);
+      setTemplateSaveState("saved");
+      toast.success("Artifact template defaults saved");
+      window.setTimeout(() => setTemplateSaveState("idle"), 1200);
+    } catch (error) {
+      setTemplateSaveState("error");
+      setTemplateError(error instanceof Error ? error.message : "Failed to save template defaults");
+      toast.error(error instanceof Error ? error.message : "Failed to save template defaults");
+    }
+  }
+
+  async function previewTemplate(kind: "resume" | "cover_letter", templateId: string): Promise<void> {
+    setTemplatePreviewLoading(true);
+    setTemplatePreviewOpen(true);
+    setTemplatePreviewTitle(`${kind === "resume" ? "Resume" : "Cover Letter"} · ${templateId}`);
+    setTemplatePreviewSource("");
+    setTemplateValidationMessages([]);
+    try {
+      const [source, validation] = await Promise.all([
+        getTemplateSource(kind, templateId),
+        validateTemplate(kind, templateId),
+      ]);
+      setTemplatePreviewSource(source.source_text);
+      setTemplateValidationMessages(validation.warnings ?? []);
+    } catch (error) {
+      setTemplatePreviewSource(error instanceof Error ? error.message : "Failed to load template source");
+      setTemplateValidationMessages([]);
+    } finally {
+      setTemplatePreviewLoading(false);
     }
   }
 
@@ -431,8 +572,12 @@ export function ProfilePage() {
     setEducationFieldInput("");
   }
 
-  const currentSaveState = activeTab === "scoring" ? saveState : resumeSaveState;
-  const currentSaveLabel = activeTab === "scoring" ? saveLabel() : resumeSaveLabel();
+  const currentSaveState = activeTab === "scoring"
+    ? saveState
+    : resumeSaveState;
+  const currentSaveLabel = activeTab === "scoring"
+    ? saveLabel()
+    : resumeSaveLabel();
   const currentSaveDisabled = activeTab === "scoring"
     ? !isDirty || saveState === "saving"
     : !isResumeDirty || resumeSaveState === "saving" || Boolean(parsedResumeJson.error);
@@ -511,9 +656,10 @@ export function ProfilePage() {
                     setResumeBasicsField("profiles", next);
                   }}
                 />
-                <button
+                <Button
                   type="button"
-                  className="ghost-btn compact danger"
+                  variant="danger"
+                  size="compact"
                   data-icon="✕"
                   onClick={() => {
                     const next = resumeProfiles.filter((_, itemIndex) => itemIndex !== index);
@@ -521,17 +667,18 @@ export function ProfilePage() {
                   }}
                 >
                   Remove
-                </button>
+                </Button>
               </div>
             ))}
-            <button
+            <Button
               type="button"
-              className="ghost-btn compact"
+              variant="default"
+              size="compact"
               data-icon="+"
               onClick={() => setResumeBasicsField("profiles", [...resumeProfiles, { network: "", label: "", url: "" }])}
             >
               Add Link
-            </button>
+            </Button>
           </div>
         </section>
 
@@ -581,9 +728,10 @@ export function ProfilePage() {
                     updateResumeBaseline({ ...resumeBaseline, skills_by_category: next });
                   }}
                 />
-                <button
+                <Button
                   type="button"
-                  className="ghost-btn compact danger"
+                  variant="danger"
+                  size="compact"
                   data-icon="✕"
                   onClick={() => {
                     const next: Record<string, string[]> = {};
@@ -594,12 +742,13 @@ export function ProfilePage() {
                   }}
                 >
                   Remove
-                </button>
+                </Button>
               </div>
             ))}
-            <button
+            <Button
               type="button"
-              className="ghost-btn compact"
+              variant="default"
+              size="compact"
               data-icon="+"
               onClick={() => {
                 const next: Record<string, string[]> = { ...resumeSkillsByCategory };
@@ -614,7 +763,7 @@ export function ProfilePage() {
               }}
             >
               Add Category
-            </button>
+            </Button>
           </div>
         </section>
 
@@ -660,14 +809,14 @@ export function ProfilePage() {
                     />
                   </label>
                 </div>
-                <button type="button" className="ghost-btn compact danger" data-icon="✕" onClick={() => removeArrayItem("work", index)}>
+                <Button type="button" variant="danger" size="compact" data-icon="✕" onClick={() => removeArrayItem("work", index)}>
                   Remove Experience
-                </button>
+                </Button>
               </article>
             ))}
-            <button type="button" className="ghost-btn compact" data-icon="+" onClick={() => appendArrayItem("work", { name: "", position: "", location: "", startDate: "", endDate: "", website: "", highlights: [] })}>
+            <Button type="button" variant="default" size="compact" data-icon="+" onClick={() => appendArrayItem("work", { name: "", position: "", location: "", startDate: "", endDate: "", website: "", highlights: [] })}>
               Add Experience
-            </button>
+            </Button>
           </div>
         </section>
 
@@ -713,14 +862,14 @@ export function ProfilePage() {
                     />
                   </label>
                 </div>
-                <button type="button" className="ghost-btn compact danger" data-icon="✕" onClick={() => removeArrayItem("education", index)}>
+                <Button type="button" variant="danger" size="compact" data-icon="✕" onClick={() => removeArrayItem("education", index)}>
                   Remove Education
-                </button>
+                </Button>
               </article>
             ))}
-            <button type="button" className="ghost-btn compact" data-icon="+" onClick={() => appendArrayItem("education", { institution: "", studyType: "", area: "", location: "", startDate: "", endDate: "", courses: [] })}>
+            <Button type="button" variant="default" size="compact" data-icon="+" onClick={() => appendArrayItem("education", { institution: "", studyType: "", area: "", location: "", startDate: "", endDate: "", courses: [] })}>
               Add Education
-            </button>
+            </Button>
           </div>
         </section>
 
@@ -754,14 +903,14 @@ export function ProfilePage() {
                     />
                   </label>
                 </div>
-                <button type="button" className="ghost-btn compact danger" data-icon="✕" onClick={() => removeArrayItem("projects", index)}>
+                <Button type="button" variant="danger" size="compact" data-icon="✕" onClick={() => removeArrayItem("projects", index)}>
                   Remove Project
-                </button>
+                </Button>
               </article>
             ))}
-            <button type="button" className="ghost-btn compact" data-icon="+" onClick={() => appendArrayItem("projects", { name: "", date: "", url: "", highlights: [] })}>
+            <Button type="button" variant="default" size="compact" data-icon="+" onClick={() => appendArrayItem("projects", { name: "", date: "", url: "", highlights: [] })}>
               Add Project
-            </button>
+            </Button>
           </div>
         </section>
 
@@ -788,14 +937,14 @@ export function ProfilePage() {
                     <input type="text" value={asString(entry.url)} onChange={(event) => setArrayItem("publications", index, { ...entry, url: event.target.value })} />
                   </label>
                 </div>
-                <button type="button" className="ghost-btn compact danger" data-icon="✕" onClick={() => removeArrayItem("publications", index)}>
+                <Button type="button" variant="danger" size="compact" data-icon="✕" onClick={() => removeArrayItem("publications", index)}>
                   Remove Publication
-                </button>
+                </Button>
               </article>
             ))}
-            <button type="button" className="ghost-btn compact" data-icon="+" onClick={() => appendArrayItem("publications", { name: "", publisher: "", releaseDate: "", url: "" })}>
+            <Button type="button" variant="default" size="compact" data-icon="+" onClick={() => appendArrayItem("publications", { name: "", publisher: "", releaseDate: "", url: "" })}>
               Add Publication
-            </button>
+            </Button>
           </div>
         </section>
       </div>
@@ -807,30 +956,43 @@ export function ProfilePage() {
       <section className="profile-hero">
         <div>
           <p className="page-kicker">Candidate Configuration</p>
-          <h2>{activeTab === "scoring" ? "Scoring Profile" : "Resume Profile"}</h2>
+          <h2>{activeTab === "scoring" ? "Scoring Profile" : activeTab === "resume" ? "Resume Profile" : "Evidence Vault"}</h2>
           <p className="profile-hero-copy">
             {activeTab === "scoring"
               ? "Keep this profile up to date so match ranking reflects your real background and goals."
-              : "Resume profile is separate from scoring and is only editable from this page."}
+              : activeTab === "resume"
+                ? "Resume profile is separate from scoring, starts blank, and is only editable from this page."
+                : "Store truth-grounded context the AI can use for safer, higher-quality tailoring."}
           </p>
         </div>
         <div className="profile-hero-actions">
-          <span className={`save-badge ${currentSaveState}`}>{currentSaveState === "dirty" ? "Unsaved changes" : currentSaveState === "saved" ? "All changes saved" : currentSaveState === "saving" ? "Saving" : "Ready"}</span>
-          <button
-            type="button"
-            className="primary-btn"
-            data-icon="✓"
-            disabled={currentSaveDisabled}
-            onClick={() => {
-              if (activeTab === "scoring") {
-                void saveProfile();
-                return;
-              }
-              void saveResumeProfile();
-            }}
-          >
-            {currentSaveLabel}
-          </button>
+          {activeTab === "evidence" ? (
+            <>
+              <span className="save-badge idle">Separate workspace</span>
+              <Button type="button" variant="primary" asChild>
+                <Link to="/evidence-vault">Open Evidence Vault</Link>
+              </Button>
+            </>
+          ) : (
+            <>
+              <span className={`save-badge ${currentSaveState}`}>{currentSaveState === "dirty" ? "Unsaved changes" : currentSaveState === "saved" ? "All changes saved" : currentSaveState === "saving" ? "Saving" : "Ready"}</span>
+              <Button
+                type="button"
+                variant="primary"
+                data-icon="✓"
+                disabled={currentSaveDisabled}
+                onClick={() => {
+                  if (activeTab === "scoring") {
+                    void saveProfile();
+                    return;
+                  }
+                  void saveResumeProfile();
+                }}
+              >
+                {currentSaveLabel}
+              </Button>
+            </>
+          )}
         </div>
       </section>
 
@@ -838,15 +1000,63 @@ export function ProfilePage() {
       {saveError && <div className="error-banner">{saveError}</div>}
       {resumeSaveError && <div className="error-banner">{resumeSaveError}</div>}
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "scoring" | "resume")}>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "scoring" | "resume" | "evidence")}>
         <TabsList className="profile-tabs-list">
           <TabsTrigger className="profile-tabs-trigger" value="scoring">Scoring Profile</TabsTrigger>
           <TabsTrigger className="profile-tabs-trigger" value="resume">Resume Profile</TabsTrigger>
+          <TabsTrigger className="profile-tabs-trigger" value="evidence">Evidence Vault</TabsTrigger>
         </TabsList>
 
         <TabsContent value="scoring">
           <ScoreRecomputeStatus />
           <section className="profile-grid">
+            <section className="profile-card">
+              <h3>Search Preferences</h3>
+              <p className="board-note">Use specific titles you want to target. Nothing is preloaded here; these power title-match boosts and board filtering.</p>
+              <div className="token-editor">
+                <div className="token-list" role="list" aria-label="Desired job titles">
+                  {draft.desired_job_titles.map((title) => (
+                    <span className="token-chip token-chip-accent" role="listitem" key={title}>
+                      {title}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${title}`}
+                        onClick={() => {
+                          setDraft((current) => ({
+                            ...current,
+                            desired_job_titles: current.desired_job_titles.filter((item) => item !== title),
+                          }));
+                        }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={desiredTitlesInput}
+                  onChange={(event) => setDesiredTitlesInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === ",") {
+                      event.preventDefault();
+                      pushToken((updater) => {
+                        setDraft((current) => ({ ...current, desired_job_titles: updater(current.desired_job_titles) }));
+                      }, desiredTitlesInput);
+                      setDesiredTitlesInput("");
+                    }
+                  }}
+                  onBlur={() => {
+                    pushToken((updater) => {
+                      setDraft((current) => ({ ...current, desired_job_titles: updater(current.desired_job_titles) }));
+                    }, desiredTitlesInput);
+                    setDesiredTitlesInput("");
+                  }}
+                  placeholder="Machine Learning Engineer, AI Engineer, Applied Scientist"
+                />
+              </div>
+            </section>
+
             <section className="profile-card">
               <h3>Core Inputs</h3>
               <div className="profile-form-grid">
@@ -909,14 +1119,15 @@ export function ProfilePage() {
                     />
                   </label>
                 </div>
-                <button type="button" className="ghost-btn" data-icon="+" onClick={addEducation}>
+                <Button type="button" variant="default" data-icon="+" onClick={addEducation}>
                   Add Education
-                </button>
+                </Button>
               </div>
             </section>
 
             <section className="profile-card">
-              <h3>Target Role Families</h3>
+              <h3>Advanced Role Families</h3>
+              <p className="board-note">Keep this for coarse scoring alignment, not as your primary target-title list.</p>
               <div className="token-editor">
                 <div className="token-list" role="list" aria-label="Target role families">
                   {draft.target_role_families.map((family) => (
@@ -1010,6 +1221,7 @@ export function ProfilePage() {
             <h3>Live Summary</h3>
             <p>
               <strong>{draft.years_experience}</strong> years experience,
+              <strong> {draft.desired_job_titles.length}</strong> desired titles,
               education entries: <strong>{draft.education.length}</strong>,
               <strong> {draft.skills.length}</strong> skills,
               <strong> {draft.target_role_families.length}</strong> role families.
@@ -1021,16 +1233,180 @@ export function ProfilePage() {
         <TabsContent value="resume">
           <section className="profile-grid">
             <section className="profile-card">
-              <h3>Resume Defaults</h3>
+              <h3>Artifact Template Defaults</h3>
+              <div className="profile-form-grid">
+                <label>
+                  <span>Default Resume Template</span>
+                  <Select
+                    value={templateSettingsDraft.resume_template_id}
+                    onValueChange={(value) =>
+                      setTemplateSettingsDraft((current) => ({ ...current, resume_template_id: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Resume template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(resumeTemplates.length > 0 ? resumeTemplates : [{ id: "classic", name: "classic" }]).map((item) => (
+                        <SelectItem key={`resume-template-${item.id}`} value={item.id}>{item.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <div className="profile-inline-actions">
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="compact"
+                    className="info"
+                    onClick={() => void previewTemplate("resume", templateSettingsDraft.resume_template_id)}
+                  >
+                    Preview + Validate
+                  </Button>
+                </div>
+                <label>
+                  <span>Default Cover-Letter Template</span>
+                  <Select
+                    value={templateSettingsDraft.cover_letter_template_id}
+                    onValueChange={(value) =>
+                      setTemplateSettingsDraft((current) => ({ ...current, cover_letter_template_id: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Cover-letter template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(coverLetterTemplates.length > 0 ? coverLetterTemplates : [{ id: "classic", name: "classic" }]).map((item) => (
+                        <SelectItem key={`cover-template-${item.id}`} value={item.id}>{item.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <div className="profile-inline-actions">
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="compact"
+                    className="info"
+                    onClick={() => void previewTemplate("cover_letter", templateSettingsDraft.cover_letter_template_id)}
+                  >
+                    Preview + Validate
+                  </Button>
+                </div>
+              </div>
+              <div className="profile-inline-actions">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="compact"
+                  disabled={!isTemplateDirty || templateSaveState === "saving" || templatesLoading}
+                  onClick={() => void saveTemplateSettingsProfile()}
+                >
+                  {templateSaveState === "saving" ? "Saving..." : templateSaveState === "saved" ? "Saved" : "Save Template Defaults"}
+                </Button>
+                {templateError ? <p className="artifact-message-err">{templateError}</p> : null}
+              </div>
+              <p className="board-note">These defaults are used when starter artifacts are created. Fresh clones stay blank until you save or import your own data here.</p>
+
+              <h3>Resume Profile Defaults</h3>
               <div className="profile-form-grid">
                 <label>
                   <span>Template ID</span>
-                  <input
-                    type="text"
+                  <Select
                     value={resumeDraft.template_id}
-                    onChange={(event) => setResumeDraft((current) => ({ ...current, template_id: event.target.value }))}
-                  />
+                    onValueChange={(value) => setResumeDraft((current) => ({ ...current, template_id: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="classic">Classic</SelectItem>
+                      <SelectItem value="modern">Modern</SelectItem>
+                      <SelectItem value="compact">Compact</SelectItem>
+                      <SelectItem value="azurill">Azurill</SelectItem>
+                      <SelectItem value="onyx">Onyx</SelectItem>
+                      <SelectItem value="pikachu">Pikachu</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </label>
+                <label className="resume-switch-field">
+                  <span>Use Template Typography</span>
+                  <div className="resume-switch-inline">
+                    <Switch
+                      checked={Boolean(resumeDraft.use_template_typography ?? true)}
+                      onCheckedChange={(checked) =>
+                        setResumeDraft((current) => ({ ...current, use_template_typography: checked }))
+                      }
+                    />
+                    <small>{Boolean(resumeDraft.use_template_typography ?? true) ? "Template default font" : "Custom override enabled"}</small>
+                  </div>
+                </label>
+                {!Boolean(resumeDraft.use_template_typography ?? true) && (
+                  <>
+                    <label>
+                      <span>Override Font</span>
+                      <Select
+                        value={String((resumeDraft.document_typography_override ?? {}).fontFamily ?? DOCUMENT_FONT_OPTIONS[0].value)}
+                        onValueChange={(value) =>
+                          setResumeDraft((current) => ({
+                            ...current,
+                            document_typography_override: {
+                              ...(current.document_typography_override ?? {}),
+                              fontFamily: value,
+                            },
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Font family" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DOCUMENT_FONT_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </label>
+                    <label>
+                      <span>Font Size</span>
+                      <input
+                        type="number"
+                        min={9}
+                        max={13}
+                        step={0.1}
+                        value={String((resumeDraft.document_typography_override ?? {}).fontSize ?? 11)}
+                        onChange={(event) =>
+                          setResumeDraft((current) => ({
+                            ...current,
+                            document_typography_override: {
+                              ...(current.document_typography_override ?? {}),
+                              fontSize: Number(event.target.value || 11),
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Line Height</span>
+                      <input
+                        type="number"
+                        min={1.1}
+                        max={1.8}
+                        step={0.01}
+                        value={String((resumeDraft.document_typography_override ?? {}).lineHeight ?? 1.35)}
+                        onChange={(event) =>
+                          setResumeDraft((current) => ({
+                            ...current,
+                            document_typography_override: {
+                              ...(current.document_typography_override ?? {}),
+                              lineHeight: Number(event.target.value || 1.35),
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                  </>
+                )}
               </div>
               <p className="board-note">
                 This profile is only used as a resume baseline and is never auto-modified by skill actions.
@@ -1079,7 +1455,99 @@ export function ProfilePage() {
             <p className="board-note">Last updated: {resumeDraft.updated_at ?? "-"}</p>
           </section>
         </TabsContent>
+
+        <TabsContent value="evidence">
+          <section className="profile-grid">
+            <section className="profile-card">
+              <h3>Dedicated Workspace</h3>
+              <p className="board-note">The Evidence Vault now lives in its own editor-first workspace with Monaco linting, markdown preview, diagnostics, and indexing controls.</p>
+              <div className="profile-inline-actions">
+                <Button type="button" variant="primary" asChild>
+                  <Link to="/evidence-vault">Open Evidence Vault</Link>
+                </Button>
+                <span className="soft-chip">Index: {evidenceVault.indexStatus.status}</span>
+                <span className="soft-chip">Backend: {evidenceVault.indexStatus.backend}</span>
+                <span className="soft-chip">Chunks: {evidenceVault.indexStatus.indexed_count}</span>
+              </div>
+              <p className="board-note">{evidenceVault.indexStatus.message}</p>
+            </section>
+
+            <section className="profile-card profile-card-wide">
+              <h3>Vault Snapshot</h3>
+              {evidenceVault.loading ? (
+                <p className="board-note">Loading Evidence Vault summary...</p>
+              ) : (
+                <div className="profile-evidence-summary-grid">
+                  <article className="profile-evidence-summary-card">
+                    <span>Evidence Keys</span>
+                    <strong>{evidenceVault.counts.evidenceKeys}</strong>
+                    <small>Top-level sections in canonical JSON</small>
+                  </article>
+                  <article className="profile-evidence-summary-card">
+                    <span>Project Cards</span>
+                    <strong>{evidenceVault.counts.projectCards}</strong>
+                    <small>Retrieval-friendly short project summaries</small>
+                  </article>
+                  <article className="profile-evidence-summary-card">
+                    <span>Blocked Claims</span>
+                    <strong>{evidenceVault.counts.blockedClaims}</strong>
+                    <small>Guardrails that will be normalized on save</small>
+                  </article>
+                  <article className="profile-evidence-summary-card">
+                    <span>Brag Document</span>
+                    <strong>{evidenceVault.bragStats.words} words</strong>
+                    <small>{evidenceVault.bragStats.headings} headings · {evidenceVault.bragStats.bullets} bullets</small>
+                  </article>
+                </div>
+              )}
+
+              <div className="profile-inline-actions">
+                <span className={`soft-chip ${evidenceVault.health.services.redis.healthy ? "soft-chip-success" : ""}`}>Redis: {evidenceVault.health.services.redis.healthy ? "Healthy" : evidenceVault.health.services.redis.configured ? "Unreachable" : "Not configured"}</span>
+                <span className={`soft-chip ${evidenceVault.health.services.qdrant.healthy ? "soft-chip-success" : ""}`}>Qdrant: {evidenceVault.health.services.qdrant.healthy ? "Healthy" : evidenceVault.health.services.qdrant.configured ? "Unreachable" : "Not configured"}</span>
+              </div>
+              {evidenceVault.loadError ? <p className="artifact-message-err">{evidenceVault.loadError}</p> : null}
+            </section>
+          </section>
+          <section className="profile-summary profile-card">
+            <h3>Evidence Vault Summary</h3>
+            <p>
+              Project cards: <strong>{evidenceVault.counts.projectCards}</strong>,
+              blocked claims: <strong>{evidenceVault.counts.blockedClaims}</strong>.
+            </p>
+            <p className="board-note">Last updated: {evidenceVault.draft.updated_at ?? "-"}</p>
+          </section>
+        </TabsContent>
       </Tabs>
+
+      <Dialog open={templatePreviewOpen} onOpenChange={setTemplatePreviewOpen}>
+        <DialogContent className="resume-import-dialog">
+          <DialogHeader>
+            <DialogTitle>{templatePreviewTitle || "Template Preview"}</DialogTitle>
+            <p className="board-note">Template source and validation warnings.</p>
+          </DialogHeader>
+          {templatePreviewLoading ? (
+            <p className="board-note">Loading template...</p>
+          ) : (
+            <div className="resume-import-preview">
+              {templateValidationMessages.length > 0 ? (
+                <div className="resume-import-stats">
+                  {templateValidationMessages.map((warning) => (
+                    <span key={warning} className="soft-chip">{warning}</span>
+                  ))}
+                </div>
+              ) : (
+                <p className="board-note">No validation warnings.</p>
+              )}
+              <textarea className="artifact-code-editor" rows={16} value={templatePreviewSource} readOnly />
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="default" size="compact" onClick={() => setTemplatePreviewOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={resumeImportPreviewOpen} onOpenChange={(open) => {
         if (!open) {
@@ -1212,8 +1680,8 @@ export function ProfilePage() {
             onFileSelect={(file) => importUploadedResume(file)}
           />
           <AlertDialogFooter>
-            <AlertDialogCancel className="ghost-btn compact" data-icon="↗" disabled={resumeUploading}>
-              Cancel
+            <AlertDialogCancel asChild disabled={resumeUploading}>
+              <Button type="button" variant="default" size="compact" data-icon="↗">Cancel</Button>
             </AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>

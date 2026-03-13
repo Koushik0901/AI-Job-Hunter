@@ -1,77 +1,132 @@
-# Dashboard Overview
+# 🚀 Dashboard Overview
 
-The dashboard is the web app for tracking applications and interview progress on top of the existing jobs DB, including profile-based job match scoring.
+This dashboard is your command center for the full job workflow:
+- discover jobs
+- track lifecycle in Kanban
+- manage resume/cover-letter artifacts
+- run swarm optimization with guardrails
 
-## Stack
+Fresh clones are expected to start blank. Users define their own profile, sources, resume baseline, and evidence from the UI.
+
+---
+
+## ✨ Stack at a Glance
 
 - Backend API: FastAPI (`src/dashboard/backend/`)
-- Frontend UI: React + Vite (`src/dashboard/frontend/`)
-- Frontend routing: `react-router-dom` (`/`, `/profile`, `/analytics`)
-- UI transitions: `framer-motion`
-- UI component polish: ReactBits-style spotlight/tag components
-- Data store: existing DB (`jobs`) + tracking tables (`job_tracking`, `job_events`) + profile table (`candidate_profile`)
+- Frontend: React + Vite (`src/dashboard/frontend/`)
+- Routing: `react-router-dom`
+- Data store: Turso/libSQL tables for jobs, tracking, events, artifacts, run events
+- Optional acceleration: Redis cache + Qdrant evidence retrieval
 
-## Key workflows
+---
 
-- Kanban pipeline across statuses:
-  - `not_applied`
-  - `staging`
-  - `applied`
-  - `interviewing`
-  - `offer`
-  - `rejected`
-- Job detail panel with:
-  - source URL
-  - description
-  - priority
-  - applied date
-  - next step
-  - target compensation
-- enrichment fields from `job_enrichments`
-- dedicated profile page (`/profile`) for scoring inputs (`candidate_profile`)
-- match score panel (`score`, `band`, `breakdown`, `reasons`, `confidence`)
-- Timeline events rendered in read-only mode.
-- Drag/drop micro-interactions:
-  - active drop-target column styling
-  - optimistic status movement + DB persistence
-- Spotlight-hover metric cards for top-level stats.
-- Theme system:
-  - dark/light mode toggle
-  - animated theme switch
-  - local preference persistence (`dashboard-theme`)
-- Side rail navigation:
-  - `Board` (`/`)
-  - `Profile` (`/profile`)
-  - `Analytics` (`/analytics`)
-- Funnel analytics workflow:
-  - date-window presets (`30d`, `90d`, `all`)
-  - stage counts for pipeline states
-  - conversion rates across major transitions (`backlog -> staging -> applied -> interviewing -> offer`)
-  - delta comparisons vs previous equal-length window
-  - weekly goals tracking (applications + interview activities)
-  - stale-state alert cards
-  - cohort funnel by posted week
-  - source quality ranking by ATS and company
-  - forecast simulator with confidence bands for 7-day and 30-day projections
-- Board state persistence:
-  - returning from `Profile` back to `Board` reuses in-memory board state and detail/event caches
-  - avoids full reload when data is still fresh
-- Redis acceleration (optional):
-  - backend caches jobs list/detail/events/profile/stats when `REDIS_URL` is configured
-  - backend also caches funnel analytics (`GET /api/analytics/funnel`)
-  - job-detail cache is LRU-bounded by `DASHBOARD_CACHE_MAX_JOB_DETAILS`
+## ✨ Routes You Actually Use
 
-## Local run
+- `/` Board
+- `/workspace` Setup, source registry, pipeline runs, and maintenance
+- `/profile` Profile + Evidence Vault
+- `/artifacts` Artifacts Hub
+- `/artifacts/editor/:jobUrl/:artifactType` LaTeX editor + preview + swarm modal
+- `/analytics` Funnel/cohort/velocity analytics
 
-### Backend
+---
+
+## ✨ Kanban Workflow
+
+Pipeline states:
+- `not_applied`
+- `staging`
+- `applied`
+- `interviewing`
+- `offer`
+- `rejected`
+
+Common first-run path:
+- open `/workspace`
+- add desired titles and skills in `/profile`
+- add or import sources
+- run scrape
+- review jobs on the board
+
+What happens here:
+- Drag/drop status updates are persisted.
+- Detail drawer lets you update tracking fields inline.
+- Job description, enrichment fields, and timeline are visible together.
+- Status sync keeps `jobs.application_status` and tracking state aligned.
+
+---
+
+## ✨ Artifact Workflow
+
+Artifacts are job-linked and versioned.
+
+Resume + cover letter editor supports:
+- LaTeX source editing
+- compile to PDF
+- side-by-side preview
+- swarm AI optimization run modal
+
+Swarm run UX shows:
+- stage timeline
+- score deltas per cycle
+- evidence retrieval snippets/citations
+- applied vs failed move outcomes
+- rollback events when compile safety triggers
+
+---
+
+## ✨ Resume Swarm (Operational Flow)
+
+`score -> rewrite -> verify_moves -> apply -> decide_next -> final_score`
+
+Key behavior:
+- LLM proposes bounded legal edits.
+- Deterministic verifier removes invalid/conflicting edits.
+- Deterministic apply enforces region safety + claim policy.
+- Controller gates decide whether to continue cycles.
+- Final score is produced after optimization.
+
+---
+
+## ✨ Cover-Letter Swarm (Operational Flow)
+
+`draft -> score -> rewrite -> verify_moves -> apply -> decide_next -> final_score`
+
+Key behavior:
+- Draft starts from JD + resume context.
+- Scoring and rewriting are bounded by legal move policy.
+- Tone guard can force a second pass if writing quality degrades.
+
+---
+
+## ✨ LaTeX Safety Model
+
+Why this is stable in production:
+
+1. Parse first
+- LaTeX is parsed into line/block IDs and editable regions.
+
+2. Legal moves only
+- No unrestricted text replacement.
+
+3. Claim validation
+- Unsupported claim introduction is blocked.
+- Citation-backed (`supported_by`) edits can be required.
+
+4. Compile guard rollback
+- If input compiles and post-edit output does not, final output reverts.
+
+---
+
+## ✨ Local Run
+
+Backend:
 
 ```bash
 uv run python src/dashboard/backend/main.py
 ```
 
-API is served at `http://127.0.0.1:8000`.
-
-### Frontend
+Frontend:
 
 ```bash
 cd src/dashboard/frontend
@@ -79,26 +134,14 @@ npm install
 npm run dev
 ```
 
-UI is served at `http://localhost:5173`.
+Frontend URL: `http://localhost:5173`
+Backend URL: `http://127.0.0.1:8000`
 
-If needed, override API base:
+---
 
-```bash
-# in frontend shell
-set VITE_API_BASE=http://127.0.0.1:8000
-npm run dev
-```
+## ✨ Related Docs
 
-## Compatibility notes
-
-- Existing scrape/eval CLI commands remain unchanged.
-- Dashboard writes tracking state and mirrors status into `jobs.application_status` for consistency with lifecycle CLI.
-- Dashboard backend requires Turso credentials (`TURSO_URL`, `TURSO_AUTH_TOKEN`) and does not fallback to local SQLite.
-- Match scoring rubric and weights: [`match-scoring.md`](match-scoring.md).
-
-## Board interaction primer
-
-- Controls are grouped under a single capsule that expands inline to reveal the current `View`, `Sort`, Filter popover (status/ATS/company/posted range), and search bar without increasing toolbar height; active filters light up a count badge on that capsule.
-- The `Suppressed`, `Add Job`, and `Refresh` buttons sit to the right with consistent spacing and fixed width so their affordances remain legible; adding a job opens the drawer immediately and quietly triggers background enrichment + forced board refresh once the LLM formatting completes.
-- The kanban grid spans roughly two viewport heights, so scrolling moves the entire board (columns and backlog note) together; each column keeps its cards aligned, and the side rail collapses to icons with hover tooltips until the user reopens it with the burger toggle.
-- Each column’s card list scrolls independently when it overflows, so “Applied” and the other stages surface their own scrollbar only if they contain more cards than fit in the viewport height.
+- [backend-api.md](backend-api.md)
+- [frontend-ui.md](frontend-ui.md)
+- [match-scoring.md](match-scoring.md)
+- [../evaluation/eval-framework.md](../evaluation/eval-framework.md)

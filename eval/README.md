@@ -1,10 +1,20 @@
-# Eval Framework
+# 🚀 Eval README
 
-Compares student enrichment models against a teacher model on real job descriptions and reports field-level extraction quality.
+This folder is where we prove changes are real, not vibes.
 
-Primary implementation: `eval/eval.py`.
+There are two evaluation tracks:
 
-## Core workflow
+1. Enrichment extraction quality (`eval/eval.py`)
+2. Swarm acceptance benchmark (`eval/swarm_benchmark.py`)
+
+---
+
+## ✨ Enrichment Eval (Teacher vs Students)
+
+Primary goal:
+- Compare student extraction models against a teacher model on real jobs.
+
+Run sequence:
 
 ```bash
 uv run python eval/eval.py crawl
@@ -14,96 +24,84 @@ uv run python eval/eval.py run
 uv run python eval/eval.py report
 ```
 
-## Command reference
+Outputs:
+- `eval/results/*.json`
+- `eval/results/checkpoint.json`
 
-### Crawl
+---
 
-```bash
-uv run python eval/eval.py crawl [--source-db PATH] [--db PATH] [--limit N]
-```
+## ✨ Swarm Acceptance Benchmark
 
-- Scrapes using broader title filter than production.
-- Disables location filtering.
-- Loads enabled company sources from source DB.
-- Saves crawled jobs to eval DB (`eval/eval_jobs.db` by default).
+Primary goal:
+- Validate resume + cover-letter swarm pipelines under production-like constraints.
 
-### Build
+Acceptance gates:
+- apply success > 70%
+- zero out-of-region edit violations
+- zero compile regressions
 
-```bash
-uv run python eval/eval.py build [--db PATH]
-```
-
-- Generates `eval/dataset.yaml` from eval DB.
-- Adds `segment` labels to `db_jobs`.
-- Preserves existing `manual_jobs` in dataset file.
-
-### Cost
+### 🔹 Build dataset
 
 ```bash
-uv run python eval/eval.py cost [--models MODEL ...] [--teacher MODEL]
+uv run python eval/swarm_benchmark.py build-dataset \
+  --out eval/swarm_dataset.yaml \
+  --limit 50 \
+  --statuses staging applied interviewing not_applied offer rejected archived
 ```
 
-- Estimates token/cost spend only.
-- Uses internal static pricing map with fallback values.
+Notes:
+- Uses Turso credentials from `.env`.
+- If artifact text is missing, benchmark builder now seeds fallback LaTeX templates so coverage stays high.
 
-### Run
+### 🔹 Run benchmark
 
 ```bash
-uv run python eval/eval.py run [--models MODEL ...] [--teacher MODEL] [--subset N] [--resume] [--workers N] [--provider-order PROVIDER ...]
+uv run python eval/swarm_benchmark.py run \
+  --dataset eval/swarm_dataset.yaml \
+  --cycles 2 \
+  --compile-check \
+  --out-dir eval/results
 ```
 
-- Requires `OPENROUTER_API_KEY`.
-- Runs teacher first, then each student model.
-- Writes checkpoint after each completed job.
-- Supports resume from checkpoint and partial model retries.
+Optional:
+- `--resume-only`
+- `--cover-letter-only`
+- `--limit N`
 
-### Report
+---
 
-```bash
-uv run python eval/eval.py report [results_file]
-```
+## ✨ What Swarm Benchmark Measures
 
-- Reads latest result file by default.
-- Prints model comparison tables and diagnostics.
+Per run:
+- applied edits
+- failed edits
+- out-of-region failures
+- compile before/after and regressions
+- initial/final score and score delta
 
-## Scored fields
+Aggregate:
+- apply success rate
+- out-of-region count
+- compile regression count/rate
+- score-delta distribution
+- pass/fail for acceptance gates
 
-Categorical:
+---
 
-- `work_mode`
-- `canada_eligible`
-- `seniority`
-- `role_family`
-- `visa_sponsorship`
+## ✨ Read the Results Quickly
 
-List (F1 + precision + recall diagnostics):
+- Summary markdown: `eval/results/swarm_benchmark_*.md`
+- Full details JSON: `eval/results/swarm_benchmark_*.json`
 
-- `required_skills`
-- `preferred_skills`
-- `red_flags`
+If gates fail, inspect:
+- `failed_move_reasons`
+- negative `score_delta` cases
+- per-artifact compile regression rows
 
-Numeric:
+---
 
-- `years_exp_min`
-- `years_exp_max`
+## ✨ Related Docs
 
-Salary:
-
-- `salary_min`
-- `salary_max`
-- `salary_currency`
-
-`remote_geo` is intentionally not scored.
-
-## Artifacts
-
-- Dataset: `eval/dataset.yaml`
-- Eval DB: `eval/eval_jobs.db` (git-ignored)
-- Results JSON: `eval/results/*.json` (git-ignored)
-- Checkpoint: `eval/results/checkpoint.json`
-
-## Additional references
-
-- Main docs index: [`../docs/INDEX.md`](../docs/INDEX.md)
-- Eval deep reference: [`../docs/evaluation/eval-framework.md`](../docs/evaluation/eval-framework.md)
-- CLI details: [`../docs/cli/eval.md`](../docs/cli/eval.md)
+- [../docs/evaluation/eval-framework.md](../docs/evaluation/eval-framework.md)
+- [../docs/cli/eval.md](../docs/cli/eval.md)
+- [../docs/dashboard/overview.md](../docs/dashboard/overview.md)

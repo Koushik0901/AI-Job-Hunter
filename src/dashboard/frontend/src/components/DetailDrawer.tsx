@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 import { Progress } from "./ui/progress";
 
 interface DetailDrawerProps {
@@ -34,10 +35,9 @@ interface DetailDrawerProps {
   enrichmentPending?: boolean;
   onClose: () => void;
   onAddSkillToProfile?: (skill: string) => Promise<void>;
-  onDeleteJob?: (url: string) => Promise<void>;
-  onSuppressJob?: (url: string, reason?: string) => Promise<void>;
-  onGenerateArtifacts?: (url: string) => Promise<void>;
-  onTailorArtifacts?: (url: string) => Promise<void>;
+  onDeleteJob?: (jobId: string) => Promise<void>;
+  onSuppressJob?: (jobId: string, reason?: string) => Promise<void>;
+  onGenerateArtifacts?: (jobId: string) => Promise<void>;
   onChangeTracking: (patch: {
     status?: TrackingStatus;
     priority?: Priority;
@@ -75,6 +75,14 @@ const DescriptionMarkdown = lazy(async () => import("./DescriptionMarkdown").the
 
 function valueOrDash(value: string | number | null | undefined): string {
   return value === null || value === undefined || value === "" ? "-" : String(value);
+}
+
+function todayLocalIsoDate(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function salaryLabel(job: JobDetail): string {
@@ -249,6 +257,38 @@ function requiredImpact(index: number, total: number): "critical" | "important" 
   return index < Math.ceil(total * 0.5) ? "critical" : "important";
 }
 
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf())) return value;
+  return parsed.toLocaleString();
+}
+
+function titleCaseLabel(value: string | null | undefined): string {
+  if (!value) return "-";
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function matchTone(job: JobDetail): "high" | "medium" | "low" | "pending" {
+  if (typeof job.match?.score !== "number") return "pending";
+  if (job.match.score >= 80) return "high";
+  if (job.match.score >= 60) return "medium";
+  return "low";
+}
+
+function matchLabel(job: JobDetail): string {
+  if (typeof job.match?.score !== "number") return "Match pending";
+  return `Match ${job.match.score}${job.match.band ? ` • ${titleCaseLabel(job.match.band)}` : ""}`;
+}
+
+function stagingSummary(job: JobDetail): string | null {
+  if (job.tracking_status !== "staging" || typeof job.staging_age_hours !== "number") return null;
+  if (job.staging_overdue) return `Overdue by ${Math.max(0, job.staging_age_hours - 48)}h`;
+  return `Due in ${Math.max(0, 48 - job.staging_age_hours)}h`;
+}
+
 export function DetailDrawer({
   open,
   loading,
@@ -266,7 +306,6 @@ export function DetailDrawer({
   onDeleteJob,
   onSuppressJob,
   onGenerateArtifacts,
-  onTailorArtifacts,
   onChangeTracking,
 }: DetailDrawerProps) {
   const requiredSkills = job?.enrichment ? cleanSkills(job.enrichment.required_skills) : [];
@@ -281,10 +320,26 @@ export function DetailDrawer({
   const [isSuppressConfirmOpen, setIsSuppressConfirmOpen] = useState(false);
   const [suppressReason, setSuppressReason] = useState("");
   const [suppressError, setSuppressError] = useState<string | null>(null);
+  const [draftStatus, setDraftStatus] = useState<TrackingStatus>("not_applied");
+  const [draftPriority, setDraftPriority] = useState<Priority>("medium");
+  const [trackingUpdating, setTrackingUpdating] = useState<false | "status" | "priority">(false);
+  const [overdueDialogOpen, setOverdueDialogOpen] = useState(false);
+  const [pendingTrackingPatch, setPendingTrackingPatch] = useState<{
+    priority?: Priority;
+    applied_at?: string | null;
+    next_step?: string | null;
+    target_compensation?: string | null;
+  } | null>(null);
+  const [overdueActionBusy, setOverdueActionBusy] = useState(false);
   useEffect(() => {
     setSkillActionState({});
     setOptimisticSkillAdds({});
   }, [job?.url]);
+  useEffect(() => {
+    if (!job) return;
+    setDraftStatus(job.tracking_status);
+    setDraftPriority(job.priority);
+  }, [job?.priority, job?.tracking_status, job?.url]);
   useEffect(() => {
     setDeleteError(null);
     setIsDeleting(false);
@@ -293,6 +348,9 @@ export function DetailDrawer({
     setIsSuppressing(false);
     setIsSuppressConfirmOpen(false);
     setSuppressReason("");
+    setOverdueDialogOpen(false);
+    setPendingTrackingPatch(null);
+    setOverdueActionBusy(false);
   }, [job?.url]);
   useEffect(() => {
     function onEscape(event: KeyboardEvent): void {
@@ -458,7 +516,7 @@ export function DetailDrawer({
     setDeleteError(null);
     setIsDeleting(true);
     try {
-      await onDeleteJob(job.url);
+      await onDeleteJob(job.id);
       setIsDeleteConfirmOpen(false);
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : "Failed to delete job");
@@ -471,11 +529,95 @@ export function DetailDrawer({
     setSuppressError(null);
     setIsSuppressing(true);
     try {
-      await onSuppressJob(job.url, suppressReason);
+      await onSuppressJob(job.id, suppressReason);
       setIsSuppressConfirmOpen(false);
     } catch (error) {
       setSuppressError(error instanceof Error ? error.message : "Failed to suppress job");
       setIsSuppressing(false);
+    }
+  }
+
+  async function handleStatusChange(next: TrackingStatus): Promise<void> {
+    if (!job || trackingUpdating) return;
+    const previous = draftStatus;
+    setDraftStatus(next);
+    setTrackingUpdating("status");
+    try {
+      await onChangeTracking({
+        status: next,
+        applied_at: next === "applied" ? todayLocalIsoDate() : undefined,
+      });
+    } catch {
+      setDraftStatus(previous);
+    } finally {
+      setTrackingUpdating(false);
+    }
+  }
+
+  async function applyTrackingPatchWithOverdueGate(patch: {
+    priority?: Priority;
+    applied_at?: string | null;
+    next_step?: string | null;
+    target_compensation?: string | null;
+  }): Promise<void> {
+    if (!job) return;
+    if (job.tracking_status === "staging" && job.staging_overdue) {
+      setPendingTrackingPatch(patch);
+      setOverdueDialogOpen(true);
+      return;
+    }
+    await onChangeTracking(patch);
+  }
+
+  async function handlePriorityChange(next: Priority): Promise<void> {
+    if (!job || trackingUpdating) return;
+    if (job.tracking_status === "staging" && job.staging_overdue) {
+      setPendingTrackingPatch({ priority: next });
+      setOverdueDialogOpen(true);
+      return;
+    }
+    const previous = draftPriority;
+    setDraftPriority(next);
+    setTrackingUpdating("priority");
+    try {
+      await onChangeTracking({ priority: next });
+    } catch {
+      setDraftPriority(previous);
+    } finally {
+      setTrackingUpdating(false);
+    }
+  }
+
+  async function keepInStagingAndApplyPendingPatch(): Promise<void> {
+    if (!pendingTrackingPatch) {
+      setOverdueDialogOpen(false);
+      return;
+    }
+    setOverdueActionBusy(true);
+    try {
+      if (typeof pendingTrackingPatch.priority === "string") {
+        setDraftPriority(pendingTrackingPatch.priority);
+      }
+      await onChangeTracking(pendingTrackingPatch);
+      setOverdueDialogOpen(false);
+      setPendingTrackingPatch(null);
+    } finally {
+      setOverdueActionBusy(false);
+    }
+  }
+
+  async function resolveOverdueByStatus(next: TrackingStatus): Promise<void> {
+    setOverdueActionBusy(true);
+    try {
+      setDraftStatus(next);
+      await onChangeTracking({
+        status: next,
+        applied_at: next === "applied" ? todayLocalIsoDate() : undefined,
+      });
+      setOverdueDialogOpen(false);
+      setPendingTrackingPatch(null);
+    } finally {
+      setOverdueActionBusy(false);
     }
   }
   const descriptionText = job?.enrichment?.formatted_description || job?.description || "";
@@ -492,72 +634,159 @@ export function DetailDrawer({
           <motion.div
             initial={{ x: 42, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            transition={{ duration: 0.28, ease: "easeOut" }}
+            transition={{ duration: 0.34, ease: [0.2, 0.85, 0.2, 1] }}
             className="drawer-inner"
           >
-            <div className="drawer-top">
-              <h2>{job.title}</h2>
-              <button type="button" onClick={onClose} className="ghost-btn" data-icon="×">Close</button>
-            </div>
-            <p className="drawer-company">{job.company}</p>
-            <a href={job.url} target="_blank" rel="noreferrer" className="external-link">Open Original Posting</a>
+            <header className="drawer-hero">
+              <div className="drawer-hero-copy">
+                <div className="drawer-hero-meta">
+                  <span className={`drawer-status-pill status-${job.tracking_status.replaceAll("_", "-")}`}>
+                    {titleCaseLabel(job.tracking_status)}
+                  </span>
+                  <span className={`drawer-priority-pill priority-${job.priority ?? "medium"}`}>
+                    {titleCaseLabel(job.priority ?? "medium")} priority
+                  </span>
+                </div>
+                <div className="drawer-top">
+                  <h2>{job.title}</h2>
+                  <Button type="button" onClick={onClose} variant="default" data-icon="×">Close</Button>
+                </div>
+                <p className="drawer-company">
+                  {job.company}
+                  {job.location ? <span> • {job.location}</span> : null}
+                </p>
+                <div className="drawer-summary-chips">
+                  <span className={`drawer-summary-chip tone-match match-${matchTone(job)}`}>{matchLabel(job)}</span>
+                  {job.desired_title_match ? <span className="drawer-summary-chip tone-match match-high">Desired title match</span> : null}
+                  <span className="drawer-summary-chip tone-ats">{job.ats || "ATS"}</span>
+                  <span className="drawer-summary-chip tone-date">Posted {formatDateTime(job.posted)}</span>
+                  {stagingSummary(job) ? (
+                    <span className={`drawer-summary-chip tone-sla ${job.staging_overdue ? "overdue" : "due-soon"}`}>
+                      {stagingSummary(job)}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="drawer-summary-facts">
+                  <span>Tracking updated {formatDateTime(job.tracking_updated_at)}</span>
+                  <span>Applied {formatDateTime(job.applied_at)}</span>
+                  <span>Target {valueOrDash(job.target_compensation)}</span>
+                </div>
+              </div>
+              <div className="drawer-hero-actions">
+                <a href={job.url} target="_blank" rel="noreferrer" className="external-link drawer-link-cta">Open original posting</a>
+              </div>
+            </header>
 
-            <div className="drawer-grid">
-              <label>
-                <span>Status</span>
-                <ThemedSelect
-                  value={job.tracking_status}
-                  options={STATUS_OPTIONS}
-                  onChange={(value) => void onChangeTracking({ status: value as TrackingStatus })}
-                  ariaLabel="Tracking status"
-                />
-              </label>
-              <label>
-                <span>Priority</span>
-                <ThemedSelect
-                  value={job.priority}
-                  options={PRIORITY_SELECT_OPTIONS}
-                  onChange={(value) => void onChangeTracking({ priority: value as Priority })}
-                  ariaLabel="Priority"
-                />
-              </label>
-              <label>
-                <span>Applied Date</span>
-                <input
-                  type="date"
-                  value={job.applied_at ?? ""}
-                  onChange={(event) => void onChangeTracking({ applied_at: event.target.value || null })}
-                />
-              </label>
-              <label>
-                <span>Target Compensation</span>
-                <input
-                  key={`target-comp-${job.url}`}
-                  type="text"
-                  defaultValue={job.target_compensation ?? ""}
-                  onBlur={(event) => void onChangeTracking({ target_compensation: event.target.value || null })}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      void onChangeTracking({ target_compensation: (event.target as HTMLInputElement).value || null });
-                    }
-                  }}
-                />
-              </label>
-              <label className="full-width">
-                <span>Next Step</span>
-                <input
-                  key={`next-step-${job.url}`}
-                  type="text"
-                  defaultValue={job.next_step ?? ""}
-                  onBlur={(event) => void onChangeTracking({ next_step: event.target.value || null })}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      void onChangeTracking({ next_step: (event.target as HTMLInputElement).value || null });
-                    }
-                  }}
-                />
-              </label>
-            </div>
+            <section className="drawer-control-panel">
+              <div className="drawer-control-head">
+                <div>
+                  <p className="drawer-section-kicker">Pipeline controls</p>
+                  <h3>Keep this role moving</h3>
+                </div>
+              </div>
+              <div className="drawer-grid">
+                <label>
+                  <span>Status</span>
+                  <ThemedSelect
+                    value={draftStatus}
+                    options={STATUS_OPTIONS}
+                    onChange={(value) => void handleStatusChange(value as TrackingStatus)}
+                    ariaLabel="Tracking status"
+                    disabled={trackingUpdating !== false}
+                  />
+                </label>
+                <label>
+                  <span>Priority</span>
+                  <ThemedSelect
+                    value={draftPriority}
+                    options={PRIORITY_SELECT_OPTIONS}
+                    onChange={(value) => void handlePriorityChange(value as Priority)}
+                    ariaLabel="Priority"
+                    disabled={trackingUpdating !== false}
+                  />
+                </label>
+                <label>
+                  <span>Applied Date</span>
+                  <input
+                    type="date"
+                    value={job.applied_at ?? ""}
+                    onChange={(event) => void applyTrackingPatchWithOverdueGate({ applied_at: event.target.value || null })}
+                  />
+                </label>
+                <label>
+                  <span>Target Compensation</span>
+                  <input
+                    key={`target-comp-${job.url}`}
+                    type="text"
+                    defaultValue={job.target_compensation ?? ""}
+                    onBlur={(event) => void applyTrackingPatchWithOverdueGate({ target_compensation: event.target.value || null })}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        void applyTrackingPatchWithOverdueGate({ target_compensation: (event.target as HTMLInputElement).value || null });
+                      }
+                    }}
+                  />
+                </label>
+                <label className="full-width">
+                  <span>Next Step</span>
+                  <input
+                    key={`next-step-${job.url}`}
+                    type="text"
+                    defaultValue={job.next_step ?? ""}
+                    onBlur={(event) => void applyTrackingPatchWithOverdueGate({ next_step: event.target.value || null })}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        void applyTrackingPatchWithOverdueGate({ next_step: (event.target as HTMLInputElement).value || null });
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+            </section>
+
+            {job.tracking_status === "staging" && (
+              <section className="detail-block">
+                <h3>Staging SLA (48h)</h3>
+                <div className="fact-grid">
+                  <p>
+                    <strong>Entered:</strong> {formatDateTime(job.staging_entered_at)}
+                  </p>
+                  <p>
+                    <strong>Due:</strong> {formatDateTime(job.staging_due_at)}
+                  </p>
+                  <p>
+                    <strong>State:</strong> {job.staging_overdue ? "Overdue" : "On track"}
+                  </p>
+                  {typeof job.staging_age_hours === "number" && (
+                    <p>
+                      <strong>Age:</strong> {job.staging_age_hours}h
+                    </p>
+                  )}
+                </div>
+                <div className="fact-grid-actions">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="compact"
+                    data-icon="✓"
+                    disabled={trackingUpdating !== false}
+                    onClick={() => void handleStatusChange("applied")}
+                  >
+                    Mark Applied
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="compact"
+                    data-icon="✕"
+                    disabled={trackingUpdating !== false}
+                    onClick={() => void handleStatusChange("rejected")}
+                  >
+                    Mark Rejected
+                  </Button>
+                </div>
+              </section>
+            )}
 
             <section className="detail-block">
               <h3>Artifacts</h3>
@@ -565,7 +794,9 @@ export function DetailDrawer({
                 {["resume", "cover_letter"].map((kind) => {
                   const artifact = artifacts.find((item) => item.artifact_type === kind);
                   const label = kind === "resume" ? "Resume" : "Cover Letter";
-                  const openHref = `/jobs/${encodeURIComponent(job.url)}/artifacts/${kind}`;
+                  const openHref = kind === "resume"
+                    ? `/jobs/${encodeURIComponent(job.id)}/artifacts/resume`
+                    : `/jobs/${encodeURIComponent(job.id)}/artifacts/cover-letter`;
                   return (
                     <p key={kind}>
                       <strong>{label}:</strong>{" "}
@@ -591,27 +822,17 @@ export function DetailDrawer({
               ) : artifactsLoading && artifacts.length === 0 ? (
                 <p className="empty-text">Loading artifacts...</p>
               ) : artifacts.length === 0 ? (
-                <button
+                <Button
                   type="button"
-                  className="ghost-btn compact"
+                  variant="default"
+                  size="compact"
                   data-icon="＋"
-                  onClick={() => job && onGenerateArtifacts ? void onGenerateArtifacts(job.url) : undefined}
+                  onClick={() => job && onGenerateArtifacts ? void onGenerateArtifacts(job.id) : undefined}
                   disabled={!onGenerateArtifacts || artifactsLoading || artifactsGenerating}
                 >
                   Generate starter drafts
-                </button>
+                </Button>
               ) : null}
-              {artifacts.length > 0 && (
-                <button
-                  type="button"
-                  className="ghost-btn compact primary"
-                  data-icon="✨"
-                  onClick={() => job && onTailorArtifacts ? void onTailorArtifacts(job.url) : undefined}
-                  disabled={!onTailorArtifacts}
-                >
-                  Tailor both artifacts
-                </button>
-              )}
             </section>
 
             <section className="detail-block">
@@ -862,7 +1083,7 @@ export function DetailDrawer({
               </button>
             </section>
 
-            <section className="detail-block">
+            <section className="detail-block detail-block-danger">
               <h3>Danger Zone</h3>
               <p className="empty-text detail-block-note">This permanently removes the job and linked records from the database.</p>
               {deleteError && <p className="delete-error">{deleteError}</p>}
@@ -891,6 +1112,51 @@ export function DetailDrawer({
         )}
       </aside>
 
+      <AlertDialog open={overdueDialogOpen} onOpenChange={setOverdueDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>This job is overdue in Staging</AlertDialogTitle>
+            <AlertDialogDescription>
+              This role has been in staging for more than 48 hours. Move it to Applied or Rejected, or explicitly keep it in Staging.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              type="button"
+              variant="primary"
+              size="compact"
+              data-icon="✓"
+              disabled={overdueActionBusy}
+              onClick={() => void resolveOverdueByStatus("applied")}
+            >
+              Mark Applied
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="compact"
+              data-icon="✕"
+              disabled={overdueActionBusy}
+              onClick={() => void resolveOverdueByStatus("rejected")}
+            >
+              Mark Rejected
+            </Button>
+            <AlertDialogCancel
+              asChild
+              disabled={overdueActionBusy}
+              onClick={(event) => {
+                event.preventDefault();
+                void keepInStagingAndApplyPendingPatch();
+              }}
+            >
+              <Button type="button" variant="default" size="compact" data-icon="↺">
+                Keep in Staging
+              </Button>
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -901,7 +1167,9 @@ export function DetailDrawer({
           </AlertDialogHeader>
           {deleteError && <p className="confirm-modal-error">{deleteError}</p>}
           <AlertDialogFooter>
-            <AlertDialogCancel className="ghost-btn compact" data-icon="×" disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel asChild disabled={isDeleting}>
+              <Button type="button" variant="default" size="compact" data-icon="×">Cancel</Button>
+            </AlertDialogCancel>
             <AlertDialogAction className="confirm-delete-btn" onClick={() => void handleDeleteJob()} disabled={isDeleting}>
               {isDeleting ? "Deleting..." : "Delete Job"}
             </AlertDialogAction>
@@ -928,7 +1196,9 @@ export function DetailDrawer({
           </label>
           {suppressError && <p className="confirm-modal-error">{suppressError}</p>}
           <AlertDialogFooter>
-            <AlertDialogCancel className="ghost-btn compact" data-icon="×" disabled={isSuppressing}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel asChild disabled={isSuppressing}>
+              <Button type="button" variant="default" size="compact" data-icon="×">Cancel</Button>
+            </AlertDialogCancel>
             <AlertDialogAction className="confirm-delete-btn" onClick={() => void handleSuppressJob()} disabled={isSuppressing}>
               {isSuppressing ? "Saving..." : "Suppress Job"}
             </AlertDialogAction>

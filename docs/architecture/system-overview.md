@@ -1,72 +1,65 @@
-# System Overview
+# 🚀 System Overview
 
-## Major modules
+The repo has one mission: move from job discovery to high-quality application artifacts with measurable safety.
 
-- `src/cli.py`: top-level CLI entrypoint and command router.
-- `src/commands/scrape_jobs.py`: scrape pipeline command implementation.
-- `src/commands/company_sources.py`: source registry command implementation.
-- `src/commands/job_lifecycle.py`: lifecycle status and retention command implementation.
-- `src/services/scrape_service.py`: filtering rules, scrape orchestration helpers, table rendering.
-- `src/services/probe_service.py`: ATS slug probing and job-count probes.
-- `src/services/company_source_service.py`: source import/list helpers.
-- `src/fetchers.py`: ATS/HN ingestion, normalizers, description retrieval.
-- `src/db.py`: SQLite/Turso persistence and schema migrations.
-- `src/enrich.py`: OpenRouter + LangChain + Pydantic extraction pipeline.
-- `src/match_score.py`: deterministic job-to-profile scoring rubric implementation.
-- `src/notify.py`: dotenv loader and Telegram send pipeline.
-- `src/add_company.py`: interactive/non-interactive ATS discovery + DB source upsert.
-- `src/dashboard/backend/*`: FastAPI API layer for tracker dashboard.
-- `src/dashboard/frontend/*`: React/Vite dashboard UI (kanban + detail drawer + dual-theme UX).
-- `eval/eval.py`: model evaluation framework over crawled dataset.
+---
 
-## CLI architecture
+## ✨ Main Runtime Layers
 
-Top-level command:
+1. CLI pipeline (`src/cli.py`)
+- Scraping
+- Source management
+- Lifecycle pruning/status updates
 
-```bash
-uv run python src/cli.py <command>
-```
+2. Dashboard backend (`src/dashboard/backend`)
+- Job/tracking/profile/events APIs
+- Artifact CRUD and compile APIs
+- Swarm run orchestration and run-event persistence
 
-Supported commands:
+3. Dashboard frontend (`src/dashboard/frontend`)
+- Board, Profile, Artifacts, Analytics
+- Editor + swarm timeline UX
 
-- `scrape`: daily scrape + optional description/enrichment/notify.
-- `sources`: source registry (`list`, `enable`, `disable`, `check`, `import`).
-- `lifecycle`: status + retention (`set-status`, `prune`).
+4. Evaluation (`eval/`)
+- extraction model eval
+- swarm acceptance benchmark
 
-## Core runtime responsibilities
+---
 
-1. Discover source jobs from ATS and HN.
-2. Normalize records to shared job schema.
-3. Filter by title and location rules.
-4. Fetch detailed description text.
-5. Persist jobs and classify new vs updated.
-6. Notify Telegram for new jobs.
-7. Enrich new or backfilled jobs into structured metadata.
-8. Compute profile-based job match score and ranking.
-9. Maintain source registry, lifecycle state, and candidate profile in DB.
+## ✨ Swarm Subsystems
 
-## Shared job record shape
+- `resume_agents_swarm/`
+- `cover_letter_agents_swarm/`
 
-Common keys used across modules:
+Both follow bounded loops with deterministic gates:
+- score
+- rewrite
+- verify
+- apply
+- gate/decide
+- final score
 
-- `company`
-- `title`
-- `location`
-- `url`
-- `posted`
-- `ats`
-- `description`
+No free-form patching is accepted.
 
-Fetcher-specific transient keys (prefixed `_`) are injected to support second-stage description fetches.
+---
 
-## Key runtime assumptions
+## ✨ Persistence Backbone
 
-- Execution from repository root for default path behavior.
-- Network availability to ATS, HN, Telegram, and OpenRouter.
-- `TURSO_URL` indicates remote DB mode; otherwise local SQLite.
-- Source of truth for scrape targets is DB table `company_sources`.
+Core tables:
+- jobs/tracking/events
+- profile + evidence assets
+- artifacts + versions + suggestions
+- swarm runs + run events
 
-## Non-goals
+Optional infra:
+- Redis for API caching
+- Qdrant for vector retrieval
 
-- Dashboard is intentionally scoped to tracking/review workflows, not scrape orchestration controls.
-- No backward compatibility shim for removed `src/scrape.py` legacy entrypoint.
+---
+
+## ✨ Design Principles
+
+- Determinism before cleverness.
+- Evidence-grounded edits only.
+- Compile-safe outputs only.
+- Every decision leaves an inspectable trace.

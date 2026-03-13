@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from rich.console import Console
+from rich.table import Table
 
 from db import init_db, set_company_source_enabled
 from services.company_source_service import import_companies, list_companies_table
-from services.probe_service import check_company
+from services.company_registry_service import probe_company_sources
 
 
 def register(subparsers) -> None:
@@ -41,7 +43,35 @@ def _resolve_db(path_override: str | None):
 
 def run(args) -> None:
     if args.sources_cmd == "check":
-        check_company(args.slug)
+        console = Console()
+        result = probe_company_sources(args.slug, extra_slugs=[args.slug])
+        matches = list(result.get("matches") or [])
+        zero_job_matches = list(result.get("zero_job_matches") or [])
+        if not matches:
+            if zero_job_matches:
+                console.print(
+                    f"[yellow]No boards with active job listings found for '{args.slug}'.[/yellow]"
+                )
+                console.print(
+                    f"[dim]{len(zero_job_matches)} hit(s) with 0 jobs were suppressed.[/dim]"
+                )
+            else:
+                console.print(f"[yellow]No ATS board found for '{args.slug}'.[/yellow]")
+            return
+
+        table = Table(title=f"ATS boards found for '{args.slug}'", show_header=True)
+        table.add_column("Slug", style="cyan")
+        table.add_column("ATS", style="green")
+        table.add_column("Jobs", justify="right")
+        table.add_column("URL")
+        for match in matches:
+            table.add_row(
+                str(match.get("slug") or ""),
+                str(match.get("ats_type") or ""),
+                str(int(match.get("jobs", 0) or 0)),
+                str(match.get("ats_url") or ""),
+            )
+        console.print(table)
         return
 
     db_url, db_token = _resolve_db(args.db)

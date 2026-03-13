@@ -11,3 +11,9 @@ export function Textarea({
   return <textarea className={joinClasses("ui-textarea", className)} {...props} />;
 }
 
+export const TextareaWithRef = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
+  ({ className, ...props }, ref) => (
+    <textarea ref={ref} className={joinClasses("ui-textarea", className)} {...props} />
+  ),
+);
+TextareaWithRef.displayName = "TextareaWithRef";

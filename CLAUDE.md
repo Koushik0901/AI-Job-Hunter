@@ -60,6 +60,12 @@ src/
 |- db.py                   # SQLite/Turso persistence + migrations
 |- enrich.py               # LLM enrichment pipeline
 |- notify.py               # dotenv helper + Telegram send
+|- dashboard/backend/
+|  |- main.py              # FastAPI dashboard + artifact AI run endpoints
+|  |- evidence_index.py    # lexical/qdrant evidence retrieval + reindex
+|  |- claim_validator.py   # grounded claim policy + citation checks
+|  |- resume_agents_swarm/          # resume optimization graph + apply engine
+|  |- cover_letter_agents_swarm/    # cover-letter draft/score/rewrite graph
 |- commands/
 |  |- scrape_jobs.py       # scrape subcommand
 |  |- company_sources.py   # sources subcommand
@@ -84,6 +90,43 @@ eval/
 - `enrich_one_job()` raises `RateLimitSignal` only after provider retries are exhausted.
 - DB migrations use additive `ALTER TABLE ... ADD COLUMN` in `init_db()` with safe guards.
 - Prefer ASCII in terminal output for Windows compatibility.
+- All artifact AI prompts must remain in YAML files under `prompts/`; do not hardcode prompt bodies in Python.
+- For artifact AI rewrites, legal-move outputs are preferred over free-form rewrites.
+
+## Artifact AI (Resume + Cover Letter)
+
+- Resume and cover-letter pipelines are LangGraph-driven with stage flow:
+  - score -> rewrite -> verify_moves -> apply -> decide_next -> final_score
+- Cover letter pipeline also includes deterministic draft injection and tone guard checks.
+- Runtime run state is persisted in DB:
+  - `artifact_ai_runs`
+  - `artifact_ai_run_events`
+- Evidence grounding sources:
+  - `evidence_context`
+  - `brag_document_markdown`
+  - `project_cards`
+  - `do_not_claim`
+- Truth precedence:
+  1) evidence context
+  2) current LaTeX content
+  3) brag/project cards
+
+### Grounding enforcement
+
+- Claim validator blocks:
+  - unsupported technical keywords
+  - lower-precedence-only technical keywords
+  - missing/invalid citation evidence for claim-introducing edits
+- Rewrite ops may include `supported_by: [citation_ids]` and should be preferred.
+
+### Controller gates
+
+- Acceptance gates are configured via env:
+  - min score delta
+  - max ops per cycle
+  - max changed-line ratio
+  - force continue on non-negotiables
+- Cover-letter controller can force another cycle when tone-guard triggers.
 
 ## Source registry model
 
@@ -121,6 +164,12 @@ Lifecycle pruning:
 - `TURSO_AUTH_TOKEN` (required with Turso)
 - `OPENROUTER_API_KEY` (optional; required for enrichment/eval API runs)
 - `ENRICHMENT_MODEL` (optional, default `openai/gpt-oss-120b`)
+- `RESUME_SWARM_SCORING_MODEL`, `RESUME_SWARM_REWRITE_MODEL`
+- `COVER_LETTER_SWARM_DRAFT_MODEL`, `COVER_LETTER_SWARM_SCORING_MODEL`, `COVER_LETTER_SWARM_REWRITE_MODEL`
+- `SWARM_MIN_SCORE_DELTA`, `SWARM_MAX_OPS_PER_CYCLE`, `SWARM_MAX_CHANGED_LINE_RATIO`, `SWARM_FORCE_ON_NON_NEGOTIABLES`
+- `EVIDENCE_RETRIEVAL_MODE`, `EVIDENCE_MAX_TOP_K`, `EVIDENCE_MIN_LEXICAL_OVERLAP`, `EVIDENCE_MIN_VECTOR_SCORE`
+- `QDRANT_URL`, `QDRANT_API_KEY`, `QDRANT_EVIDENCE_COLLECTION`
+- `EVIDENCE_EMBED_MODEL`, `EVIDENCE_EMBED_CACHE_PATH`
 
 ## Known gotchas
 

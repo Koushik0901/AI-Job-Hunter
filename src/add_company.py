@@ -2,10 +2,10 @@
 add_company.py — Discover which ATS platform a company uses and add it to DB.
 
 Usage:
-    uv run python src/add_company.py "Hugging Face"
-    uv run python src/add_company.py "Scale AI" --slug scaleai
-    uv run python src/add_company.py "OpenAI" --slug openai --add
-    uv run python src/add_company.py "Toyota" --slug tri --slug toyota-research
+    uv run python src/add_company.py "Example Company"
+    uv run python src/add_company.py "Acme Robotics" --slug acme-robotics
+    uv run python src/add_company.py "Example Company" --slug example-company --add
+    uv run python src/add_company.py "Example Company" --slug example-jobs --slug example-careers
 """
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ import os
 import re
 import sys
 from pathlib import Path
-from urllib.parse import urlparse
 
 from rich.console import Console
 from rich.markup import escape
@@ -25,116 +24,8 @@ from rich.table import Table
 sys.path.insert(0, str(Path(__file__).parent))
 
 from notify import _load_dotenv
-from db import find_company_by_url_or_slug_segment, init_db, upsert_company_source
-from services.probe_service import probe_all
-
-# ---------------------------------------------------------------------------
-# Canonical ATS URL templates (one per platform, no query params)
-# ---------------------------------------------------------------------------
-
-_ATS_URL_TEMPLATES: dict[str, str] = {
-    "greenhouse":      "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs",
-    "lever":           "https://api.lever.co/v0/postings/{slug}",
-    "ashby":           "https://jobs.ashbyhq.com/{slug}",
-    "workable":        "https://apply.workable.com/api/v3/accounts/{slug}/jobs",
-    "smartrecruiters": "https://api.smartrecruiters.com/v1/companies/{slug}/postings",
-    "recruitee":       "https://{slug}.recruitee.com/api/offers",
-}
-
-# Common corporate suffixes to strip when generating slug candidates
-_CORPORATE_SUFFIXES = {
-    "inc", "llc", "ltd", "corp", "corporation",
-    "technologies", "technology", "systems", "solutions",
-    "group", "labs", "software",
-}
-
-
-# ---------------------------------------------------------------------------
-# Slug candidate generation
-# ---------------------------------------------------------------------------
-
-def _candidate_slugs(name: str) -> list[str]:
-    """Generate up to ~8 slug candidates from a company name."""
-    slugs: list[str] = []
-    seen: set[str] = set()
-
-    def _add(s: str) -> None:
-        s = s.strip("-").strip()
-        if s and s not in seen:
-            seen.add(s)
-            slugs.append(s)
-
-    def _variants(base: str) -> None:
-        tokens = base.lower().split()
-        if not tokens:
-            return
-        # joined — strip non-alphanumeric entirely: "hugging face" → "huggingface"
-        joined = re.sub(r"[^a-z0-9]", "", "".join(tokens))
-        _add(joined)
-        # hyphenated — tokens with hyphens: "hugging face" → "hugging-face"
-        hyphenated = "-".join(re.sub(r"[^a-z0-9]", "", t) for t in tokens if t)
-        _add(hyphenated)
-        # first word only: "hugging face" → "hugging"
-        first = re.sub(r"[^a-z0-9]", "", tokens[0])
-        _add(first)
-
-    _variants(name)
-
-    # Suffix-stripped form
-    tokens = name.lower().split()
-    stripped = [t for t in tokens if t not in _CORPORATE_SUFFIXES]
-    if stripped and stripped != tokens:
-        _variants(" ".join(stripped))
-
-    return slugs
-
-
-def _extract_slug_from_careers_url(value: str) -> tuple[str, str] | None:
-    """Infer (ats, slug) from a careers URL when possible."""
-    raw = (value or "").strip()
-    if not raw.startswith(("http://", "https://")):
-        return None
-
-    parsed = urlparse(raw)
-    host = (parsed.netloc or "").lower()
-    parts = [p for p in parsed.path.split("/") if p]
-
-    if "apply.workable.com" in host and parts:
-        slug = parts[0].strip().lower()
-        if slug and slug not in {"api", "jobs"}:
-            return ("workable", slug)
-
-    if host.endswith(".recruitee.com"):
-        slug = host.split(".")[0].strip().lower()
-        if slug:
-            return ("recruitee", slug)
-
-    if "greenhouse.io" in host and parts:
-        slug = parts[0].strip().lower()
-        if slug and slug not in {"v1", "boards", "job-boards", "boards-api"}:
-            return ("greenhouse", slug)
-
-    if host.endswith("jobs.lever.co") and parts:
-        slug = parts[0].strip().lower()
-        if slug:
-            return ("lever", slug)
-
-    if host.endswith("jobs.ashbyhq.com") and parts:
-        slug = parts[0].strip().lower()
-        if slug:
-            return ("ashby", slug)
-
-    if host.endswith("apply.smartrecruiters.com") and parts:
-        slug = parts[0].strip().lower()
-        if slug:
-            return ("smartrecruiters", slug)
-
-    return None
-
-
-# ---------------------------------------------------------------------------
-# Concurrent ATS probing
-# ---------------------------------------------------------------------------
+from db import init_db
+from services.company_registry_service import annotate_existing_company_sources, probe_company_sources, save_company_source
 
 # ---------------------------------------------------------------------------
 # main
@@ -146,13 +37,13 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
-  uv run python src/add_company.py "Hugging Face"
-  uv run python src/add_company.py "Scale AI" --slug scaleai
-  uv run python src/add_company.py "OpenAI" --slug openai --add
-  uv run python src/add_company.py "Toyota" --slug tri --slug toyota-research
+  uv run python src/add_company.py "Example Company"
+  uv run python src/add_company.py "Acme Robotics" --slug acme-robotics
+  uv run python src/add_company.py "Example Company" --slug example-company --add
+  uv run python src/add_company.py "Example Company" --slug example-jobs --slug example-careers
 """,
     )
-    parser.add_argument("company", help="Company name to look up (e.g. 'Hugging Face')")
+    parser.add_argument("company", help="Company name or careers URL to look up (e.g. 'Example Company')")
     parser.add_argument(
         "--slug", action="append", default=[], metavar="SLUG",
         help="Extra slug to probe (repeatable); appended after auto-generated candidates",
@@ -181,42 +72,19 @@ examples:
 
     console = Console()
 
-    inferred = _extract_slug_from_careers_url(args.company)
-    company_name_for_db = args.company
-    url_templates = _ATS_URL_TEMPLATES
-
+    probe = probe_company_sources(args.company, extra_slugs=args.slug)
+    company_name_for_db = str(probe.get("company_name") or args.company)
+    inferred = probe.get("inferred")
     if inferred:
-        inferred_ats, inferred_slug = inferred
-        if inferred_slug not in args.slug:
-            args.slug.insert(0, inferred_slug)
-        url_templates = {inferred_ats: _ATS_URL_TEMPLATES[inferred_ats]}
-        company_name_for_db = inferred_slug.replace("-", " ").title()
         console.print(
-            f"[dim]Detected careers URL -> ATS: {inferred_ats}, slug: {inferred_slug}[/dim]"
+            f"[dim]Detected careers URL -> ATS: {inferred['ats_type']}, slug: {inferred['slug']}[/dim]"
         )
 
-    # 1. Build slug candidates
-    candidates = _candidate_slugs(company_name_for_db)
-    for s in args.slug:
-        if s not in candidates:
-            candidates.append(s)
-
+    candidates = [str(slug) for slug in probe.get("slugs") or []]
     console.print(f"\n[dim]Trying slugs:[/dim] {', '.join(candidates)}\n")
 
-    # 2. Probe concurrently
-    hits = probe_all(candidates, url_templates)
-
-    # 3. Deduplicate by ats_url, sort for consistent display
-    seen_urls: set[str] = set()
-    unique_hits: list[dict] = []
-    for h in sorted(hits, key=lambda x: (x["ats"], x["slug"])):
-        if h["ats_url"] not in seen_urls:
-            seen_urls.add(h["ats_url"])
-            unique_hits.append(h)
-
-    # 4. Split real hits (jobs > 0) from zero-job hits (SmartRecruiters/Workable false positives)
-    real_hits = [h for h in unique_hits if h["jobs"] > 0]
-    zero_hits = [h for h in unique_hits if h["jobs"] == 0]
+    real_hits = annotate_existing_company_sources(conn, list(probe.get("matches") or []))
+    zero_hits = list(probe.get("zero_job_matches") or [])
 
     if not real_hits:
         if zero_hits:
@@ -243,11 +111,11 @@ examples:
     table.add_column("Jobs", justify="right")
     table.add_column("URL")
     for i, h in enumerate(real_hits, 1):
-        table.add_row(str(i), h["slug"], h["ats"], str(h["jobs"]), h["ats_url"])
+        table.add_row(str(i), h["slug"], h["ats_type"], str(h["jobs"]), h["ats_url"])
     console.print(table)
 
     if zero_hits:
-        names = ", ".join(f"{h['ats']}:{h['slug']}" for h in zero_hits)
+        names = ", ".join(f"{h['ats_type']}:{h['slug']}" for h in zero_hits)
         console.print(
             f"[dim]  {len(zero_hits)} zero-job hit(s) hidden (false positives): {names}[/dim]"
         )
@@ -255,7 +123,7 @@ examples:
     # 5. Filter out entries already in DB (by URL or by slug in existing URL)
     new_hits: list[dict] = []
     for h in real_hits:
-        existing_name = find_company_by_url_or_slug_segment(conn, h["slug"], h["ats_url"])
+        existing_name = h.get("existing_name")
         if existing_name:
             console.print(
                 f"[dim]  Already in DB as '{existing_name}': {h['ats_url']}[/dim]"
@@ -277,7 +145,7 @@ examples:
     elif len(new_hits) == 1:
         h = new_hits[0]
         answer = console.input(
-            f"\nAdd [cyan]{h['slug']}[/cyan] ([green]{h['ats']}[/green]) to DB? {escape('[y/N]')} "
+            f"\nAdd [cyan]{h['slug']}[/cyan] ([green]{h['ats_type']}[/green]) to DB? {escape('[y/N]')} "
         )
         if answer.strip().lower() == "y":
             to_add = [h]
@@ -285,7 +153,7 @@ examples:
     else:
         console.print("\n[bold]Multiple new matches found:[/bold]")
         for i, h in enumerate(new_hits, 1):
-            console.print(f"  [dim]{i}.[/dim] {h['slug']} ({h['ats']})")
+            console.print(f"  [dim]{i}.[/dim] {h['slug']} ({h['ats_type']})")
         console.print("  [dim]a.[/dim] All")
         console.print("  [dim]0.[/dim] None")
         answer = console.input("Select entries to add (comma-separated numbers, a, or 0): ").strip().lower()
@@ -312,18 +180,20 @@ examples:
         return
 
     for h in to_add:
-        upsert_company_source(
+        save_company_source(
             conn,
-            name=company_name_for_db,
-            ats_type=h["ats"],
-            ats_url=h["ats_url"],
-            slug=h["slug"],
-            enabled=True,
-            source="add_company",
+            {
+                "name": company_name_for_db,
+                "ats_type": h["ats_type"],
+                "ats_url": h["ats_url"],
+                "slug": h["slug"],
+                "enabled": True,
+                "source": "add_company",
+            },
         )
         console.print(
             f"[green]Added[/green] {company_name_for_db} "
-            f"([green]{h['ats']}[/green], slug=[cyan]{h['slug']}[/cyan]) "
+            f"([green]{h['ats_type']}[/green], slug=[cyan]{h['slug']}[/cyan]) "
             f"-> DB"
         )
     conn.close()

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Button } from "./button";
 
 type FileUploadProps = {
   accept?: string;
@@ -56,9 +57,10 @@ export function FileUpload({
     >
       <div className="ui-file-upload-title">{title}</div>
       <p className="ui-file-upload-hint">{hint}</p>
-      <button
+      <Button
         type="button"
-        className="ghost-btn compact info"
+        variant="warn"
+        size="compact"
         data-icon="↑"
         disabled={disabled}
         onClick={(event) => {
@@ -67,7 +69,7 @@ export function FileUpload({
         }}
       >
         Choose PDF
-      </button>
+      </Button>
       <input
         ref={inputRef}
         type="file"

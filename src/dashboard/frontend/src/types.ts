@@ -3,6 +3,7 @@ export type TrackingStatus = "not_applied" | "staging" | "applied" | "interviewi
 export type Priority = "low" | "medium" | "high";
 
 export interface JobSummary {
+  id: string;
   url: string;
   company: string;
   title: string;
@@ -14,6 +15,11 @@ export interface JobSummary {
   updated_at: string | null;
   match_score: number | null;
   match_band: string | null;
+  desired_title_match: boolean;
+  staging_entered_at: string | null;
+  staging_due_at: string | null;
+  staging_overdue: boolean;
+  staging_age_hours: number | null;
 }
 
 export interface JobsListResponse {
@@ -44,6 +50,7 @@ export interface JobEnrichment {
 }
 
 export interface JobDetail {
+  id: string;
   url: string;
   company: string;
   title: string;
@@ -60,9 +67,14 @@ export interface JobDetail {
   next_step: string | null;
   target_compensation: string | null;
   tracking_updated_at: string | null;
+  staging_entered_at: string | null;
+  staging_due_at: string | null;
+  staging_overdue: boolean;
+  staging_age_hours: number | null;
   enrichment: JobEnrichment | null;
   match: JobMatchScore | null;
   match_meta: JobMatchMeta | null;
+  desired_title_match: boolean;
 }
 
 export interface JobMatchScore {
@@ -82,6 +94,7 @@ export interface JobMatchMeta {
 export interface CandidateProfile {
   years_experience: number;
   skills: string[];
+  desired_job_titles: string[];
   target_role_families: string[];
   requires_visa_sponsorship: boolean;
   education: Array<{ degree: string; field: string | null }>;
@@ -94,7 +107,105 @@ export interface CandidateProfile {
 export interface ResumeProfile {
   baseline_resume_json: Record<string, unknown>;
   template_id: string;
+  use_template_typography: boolean;
+  document_typography_override: Record<string, unknown>;
   updated_at: string | null;
+}
+
+export interface CandidateEvidenceAssets {
+  evidence_context: Record<string, unknown>;
+  brag_document_markdown: string;
+  project_cards: Array<Record<string, unknown>>;
+  do_not_claim: string[];
+  updated_at: string | null;
+}
+
+export interface CandidateEvidenceIndexStatus {
+  enabled: boolean;
+  backend: string;
+  status: string;
+  indexed_count: number;
+  message: string;
+  updated_at: number | null;
+  collection: string | null;
+}
+
+export interface ServiceHealthStatus {
+  configured: boolean;
+  healthy: boolean;
+  message: string;
+  collection?: string | null;
+  collection_exists?: boolean;
+}
+
+export interface AppHealthResponse {
+  status: string;
+  services: {
+    redis: ServiceHealthStatus;
+    qdrant: ServiceHealthStatus;
+  };
+}
+
+export interface CompanySource {
+  id: number;
+  name: string;
+  ats_type: string;
+  ats_url: string;
+  slug: string;
+  enabled: boolean;
+  source: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CompanySourceProbeResult {
+  name: string;
+  slug: string;
+  ats_type: string;
+  ats_url: string;
+  jobs: number;
+  exists: boolean;
+  existing_name: string | null;
+  source?: string | null;
+  low_signal?: boolean;
+  suppressed_reason?: string | null;
+}
+
+export interface CompanySourceProbeResponse {
+  query: string;
+  company_name: string;
+  slugs: string[];
+  inferred: Record<string, string> | null;
+  matches: CompanySourceProbeResult[];
+  zero_job_matches: CompanySourceProbeResult[];
+}
+
+export interface CompanySourceImportResponse {
+  new_entries: CompanySourceProbeResult[];
+  skipped_duplicates: number;
+  imported: number | null;
+}
+
+export interface WorkspaceOperation {
+  id: string;
+  kind: string;
+  status: string;
+  params: Record<string, unknown>;
+  summary: Record<string, unknown>;
+  log_tail: string;
+  started_at: string;
+  finished_at: string | null;
+  error: string | null;
+}
+
+export interface WorkspaceOverview {
+  total_jobs: number;
+  enabled_company_sources: number;
+  total_company_sources: number;
+  desired_job_titles_count: number;
+  has_profile_basics: boolean;
+  services: AppHealthResponse["services"];
+  recent_operations: WorkspaceOperation[];
 }
 
 export interface ResumeImportResponse {
@@ -138,6 +249,7 @@ export interface ArtifactVersion {
   version: number;
   label: "draft" | "tailored" | "final" | string;
   content_json: Record<string, unknown> | null;
+  content_text: string | null;
   meta_json: Record<string, unknown>;
   created_at: string;
   created_by: string;
@@ -145,8 +257,85 @@ export interface ArtifactVersion {
   base_version_id: string | null;
 }
 
+export interface ResumeLatexDocument {
+  artifact_id: string;
+  version_id: string | null;
+  version: number | null;
+  source_text: string;
+  template_id: string;
+  compile_status: string;
+  compile_error: string | null;
+  pdf_available: boolean;
+  compiled_at: string | null;
+  log_tail: string | null;
+  diagnostics?: Array<Record<string, unknown>>;
+}
+
+export interface ArtifactLatexDocument {
+  artifact_id: string;
+  artifact_type: "resume" | "cover_letter" | string;
+  version_id: string | null;
+  version: number | null;
+  source_text: string;
+  template_id: string;
+  compile_status: string;
+  compile_error: string | null;
+  pdf_available: boolean;
+  compiled_at: string | null;
+  log_tail: string | null;
+  diagnostics: Array<Record<string, unknown>>;
+}
+
+export interface ResumeSwarmOptimizeResponse {
+  artifact_id: string;
+  version_id: string;
+  version: number;
+  final_score: Record<string, unknown>;
+  history: Array<Record<string, unknown>>;
+}
+
+export interface ResumeSwarmRunStartResponse {
+  run_id: string;
+  status: string;
+}
+
+export interface ResumeSwarmRunStatusResponse {
+  run_id: string;
+  artifact_id: string;
+  status: string;
+  current_stage: string;
+  stage_index: number;
+  started_at: string;
+  updated_at: string;
+  cycles_target: number;
+  cycles_done: number;
+  events: Array<Record<string, unknown>>;
+  latest_score: Record<string, unknown> | null;
+  latest_rewrite: Record<string, unknown> | null;
+  latest_apply_report: Record<string, unknown> | null;
+  final_score: Record<string, unknown> | null;
+  candidate_latex: string | null;
+  error: string | null;
+}
+
+export interface TemplateSettings {
+  resume_template_id: string;
+  cover_letter_template_id: string;
+  updated_at: string | null;
+}
+
+export interface TemplateValidationResult {
+  ok: boolean;
+  warnings: string[];
+  missing_required_sections: string[];
+  missing_required_placeholders: string[];
+  detected_sections: string[];
+  detected_items: string[];
+}
+
 export interface ArtifactSummary {
   id: string;
+  job_id: string;
   job_url: string;
   artifact_type: "resume" | "cover_letter" | string;
   active_version_id: string | null;
@@ -155,6 +344,7 @@ export interface ArtifactSummary {
 }
 
 export interface ArtifactStarterStatus {
+  job_id: string;
   job_url: string;
   stage: string;
   progress_percent: number;
@@ -162,19 +352,21 @@ export interface ArtifactStarterStatus {
   updated_at: string | null;
 }
 
-export interface ArtifactSuggestion {
-  id: string;
-  artifact_id: string;
-  base_version_id: string;
-  base_hash: string | null;
-  target_path: string | null;
-  patch_json: Array<Record<string, unknown>>;
-  group_key: string | null;
-  summary: string | null;
-  state: "pending" | "accepted" | "rejected" | string;
-  created_at: string;
-  resolved_at: string | null;
-  supersedes_suggestion_id: string | null;
+export interface ArtifactsHubItem {
+  job_id: string;
+  job_url: string;
+  company: string;
+  title: string;
+  tracking_status: TrackingStatus | string;
+  tracking_updated_at: string | null;
+  latest_artifact_updated_at: string | null;
+  resume: ArtifactSummary | null;
+  cover_letter: ArtifactSummary | null;
+}
+
+export interface ArtifactsHubResponse {
+  items: ArtifactsHubItem[];
+  total: number;
 }
 
 export interface TrackingPatchRequest {
@@ -193,12 +385,6 @@ export interface CreateArtifactVersionRequest {
   base_version_id?: string | null;
 }
 
-export interface GenerateArtifactSuggestionsRequest {
-  prompt: string;
-  target_path?: string | null;
-  max_suggestions?: number;
-}
-
 export interface ManualJobCreateRequest {
   url: string;
   company: string;
@@ -206,10 +392,12 @@ export interface ManualJobCreateRequest {
   location?: string | null;
   posted?: string | null;
   ats?: string | null;
+  status?: TrackingStatus | null;
   description: string;
 }
 
 export interface SuppressedJob {
+  job_id: string;
   url: string;
   company: string;
   reason: string | null;
@@ -271,7 +459,7 @@ export interface FunnelWeeklyGoals {
 }
 
 export interface FunnelAlerts {
-  staging_stale_7d: number;
+  staging_overdue_48h: number;
   interviewing_no_activity_5d: number;
   backlog_expiring_soon: number;
 }

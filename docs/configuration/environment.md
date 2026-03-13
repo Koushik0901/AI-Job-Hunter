@@ -1,59 +1,66 @@
-# Environment Configuration
+# 🚀 Environment Configuration
 
-This project loads environment variables from two sources:
+Environment values are loaded from process env and optional `.env`.
 
-1. existing process environment
-2. optional `.env` file via `_load_dotenv` (`os.environ.setdefault`, so existing process values win)
+---
 
-## Variables
+## ✨ Required (core app)
 
-| Name | Required | Used by | Notes |
-|---|---|---|---|
-| `TELEGRAM_TOKEN` | for notifications | `src/notify.py` | Bot token |
-| `TELEGRAM_CHAT_ID` | for notifications | `src/notify.py` | Chat target |
-| `TURSO_URL` | optional | `src/db.py`, `src/cli.py` | If set, overrides `--db` local path |
-| `TURSO_AUTH_TOKEN` | required with Turso | `src/db.py` | Bearer token for hrana HTTP pipeline |
-| `OPENROUTER_API_KEY` | optional | `src/enrich.py`, `eval/eval.py` | Enables enrichment/eval API calls |
-| `ENRICHMENT_MODEL` | optional | `src/commands/scrape_jobs.py` | Runtime default is `openai/gpt-oss-120b` |
-| `DESCRIPTION_FORMAT_MODEL` | optional | `src/commands/scrape_jobs.py`, `src/enrich.py` | Runtime default is `openai/gpt-oss-20b:paid` for description formatting |
-| `REDIS_URL` | optional | `src/dashboard/backend/main.py` | Enables Redis read-through cache for dashboard API |
-| `DASHBOARD_CACHE_TTL_JOBS` | optional | `src/dashboard/backend/main.py` | Cache TTL seconds for `GET /api/jobs` (default `45`) |
-| `DASHBOARD_CACHE_TTL_JOB_DETAIL` | optional | `src/dashboard/backend/main.py` | Cache TTL seconds for `GET /api/jobs/{job_url}` (default `300`) |
-| `DASHBOARD_CACHE_TTL_EVENTS` | optional | `src/dashboard/backend/main.py` | Cache TTL seconds for `GET /api/jobs/{job_url}/events` (default `90`) |
-| `DASHBOARD_CACHE_TTL_STATS` | optional | `src/dashboard/backend/main.py` | Cache TTL seconds for `GET /api/meta/stats` (default `30`) |
-| `DASHBOARD_CACHE_TTL_PROFILE` | optional | `src/dashboard/backend/main.py` | Cache TTL seconds for `GET /api/profile` (default `300`) |
-| `DASHBOARD_CACHE_TTL_ANALYTICS_FC` | optional | `src/dashboard/backend/main.py` | Cache TTL seconds for `GET /api/analytics/funnel` (default `60`) |
-| `DASHBOARD_CACHE_MAX_JOB_DETAILS` | optional | `src/dashboard/backend/main.py` | Max Redis entries for `GET /api/jobs/{job_url}` detail cache using LRU eviction (default `24`, clamped `1..500`) |
-
-## Precedence and defaults
-
-- If `TURSO_URL` exists: use Turso regardless of `--db`.
-- If `TURSO_URL` absent:
-  - `--db PATH` if supplied
-  - else default `<cwd>/jobs.db`
-- If `OPENROUTER_API_KEY` missing:
-  - scrape run continues but enrichment stage is skipped
-  - eval `run` exits with error
-
-## Security
-
-- `.env` is git-ignored.
-- Do not commit live tokens or chat IDs.
-- For GitHub Actions, use repo secrets instead of `.env`.
-
-## GitHub Actions secrets
-
-Expected secret names in `.github/workflows/daily_scrape.yml`:
-
+- None if you are using the default local SQLite database.
 - `TURSO_URL`
 - `TURSO_AUTH_TOKEN`
-- `TELEGRAM_TOKEN`
-- `TELEGRAM_CHAT_ID`
 
-Expected secret names in `.github/workflows/enrichment.yml`:
+## ✨ Required (AI)
 
-- `TURSO_URL`
-- `TURSO_AUTH_TOKEN`
 - `OPENROUTER_API_KEY`
-- `ENRICHMENT_MODEL`
-- `DESCRIPTION_FORMAT_MODEL`
+
+## ✨ Optional (dashboard performance)
+
+- `REDIS_URL`
+- `DASHBOARD_CACHE_TTL_*`
+- `DASHBOARD_CACHE_TTL_JOBS_SNAPSHOT`
+- `DASHBOARD_CACHE_MAX_JOB_DETAILS`
+
+## ✨ Optional (evidence retrieval)
+
+- `EVIDENCE_RETRIEVAL_MODE`
+- `EVIDENCE_MAX_TOP_K`
+- `EVIDENCE_MIN_LEXICAL_OVERLAP`
+- `EVIDENCE_MIN_VECTOR_SCORE`
+- `QDRANT_URL`
+- `QDRANT_API_KEY`
+- `QDRANT_EVIDENCE_COLLECTION`
+
+Local dev example:
+- `EVIDENCE_RETRIEVAL_MODE=auto`
+- `QDRANT_URL=http://127.0.0.1:6333`
+- `QDRANT_API_KEY=` (empty unless you secure local Qdrant)
+- `QDRANT_EVIDENCE_COLLECTION=candidate_evidence_chunks`
+
+## ✨ Optional (swarm controls)
+
+- `RESUME_SWARM_SCORING_MODEL`
+- `RESUME_SWARM_REWRITE_MODEL`
+- `COVER_LETTER_SWARM_DRAFT_MODEL`
+- `COVER_LETTER_SWARM_SCORING_MODEL`
+- `COVER_LETTER_SWARM_REWRITE_MODEL`
+- `SWARM_MIN_SCORE_DELTA`
+- `SWARM_MAX_OPS_PER_CYCLE`
+- `SWARM_MAX_CHANGED_LINE_RATIO`
+- `SWARM_FORCE_ON_NON_NEGOTIABLES`
+- `SWARM_COMPILE_ROLLBACK`
+
+---
+
+## ✨ Precedence
+
+- If `TURSO_URL` is set, Turso is used.
+- Otherwise local SQLite path logic applies.
+
+---
+
+## ✨ Security
+
+- Keep `.env` out of git.
+- Use CI secrets in workflows.
+- Keep local databases, artifact workspaces, logs, and exported files out of git as well.

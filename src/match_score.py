@@ -31,6 +31,11 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip().lower())
 
 
+def _norm_title(text: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9\s]+", " ", _norm(text))
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
 def _norm_skill(skill: str) -> str:
     s = _norm(skill)
     # Normalize punctuation/noise so acronym and expanded form can converge.
@@ -180,6 +185,41 @@ def _degree_level(text: str) -> int:
     return 0
 
 
+def _title_similarity(left: str, right: str) -> float:
+    l = _norm_title(left)
+    r = _norm_title(right)
+    if not l or not r:
+        return 0.0
+    l_seniority = _extract_title_seniority(left)
+    r_seniority = _extract_title_seniority(right)
+    if l_seniority and r_seniority and l_seniority != r_seniority:
+        return 0.0
+    if l == r:
+        return 1.0
+    if l in r or r in l:
+        return min(len(l), len(r)) / max(len(l), len(r))
+    l_tokens = {token for token in l.split(" ") if token}
+    r_tokens = {token for token in r.split(" ") if token}
+    token_ratio = 0.0
+    if l_tokens and r_tokens:
+        token_ratio = len(l_tokens & r_tokens) / max(1, len(l_tokens), len(r_tokens))
+    return max(token_ratio, SequenceMatcher(None, l, r).ratio())
+
+
+def _desired_title_alignment_points(job_title: str, desired_titles: Any) -> int:
+    titles = [str(value).strip() for value in (desired_titles or []) if str(value).strip()]
+    if not job_title.strip() or not titles:
+        return 0
+    best = max((_title_similarity(job_title, title) for title in titles), default=0.0)
+    if best >= 0.92:
+        return 10
+    if best >= 0.75:
+        return 7
+    if best >= 0.6:
+        return 4
+    return 0
+
+
 def _candidate_degree_level(profile: dict[str, Any]) -> int:
     education = profile.get("education")
     levels: list[int] = []
@@ -210,6 +250,7 @@ def compute_match_score(job: dict[str, Any], profile: dict[str, Any]) -> dict[st
         "seniority_bias": 0,
         "experience_bias": 0,
         "education_alignment": 0,
+        "desired_title_alignment": 0,
         "role_family_alignment": 0,
         "eligibility_penalty": 0,
     }
@@ -268,6 +309,12 @@ def compute_match_score(job: dict[str, Any], profile: dict[str, Any]) -> dict[st
     exp_points = _clamp(exp_points, -25, 20)
     breakdown["experience_bias"] = exp_points
     score += exp_points
+
+    desired_title_points = _desired_title_alignment_points(title, profile.get("desired_job_titles"))
+    breakdown["desired_title_alignment"] = desired_title_points
+    score += desired_title_points
+    if desired_title_points > 0:
+        reasons.append("Matches one of your desired job titles")
 
     # Education alignment.
     minimum_degree = _norm(str(enrichment.get("minimum_degree") or ""))

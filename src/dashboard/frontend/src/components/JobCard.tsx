@@ -1,42 +1,91 @@
 import { motion } from "framer-motion";
 import type { JobSummary } from "../types";
-import { ShimmerTag } from "./reactbits/ShimmerTag";
 
 interface JobCardProps {
   job: JobSummary;
-  onSelect: (url: string) => void;
-  onPrefetch?: (url: string) => void;
+  onSelect: (jobId: string) => void;
+  onPrefetch?: (jobId: string) => void;
+  selected?: boolean;
+  preview?: boolean;
 }
 
 function formatDate(value: string): string {
   if (!value) return "Unknown";
   const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? value : date.toLocaleDateString();
+  return Number.isNaN(date.valueOf())
+    ? value
+    : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export function JobCard({ job, onSelect, onPrefetch }: JobCardProps) {
+function stagingTimeline(job: JobSummary): { tone: "overdue" | "due-soon"; detail: string } | null {
+  if (job.status !== "staging") return null;
+  const ageHours = job.staging_age_hours;
+  if (typeof ageHours !== "number") return null;
+  if (job.staging_overdue) {
+    return {
+      tone: "overdue",
+      detail: `${Math.max(0, ageHours - 48)}h past staging target`,
+    };
+  }
+  return {
+    tone: "due-soon",
+    detail: `Staging target in ${Math.max(0, 48 - ageHours)}h`,
+  };
+}
+
+function titleCaseLabel(value: string): string {
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function matchTone(job: JobSummary): "high" | "medium" | "low" | "pending" {
+  if (typeof job.match_score !== "number") return "pending";
+  if (job.match_score >= 80) return "high";
+  if (job.match_score >= 60) return "medium";
+  return "low";
+}
+
+function matchLabel(job: JobSummary): string {
+  if (typeof job.match_score !== "number") return "Match pending";
+  return `Match ${job.match_score}${job.match_band ? ` • ${titleCaseLabel(job.match_band)}` : ""}`;
+}
+
+export function JobCard({ job, onSelect, onPrefetch, selected = false, preview = false }: JobCardProps) {
+  const timeline = stagingTimeline(job);
+  const stageClass = (job.status ?? "not_applied").replaceAll("_", "-");
+  const priorityLabel = titleCaseLabel(job.priority ?? "medium");
+  const postedLabel = formatDate(job.posted);
+  const timelineToneClass = timeline ? `has-${timeline.tone}` : "";
   return (
     <motion.div
-      className="job-card"
-      whileHover={{ y: -3 }}
-      whileTap={{ scale: 0.99 }}
-      onMouseEnter={() => onPrefetch?.(job.url)}
-      onFocus={() => onPrefetch?.(job.url)}
+      className={`job-card stage-${stageClass} ${timelineToneClass} ${selected ? "selected" : ""} ${preview ? "preview" : ""}`}
+      whileHover={preview ? undefined : { y: -4 }}
+      whileTap={preview ? undefined : { scale: 0.992 }}
+      onMouseEnter={() => onPrefetch?.(job.id)}
+      onFocus={() => onPrefetch?.(job.id)}
     >
-      <button type="button" className="job-card-btn" onClick={() => onSelect(job.url)}>
-        <div className="job-card-head">
-          <h4>{job.title}</h4>
+      <button type="button" className="job-card-btn" onClick={() => onSelect(job.id)}>
+        <div className="job-card-topline">
+          <div className="job-card-companyline">
+            <span className={`job-card-stage-dot stage-${stageClass}`} aria-hidden="true" />
+            <p className="job-company">{job.company}</p>
+          </div>
+          <span className={`job-priority-badge priority-${job.priority ?? "medium"}`}>{priorityLabel}</span>
         </div>
-        <p className="job-company">{job.company}</p>
-        <p className="job-location">{job.location || "-"}</p>
-        <div className="job-meta-row">
-          <span className="job-date-chip">Posted {formatDate(job.posted)}</span>
-          <ShimmerTag>{job.ats || "ATS"}</ShimmerTag>
+        <h4>{job.title}</h4>
+        <div className="job-card-meta">
+          <span className="job-meta-item">{job.location || "Location TBD"}</span>
         </div>
-        <div className="job-meta-row job-meta-bottom">
-          <ShimmerTag>
-            {`Match ${job.match_score ?? "-"}${job.match_band ? ` (${job.match_band})` : ""}`}
-          </ShimmerTag>
+        <div className="job-card-submeta">
+          <span className="job-meta-item">Posted {postedLabel}</span>
+          <span className={`job-meta-item job-meta-timeline ${timeline?.tone ?? "default"}`}>
+            {timeline?.detail ?? "\u00A0"}
+          </span>
+        </div>
+        <div className="job-card-footer">
+          <span className={`job-chip tone-match match-${matchTone(job)}`}>{matchLabel(job)}</span>
+          {job.desired_title_match ? <span className="job-chip tone-match match-high">Title match</span> : null}
         </div>
       </button>
     </motion.div>

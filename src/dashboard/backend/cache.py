@@ -12,11 +12,12 @@ except Exception:  # pragma: no cover - import optional by design
 
 class DashboardCache:
     def __init__(self, url: str | None) -> None:
+        self._url = (url or "").strip()
         self._client: Any | None = None
-        if not url or redis is None:
+        if not self._url or redis is None:
             return
         try:
-            self._client = redis.from_url(url, decode_responses=True)
+            self._client = redis.from_url(self._url, decode_responses=True)
             self._client.ping()
         except Exception:
             self._client = None
@@ -24,6 +25,39 @@ class DashboardCache:
     @property
     def enabled(self) -> bool:
         return self._client is not None
+
+    def health(self) -> dict[str, Any]:
+        if not self._url:
+            return {
+                "configured": False,
+                "healthy": False,
+                "message": "REDIS_URL not configured.",
+            }
+        if redis is None:
+            return {
+                "configured": True,
+                "healthy": False,
+                "message": "redis dependency unavailable.",
+            }
+        if self._client is None:
+            return {
+                "configured": True,
+                "healthy": False,
+                "message": "Redis client unavailable.",
+            }
+        try:
+            self._client.ping()
+            return {
+                "configured": True,
+                "healthy": True,
+                "message": "Redis reachable.",
+            }
+        except Exception as error:
+            return {
+                "configured": True,
+                "healthy": False,
+                "message": str(error),
+            }
 
     def _safe(self, fn: Any, default: Any) -> Any:
         try:
@@ -56,6 +90,11 @@ class DashboardCache:
         if not self._client or not keys:
             return
         self._safe(lambda: self._client.delete(*keys), None)
+
+    def expire(self, key: str, ttl_seconds: int) -> None:
+        if not self._client:
+            return
+        self._safe(lambda: self._client.expire(key, ttl_seconds), None)
 
     def delete_pattern(self, pattern: str) -> None:
         if not self._client:

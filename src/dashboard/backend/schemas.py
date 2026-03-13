@@ -1,9 +1,13 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+import json
+from typing import Any
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class JobSummary(BaseModel):
+    id: str
     url: str
     company: str
     title: str
@@ -15,6 +19,11 @@ class JobSummary(BaseModel):
     updated_at: str | None = None
     match_score: int | None = None
     match_band: str | None = None
+    desired_title_match: bool = False
+    staging_entered_at: str | None = None
+    staging_due_at: str | None = None
+    staging_overdue: bool = False
+    staging_age_hours: int | None = None
 
 
 class JobsListResponse(BaseModel):
@@ -24,6 +33,7 @@ class JobsListResponse(BaseModel):
 
 class JobEvent(BaseModel):
     id: int
+    job_id: str
     url: str
     event_type: str
     title: str
@@ -33,6 +43,7 @@ class JobEvent(BaseModel):
 
 
 class JobDetail(BaseModel):
+    id: str
     url: str
     company: str
     title: str
@@ -49,9 +60,14 @@ class JobDetail(BaseModel):
     next_step: str | None = None
     target_compensation: str | None = None
     tracking_updated_at: str | None = None
+    staging_entered_at: str | None = None
+    staging_due_at: str | None = None
+    staging_overdue: bool = False
+    staging_age_hours: int | None = None
     enrichment: "JobEnrichment | None" = None
     match: "JobMatchScore | None" = None
     match_meta: "JobMatchMeta | None" = None
+    desired_title_match: bool = False
 
 
 class JobEnrichment(BaseModel):
@@ -98,6 +114,7 @@ class EducationEntry(BaseModel):
 class CandidateProfile(BaseModel):
     years_experience: int = Field(ge=0, le=60)
     skills: list[str] = Field(default_factory=list)
+    desired_job_titles: list[str] = Field(default_factory=list)
     target_role_families: list[str] = Field(default_factory=list)
     requires_visa_sponsorship: bool = False
     education: list[EducationEntry] = Field(default_factory=list)
@@ -110,6 +127,172 @@ class CandidateProfile(BaseModel):
 class ResumeProfile(BaseModel):
     baseline_resume_json: dict[str, object] = Field(default_factory=dict)
     template_id: str = "classic"
+    use_template_typography: bool = True
+    document_typography_override: dict[str, object] = Field(default_factory=dict)
+    updated_at: str | None = None
+
+
+class CandidateEvidenceAssets(BaseModel):
+    evidence_context: dict[str, object] = Field(default_factory=dict)
+    brag_document_markdown: str = ""
+    project_cards: list[dict[str, object]] = Field(default_factory=list)
+    do_not_claim: list[str] = Field(default_factory=list)
+    updated_at: str | None = None
+
+    @field_validator("brag_document_markdown")
+    @classmethod
+    def _validate_brag_doc(cls, value: str) -> str:
+        cleaned = (value or "").replace("\x00", "")
+        if len(cleaned) > 200_000:
+            raise ValueError("brag_document_markdown exceeds 200000 characters")
+        return cleaned
+
+    @field_validator("evidence_context")
+    @classmethod
+    def _validate_evidence_context(cls, value: dict[str, object]) -> dict[str, object]:
+        payload = json.dumps(value or {}, ensure_ascii=False)
+        if len(payload) > 300_000:
+            raise ValueError("evidence_context payload exceeds 300000 characters")
+        return value
+
+    @field_validator("project_cards")
+    @classmethod
+    def _validate_project_cards(cls, value: list[dict[str, object]]) -> list[dict[str, object]]:
+        if len(value or []) > 200:
+            raise ValueError("project_cards exceeds 200 items")
+        payload = json.dumps(value or [], ensure_ascii=False)
+        if len(payload) > 400_000:
+            raise ValueError("project_cards payload exceeds 400000 characters")
+        cleaned_cards: list[dict[str, object]] = []
+        for card in value or []:
+            if not isinstance(card, dict):
+                continue
+            normalized: dict[str, Any] = {}
+            for key, item in card.items():
+                if isinstance(item, str):
+                    normalized[str(key)] = item.replace("\x00", "")
+                else:
+                    normalized[str(key)] = item
+            cleaned_cards.append(normalized)
+        return cleaned_cards
+
+    @field_validator("do_not_claim")
+    @classmethod
+    def _validate_do_not_claim(cls, value: list[str]) -> list[str]:
+        cleaned = [str(item).replace("\x00", "").strip() for item in (value or []) if str(item).strip()]
+        if len(cleaned) > 200:
+            raise ValueError("do_not_claim exceeds 200 entries")
+        return cleaned
+
+
+class CandidateEvidenceIndexStatus(BaseModel):
+    enabled: bool = False
+    backend: str = "disabled"
+    status: str = "idle"
+    indexed_count: int = 0
+    message: str = ""
+    updated_at: float | None = None
+    collection: str | None = None
+
+
+class ServiceHealthStatus(BaseModel):
+    configured: bool
+    healthy: bool
+    message: str
+    collection: str | None = None
+    collection_exists: bool | None = None
+
+
+class AppHealthResponse(BaseModel):
+    status: str
+    services: dict[str, ServiceHealthStatus]
+
+
+class CompanySource(BaseModel):
+    id: int
+    name: str
+    ats_type: str
+    ats_url: str
+    slug: str
+    enabled: bool = True
+    source: str = ""
+    created_at: str
+    updated_at: str
+
+
+class CompanySourceProbeResult(BaseModel):
+    name: str
+    slug: str
+    ats_type: str
+    ats_url: str
+    jobs: int = 0
+    exists: bool = False
+    existing_name: str | None = None
+    source: str | None = None
+    low_signal: bool = False
+    suppressed_reason: str | None = None
+
+
+class CompanySourceProbeRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+    extra_slugs: list[str] = Field(default_factory=list)
+
+
+class CompanySourceProbeResponse(BaseModel):
+    query: str
+    company_name: str
+    slugs: list[str] = Field(default_factory=list)
+    inferred: dict[str, str] | None = None
+    matches: list[CompanySourceProbeResult] = Field(default_factory=list)
+    zero_job_matches: list[CompanySourceProbeResult] = Field(default_factory=list)
+
+
+class CreateCompanySourceRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=300)
+    ats_type: str = Field(min_length=2, max_length=80)
+    slug: str = Field(min_length=1, max_length=200)
+    ats_url: str | None = None
+    enabled: bool = True
+    source: str = Field(default="manual", max_length=120)
+
+
+class UpdateCompanySourceRequest(BaseModel):
+    enabled: bool | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=300)
+    source: str | None = Field(default=None, max_length=120)
+
+
+class CompanySourceImportResponse(BaseModel):
+    new_entries: list[CompanySourceProbeResult] = Field(default_factory=list)
+    skipped_duplicates: int = 0
+    imported: int | None = None
+
+
+class WorkspaceOperation(BaseModel):
+    id: str
+    kind: str
+    status: str
+    params: dict[str, object] = Field(default_factory=dict)
+    summary: dict[str, object] = Field(default_factory=dict)
+    log_tail: str = ""
+    started_at: str
+    finished_at: str | None = None
+    error: str | None = None
+
+
+class WorkspaceOverview(BaseModel):
+    total_jobs: int
+    enabled_company_sources: int
+    total_company_sources: int
+    desired_job_titles_count: int
+    has_profile_basics: bool
+    services: dict[str, ServiceHealthStatus]
+    recent_operations: list[WorkspaceOperation] = Field(default_factory=list)
+
+
+class TemplateSettings(BaseModel):
+    resume_template_id: str = "classic"
+    cover_letter_template_id: str = "classic"
     updated_at: str | None = None
 
 
@@ -124,6 +307,21 @@ class ResumeImportResponse(BaseModel):
 
 class AddProfileSkillRequest(BaseModel):
     skill: str = Field(min_length=1, max_length=200)
+
+
+class WorkspaceScrapeRequest(BaseModel):
+    no_location_filter: bool = False
+    no_enrich: bool = False
+    no_enrich_llm: bool = False
+    sort_by: str = Field(default="match", pattern="^(match|posted)$")
+
+
+class WorkspaceJdReformatRequest(BaseModel):
+    missing_only: bool = True
+
+
+class WorkspacePruneRequest(BaseModel):
+    days: int = Field(default=28, ge=1, le=365)
 
 
 class TrackingPatchRequest(BaseModel):
@@ -141,6 +339,7 @@ class ManualJobCreateRequest(BaseModel):
     location: str | None = None
     posted: str | None = None
     ats: str | None = None
+    status: str | None = Field(default=None, pattern="^(not_applied|staging|applied|interviewing|offer|rejected)$")
     description: str = Field(min_length=1)
 
 
@@ -149,6 +348,7 @@ class SuppressJobRequest(BaseModel):
 
 
 class SuppressedJob(BaseModel):
+    job_id: str
     url: str
     company: str
     reason: str | None = None
@@ -186,6 +386,7 @@ class ScoreRecomputeStatus(BaseModel):
 
 class ArtifactSummary(BaseModel):
     id: str
+    job_id: str
     job_url: str
     artifact_type: str
     active_version_id: str | None = None
@@ -199,6 +400,7 @@ class ArtifactVersion(BaseModel):
     version: int
     label: str
     content_json: dict[str, object] | None = None
+    content_text: str | None = None
     meta_json: dict[str, object] = Field(default_factory=dict)
     created_at: str
     created_by: str
@@ -206,26 +408,12 @@ class ArtifactVersion(BaseModel):
     base_version_id: str | None = None
 
 
-class ArtifactSuggestion(BaseModel):
-    id: str
-    artifact_id: str
-    base_version_id: str
-    base_hash: str | None = None
-    target_path: str | None = None
-    patch_json: list[dict[str, object]] = Field(default_factory=list)
-    group_key: str | None = None
-    summary: str | None = None
-    state: str
-    created_at: str
-    resolved_at: str | None = None
-    supersedes_suggestion_id: str | None = None
-
-
 class GenerateStarterArtifactsRequest(BaseModel):
     force: bool = False
 
 
 class ArtifactStarterStatus(BaseModel):
+    job_id: str
     job_url: str
     stage: str
     progress_percent: int = Field(ge=0, le=100)
@@ -241,20 +429,137 @@ class CreateArtifactVersionRequest(BaseModel):
     base_version_id: str | None = None
 
 
-class GenerateArtifactSuggestionsRequest(BaseModel):
-    prompt: str = Field(min_length=1, max_length=4000)
-    target_path: str | None = Field(default=None, max_length=400)
-    max_suggestions: int = Field(default=5, ge=1, le=20)
+class ArtifactExportRequest(BaseModel):
+    format: str = Field(default="pdf", pattern="^(pdf)$")
 
 
-class SuggestionResolveRequest(BaseModel):
-    edited_patch_json: list[dict[str, object]] | None = None
-    allow_outdated: bool = False
+class ResumeLatexDocument(BaseModel):
+    artifact_id: str
+    version_id: str | None = None
+    version: int | None = None
+    source_text: str
+    template_id: str = "classic"
+    compile_status: str = "never"
+    compile_error: str | None = None
+    pdf_available: bool = False
+    compiled_at: str | None = None
+    log_tail: str | None = None
+    diagnostics: list[dict[str, object]] = Field(default_factory=list)
+
+
+class ArtifactLatexDocument(BaseModel):
+    artifact_id: str
+    artifact_type: str
+    version_id: str | None = None
+    version: int | None = None
+    source_text: str
+    template_id: str = "classic"
+    compile_status: str = "never"
+    compile_error: str | None = None
+    pdf_available: bool = False
+    compiled_at: str | None = None
+    log_tail: str | None = None
+    diagnostics: list[dict[str, object]] = Field(default_factory=list)
+
+
+class SaveResumeLatexRequest(BaseModel):
+    source_text: str
+    template_id: str = Field(default="classic", min_length=1, max_length=80)
+    label: str = Field(default="draft", pattern="^(draft|tailored|final)$")
     created_by: str = Field(default="ui", min_length=1, max_length=80)
 
 
-class ArtifactExportRequest(BaseModel):
-    format: str = Field(default="pdf", pattern="^(pdf)$")
+class RecompileResumeLatexRequest(BaseModel):
+    source_text: str | None = None
+    template_id: str | None = Field(default=None, min_length=1, max_length=80)
+    created_by: str = Field(default="ui", min_length=1, max_length=80)
+
+
+class SaveArtifactLatexRequest(BaseModel):
+    source_text: str
+    template_id: str = Field(default="classic", min_length=1, max_length=80)
+    label: str = Field(default="draft", pattern="^(draft|tailored|final)$")
+    created_by: str = Field(default="ui", min_length=1, max_length=80)
+
+
+class RecompileArtifactLatexRequest(BaseModel):
+    source_text: str | None = None
+    template_id: str | None = Field(default=None, min_length=1, max_length=80)
+    created_by: str = Field(default="ui", min_length=1, max_length=80)
+
+
+class ResumeSwarmOptimizeRequest(BaseModel):
+    cycles: int = Field(default=2, ge=1, le=5)
+    created_by: str = Field(default="ui", min_length=1, max_length=80)
+
+
+class ResumeSwarmOptimizeResponse(BaseModel):
+    artifact_id: str
+    version_id: str
+    version: int
+    final_score: dict[str, object] = Field(default_factory=dict)
+    history: list[dict[str, object]] = Field(default_factory=list)
+
+
+class ResumeSwarmRunStartRequest(BaseModel):
+    cycles: int = Field(default=2, ge=1, le=5)
+    source_text: str | None = None
+    template_id: str | None = Field(default=None, min_length=1, max_length=80)
+
+
+class ResumeSwarmRunStartResponse(BaseModel):
+    run_id: str
+    status: str
+
+
+class ResumeSwarmConfirmSaveRequest(BaseModel):
+    created_by: str = Field(default="ui", min_length=1, max_length=80)
+    label: str = Field(default="draft", pattern="^(draft|tailored|final)$")
+
+
+class ResumeSwarmRunStatusResponse(BaseModel):
+    run_id: str
+    artifact_id: str
+    status: str
+    current_stage: str
+    stage_index: int
+    started_at: str
+    updated_at: str
+    cycles_target: int
+    cycles_done: int
+    events: list[dict[str, object]] = Field(default_factory=list)
+    latest_score: dict[str, object] | None = None
+    latest_rewrite: dict[str, object] | None = None
+    latest_apply_report: dict[str, object] | None = None
+    final_score: dict[str, object] | None = None
+    candidate_latex: str | None = None
+    error: str | None = None
+
+
+class TemplateValidationResult(BaseModel):
+    ok: bool = True
+    warnings: list[str] = Field(default_factory=list)
+    missing_required_sections: list[str] = Field(default_factory=list)
+    missing_required_placeholders: list[str] = Field(default_factory=list)
+    detected_sections: list[str] = Field(default_factory=list)
+    detected_items: list[str] = Field(default_factory=list)
+
+
+class ArtifactsHubItem(BaseModel):
+    job_id: str
+    job_url: str
+    company: str
+    title: str
+    tracking_status: str
+    tracking_updated_at: str | None = None
+    latest_artifact_updated_at: str | None = None
+    resume: ArtifactSummary | None = None
+    cover_letter: ArtifactSummary | None = None
+
+
+class ArtifactsHubResponse(BaseModel):
+    items: list[ArtifactsHubItem] = Field(default_factory=list)
+    total: int
 
 
 class FunnelWindow(BaseModel):
@@ -322,7 +627,7 @@ class FunnelWeeklyGoals(BaseModel):
 
 
 class FunnelAlerts(BaseModel):
-    staging_stale_7d: int
+    staging_overdue_48h: int
     interviewing_no_activity_5d: int
     backlog_expiring_soon: int
 

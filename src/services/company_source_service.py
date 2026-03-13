@@ -133,17 +133,18 @@ def parse_companies_from_markdown(text: str) -> list[tuple[str, str, str]]:
     return results
 
 
-def import_companies(conn: Any, dry_run: bool = False) -> None:
-    console = Console()
+def fetch_import_candidates(console: Console | None = None) -> list[tuple[str, str, str, str]]:
     all_candidates: list[tuple[str, str, str, str]] = []
     for source_label, source_url in IMPORT_SOURCES:
-        console.print(f"[dim]Fetching ({source_label})[/dim] {source_url}")
+        if console:
+            console.print(f"[dim]Fetching ({source_label})[/dim] {source_url}")
         try:
             resp = requests.get(source_url, timeout=30)
             resp.raise_for_status()
             text = resp.text
         except requests.RequestException as e:
-            console.print(f"  [yellow]Skipped (fetch failed): {e}[/yellow]")
+            if console:
+                console.print(f"  [yellow]Skipped (fetch failed): {e}[/yellow]")
             continue
         if source_label == "simplify":
             parsed = parse_companies_from_simplify(text)
@@ -151,13 +152,18 @@ def import_companies(conn: Any, dry_run: bool = False) -> None:
             parsed = parse_companies_from_html_table(text)
         else:
             parsed = parse_companies_from_markdown(text)
-        console.print(f"  [dim]Found {len(parsed)} companies[/dim]")
+        if console:
+            console.print(f"  [dim]Found {len(parsed)} companies[/dim]")
         all_candidates.extend((name, ats, slug, source_label) for name, ats, slug in parsed)
+    return all_candidates
 
+
+def preview_import_companies(conn: Any, console: Console | None = None) -> dict[str, Any]:
+    all_candidates = fetch_import_candidates(console=console)
     if not all_candidates:
-        console.print("[yellow]No companies found from any source.[/yellow]")
-        return
-
+        if console:
+            console.print("[yellow]No companies found from any source.[/yellow]")
+        return {"new_entries": [], "skipped_duplicates": 0}
     existing = list_company_sources(conn, enabled_only=False)
     existing_urls = {row.get("ats_url", "") for row in existing}
     existing_slugs = {str(row.get("slug", "")).lower() for row in existing if row.get("slug")}
@@ -184,7 +190,14 @@ def import_companies(conn: Any, dry_run: bool = False) -> None:
             "slug": slug,
             "source": source_label,
         })
+    return {"new_entries": new_entries, "skipped_duplicates": skipped_dupe}
 
+
+def import_companies(conn: Any, dry_run: bool = False) -> None:
+    console = Console()
+    preview = preview_import_companies(conn, console=console)
+    new_entries = preview["new_entries"]
+    skipped_dupe = int(preview["skipped_duplicates"])
     console.print(
         f"\n[bold]Import summary:[/bold] [green]{len(new_entries)} new[/green], "
         f"[dim]{skipped_dupe} already present / duplicate[/dim]"

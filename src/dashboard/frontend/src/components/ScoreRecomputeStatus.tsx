@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getScoreRecomputeStatus, triggerScoreRecompute } from "../api";
+import { Button } from "./ui/button";
 import type { ScoreRecomputeStatus as ScoreRecomputeStatusType } from "../types";
 
 function formatTimestamp(value: string | null): string {
@@ -84,15 +85,16 @@ export function ScoreRecomputeStatus() {
         {status?.last_error && <p className="score-recompute-error">Last error: {status.last_error}</p>}
         {error && <p className="score-recompute-error">{error}</p>}
       </div>
-      <button
+      <Button
         type="button"
-        className="ghost-btn compact"
+        variant="default"
+        size="compact"
         data-icon="↻"
         onClick={() => void handleTrigger()}
         disabled={triggering || running}
       >
         {running ? "Running..." : triggering ? "Scheduling..." : "Recompute now"}
-      </button>
+      </Button>
     </section>
   );
 }

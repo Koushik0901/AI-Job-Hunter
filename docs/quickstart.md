@@ -1,134 +1,100 @@
-# Quickstart
+# 🚀 Quickstart
 
-## Prerequisites
+Get the system running fast, then tune.
 
-- Python `3.12+` (`.python-version` is `3.12`)
-- `uv`
+---
 
-## Install
+## ✨ 1) Install
 
 ```bash
 uv sync
 ```
 
-## Configure
+Frontend dependencies:
+
+```bash
+cd src/dashboard/frontend
+npm install
+cd ../../..
+```
+
+---
+
+## ✨ 2) Configure
 
 ```bash
 cp .env.example .env
 ```
 
-Set at minimum:
+Minimum for dashboard + DB:
+- No DB env vars if you want local SQLite.
+- `TURSO_URL` and `TURSO_AUTH_TOKEN` only if you want Turso.
 
-- `TELEGRAM_TOKEN`
-- `TELEGRAM_CHAT_ID`
-
-Optional but recommended:
-
-- `TURSO_URL`
-- `TURSO_AUTH_TOKEN`
+Minimum for AI/swarms:
 - `OPENROUTER_API_KEY`
-- `ENRICHMENT_MODEL`
-- `DESCRIPTION_FORMAT_MODEL`
 
-If `TURSO_URL` is absent, local SQLite `jobs.db` is used.
+Optional:
+- `REDIS_URL`
+- `QDRANT_URL` + `QDRANT_API_KEY`
+- Telegram settings if you want notifications
 
-## Add company sources
+Local Qdrant option:
 
-Sources are stored in DB table `company_sources`.
-
-```bash
-# interactive single-company add
-uv run python src/add_company.py "Scale AI"
-
-# or bulk import from curated lists
-uv run python src/cli.py sources import --dry-run
-uv run python src/cli.py sources import
+```powershell
+./setup_qdrant_local.ps1
 ```
 
-Verify source registry:
+Then set these values in `.env`:
+- `QDRANT_URL=http://127.0.0.1:6333`
+- `QDRANT_API_KEY=` (leave empty for local dev)
+- `QDRANT_EVIDENCE_COLLECTION=candidate_evidence_chunks`
+- `EVIDENCE_RETRIEVAL_MODE=auto`
+
+---
+
+## ✨ 3) Start backend and frontend
+
+Backend:
 
 ```bash
-uv run python src/cli.py sources list
-```
-
-## First run
-
-```bash
-uv run python src/cli.py scrape
-```
-
-Behavior:
-
-1. Loads enabled companies from DB table `company_sources`.
-2. Scrapes ATS sources and HN comments.
-3. Applies title filter and default location filter.
-4. Fetches full descriptions (unless `--no-enrich`).
-5. Upserts records into `jobs`.
-6. Sends Telegram messages only for new jobs.
-7. Runs LLM enrichment for new jobs only (if key exists and `--no-enrich-llm` not set).
-
-## Common next commands
-
-```bash
-# Show broader location output
-uv run python src/cli.py scrape --no-location-filter --limit 200
-
-# Backfill missing/failed enrichment rows
-uv run python src/cli.py scrape --enrich-backfill
-
-# Re-enrich every described job
-uv run python src/cli.py scrape --re-enrich-all
-
-# Reformat descriptions for already-enriched rows missing formatted text
-uv run python src/cli.py scrape --jd-reformat-missing
-
-# Reformat descriptions for all already-enriched rows
-uv run python src/cli.py scrape --jd-reformat-all
-
-# Track your process for one URL
-uv run python src/cli.py lifecycle set-status --url <job_url> --status applied
-
-# Preview retention cleanup
-uv run python src/cli.py lifecycle prune --days 28
-```
-
-## Run dashboard (optional)
-
-```bash
-# API
 uv run python src/dashboard/backend/main.py
+```
 
-# UI
+Frontend:
+
+```bash
 cd src/dashboard/frontend
-npm install
 npm run dev
 ```
 
 Open:
-
-- API: `http://127.0.0.1:8000/api/health`
+- API: `http://127.0.0.1:8000`
 - UI: `http://localhost:5173`
 
-Note: dashboard backend requires `TURSO_URL` and `TURSO_AUTH_TOKEN`.
+---
 
-## Configure match profile (dashboard)
+## ✨ 4) Validate core flow
 
-In the dashboard `Profile` page (`/profile`), set:
+Fresh clones should start empty:
 
-- years of experience
-- skills
-- target role families
-- education entries (degree + field)
-- visa sponsorship need
+1. Open Workspace and confirm the app loads with no pre-seeded sources or profile data.
+2. Open Profile and save your own job titles, skills, and optional resume baseline.
+3. Add or import one or more company sources from Workspace.
+4. Run a scrape from Workspace and confirm jobs appear on the Board.
+5. Open Artifacts Hub and create starter drafts only for the jobs you care about.
+6. Recompile a resume PDF if you are using the artifact flow.
+7. Run an AI swarm only after you have provided your own baseline resume/evidence.
 
-Then save profile to enable/rerank match scoring.
+If you enabled local Qdrant:
+8. Open Profile and trigger evidence reindex once after saving evidence assets.
 
-Scoring rubric: [`dashboard/match-scoring.md`](dashboard/match-scoring.md)
+---
 
-## Troubleshooting quick pointers
+## ✨ 5) Run acceptance benchmark
 
-- CLI help: `uv run python src/cli.py --help`
-- Scrape help: `uv run python src/cli.py scrape --help`
-- If enrichment pauses due to 429: rerun with `--enrich-backfill`
-- If notifications do not send: verify `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID`
-- More: [`troubleshooting/known-issues.md`](troubleshooting/known-issues.md)
+```bash
+uv run python eval/swarm_benchmark.py build-dataset --out eval/swarm_dataset.yaml --limit 50 --statuses staging applied interviewing not_applied offer rejected archived
+uv run python eval/swarm_benchmark.py run --dataset eval/swarm_dataset.yaml --cycles 2 --compile-check --out-dir eval/results
+```
+
+Read the report in `eval/results/swarm_benchmark_*.md`.

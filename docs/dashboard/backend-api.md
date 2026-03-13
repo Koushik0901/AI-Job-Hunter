@@ -1,24 +1,24 @@
-# Dashboard Backend API
+# 🚀 Dashboard Backend API
 
 Base URL: `http://127.0.0.1:8000`
 
-Default CORS allowlist:
+This API powers Board, Profile, Artifacts, Analytics, and Swarm optimization.
 
-- `http://localhost:5173`
-- `http://127.0.0.1:5173`
+---
 
-## Endpoints
+## ✨ Health
 
 ### `GET /api/health`
+Basic health check.
 
-Health check.
+---
+
+## ✨ Jobs and Tracking
 
 ### `GET /api/jobs`
-
 List jobs with tracking join.
 
 Query params:
-
 - `status`
 - `q`
 - `ats`
@@ -30,56 +30,10 @@ Query params:
 - `offset`
 
 ### `GET /api/jobs/{job_url}`
-
-Get full job + tracking detail.
-
-`job_url` should be URL-encoded on the client.
-
-Response also includes `enrichment` (nullable) loaded from `job_enrichments`, including:
-
-- work mode / remote geo / eligibility
-- seniority / role family / years experience
-- minimum degree requirement
-- salary fields
-- required and preferred skills arrays
-- `formatted_description` (LLM-formatted Markdown, nullable)
-- visa sponsorship and red flags
-- enrichment metadata (`enriched_at`, `enrichment_status`, `enrichment_model`)
-
-Response includes `match`:
-
-- `score` (`0-100`)
-- `band` (`excellent|good|fair|low`)
-- `breakdown`
-- `reasons`
-- `confidence`
-
-Scoring rubric details: [`match-scoring.md`](match-scoring.md).
-
-### `GET /api/profile`
-
-Get candidate profile used for job-match scoring.
-
-### `PUT /api/profile`
-
-Upsert candidate profile.
-
-Body fields:
-
-- `years_experience`
-- `skills` (array)
-- `target_role_families` (array)
-- `requires_visa_sponsorship` (boolean)
-- `education` (array of `{ degree, field }`)
-- `degree` (legacy scalar degree field)
-- `degree_field` (legacy scalar degree-field value)
+Full job detail including enrichment and match panel.
 
 ### `PATCH /api/jobs/{job_url}/tracking`
-
-Update tracking fields.
-
-Body supports:
-
+Update tracking fields:
 - `status`
 - `priority`
 - `applied_at`
@@ -87,109 +41,136 @@ Body supports:
 - `target_compensation`
 
 ### `DELETE /api/jobs/{job_url}`
+Delete job and linked dashboard records.
 
-Permanently delete one job and linked dashboard records in a single backend transaction.
+---
 
-Delete cascade performed by repository:
-
-- `job_events`
-- `job_tracking`
-- `job_enrichments`
-- `jobs`
-
-Returns:
-
-- `{ "deleted": 1 }` on success
-- `404` when the job URL does not exist
+## ✨ Job Events
 
 ### `GET /api/jobs/{job_url}/events`
-
-List timeline events for a job.
+List timeline events.
 
 ### `POST /api/jobs/{job_url}/events`
-
 Create timeline event.
 
-Body fields:
-
-- `event_type`
-- `title`
-- `body` (optional)
-- `event_at` (ISO)
-
 ### `DELETE /api/events/{event_id}`
-
 Delete one event.
 
-### `GET /api/meta/stats`
+---
 
-Return dashboard summary metrics.
+## ✨ Profile
+
+### `GET /api/profile`
+Candidate scoring profile.
+
+### `PUT /api/profile`
+Upsert scoring profile.
+
+### `GET /api/profile/evidence-assets`
+Load evidence vault assets used by swarm grounding.
+
+### `PUT /api/profile/evidence-assets`
+Upsert evidence assets (size-limited + sanitized).
+
+### `GET /api/profile/evidence/index-status`
+Current evidence indexing status.
+
+### `POST /api/profile/evidence/reindex`
+Force evidence reindex.
+
+---
+
+## ✨ Analytics
+
+### `GET /api/meta/stats`
+Board summary metrics.
 
 ### `GET /api/analytics/funnel`
+Funnel, deltas, goals, alerts, cohorts, source quality, forecast.
 
-Return funnel analytics for pipeline stages and conversion rates.
+Key query params:
+- `preset` (`30d|90d|all`)
+- `from` / `to`
+- `status_scope` (`pipeline|all`)
 
-Query params:
+---
 
-- `preset` (`30d|90d|all`, default `90d`)
-- `from` (ISO date, optional; alias of `from_date`)
-- `to` (ISO date, optional; defaults to today UTC)
-- `status_scope` (`pipeline|all`, default `pipeline`)
-- `applications_goal_target` (int, optional, default `10`)
-- `interviews_goal_target` (int, optional, default `3`)
-- `forecast_apps_per_week` (int, optional, default falls back to `applications_goal_target`)
+## ✨ Artifact LaTeX + Compile
 
-Behavior:
+### `POST /api/artifacts/{artifact_id}/latex/recompile`
+Compile active LaTeX version and return compile status/diagnostics.
 
-- Stage counts are always returned for pipeline statuses:
-  - `not_applied`
-  - `staging`
-  - `applied`
-  - `interviewing`
-  - `offer`
-  - `rejected`
-- Conversion metrics include:
-  - `backlog_to_staging`
-  - `staging_to_applied`
-  - `applied_to_interviewing`
-  - `interviewing_to_offer`
-  - `backlog_to_offer`
-- Also returns:
-  - `deltas` (current window minus previous equal window counts/conversions)
-  - `weekly_goals` (7-day applications/interviews target vs actual and progress)
-  - `alerts` (stale staging, stale interviewing, backlog expiring soon)
-  - `cohorts` (weekly posted cohorts with per-stage counts and offer rate)
-  - `source_quality`:
-    - `ats` top source performance table
-    - `companies` top company performance table
-  - `forecast`:
-    - forecast input throughput (`applications_per_week`)
-    - rates (`interview_rate`, `offer_rate_from_interview`)
-    - confidence band + margin
-    - horizon windows (`7d`, `30d`) with projected values and low/high ranges
-- `status_scope=pipeline` excludes non-pipeline/legacy statuses from totals.
-- `status_scope=all` includes all normalized statuses in `status_totals`.
+### `GET /api/artifacts/{artifact_id}/latex/pdf?version=<n>`
+Download compiled PDF for a version.
 
-## Data consistency rule
+---
 
-Tracking updates also sync `jobs.application_status` so CLI lifecycle and dashboard stay aligned.
+## ✨ Resume Swarm Endpoints
 
-## Caching
+- `POST /api/artifacts/{artifact_id}/resume-latex/swarm-runs`
+- `GET /api/artifacts/{artifact_id}/resume-latex/swarm-runs/{run_id}`
+- `POST /api/artifacts/{artifact_id}/resume-latex/swarm-runs/{run_id}/cancel`
+- `POST /api/artifacts/{artifact_id}/resume-latex/swarm-runs/{run_id}/confirm-save`
 
-When `REDIS_URL` is configured, dashboard backend uses Redis read-through caching for:
+Run lifecycle:
+- Start run -> stream stage events in DB -> inspect status -> confirm save.
 
-- `GET /api/jobs`
-- `GET /api/jobs/{job_url}`
-- `GET /api/jobs/{job_url}/events`
-- `GET /api/profile`
-- `GET /api/meta/stats`
-- `GET /api/analytics/funnel`
+Stage telemetry includes:
+- evidence retrieval snippets/citation IDs
+- score payloads
+- rewrite payloads
+- verify/apply reports
+- gate decisions
+- rollback events (if compile guard reverts)
 
-Write endpoints invalidate affected cache keys (tracking updates, profile updates, event create/delete, and job delete).
+---
 
-Job-detail cache (`GET /api/jobs/{job_url}`) is also bounded by an LRU index:
+## ✨ Cover-Letter Swarm Endpoints
 
-- max entries controlled by `DASHBOARD_CACHE_MAX_JOB_DETAILS` (default `24`)
-- oldest least-recently-used detail entries are evicted when limit is exceeded
-- per-entry TTL still applies via `DASHBOARD_CACHE_TTL_JOB_DETAIL`
-- funnel analytics TTL is controlled by `DASHBOARD_CACHE_TTL_ANALYTICS_FC`
+- `POST /api/artifacts/{artifact_id}/cover-letter-latex/swarm-runs`
+- `GET /api/artifacts/{artifact_id}/cover-letter-latex/swarm-runs/{run_id}`
+- `POST /api/artifacts/{artifact_id}/cover-letter-latex/swarm-runs/{run_id}/cancel`
+- `POST /api/artifacts/{artifact_id}/cover-letter-latex/swarm-runs/{run_id}/confirm-save`
+
+Same lifecycle model as resume swarm.
+
+---
+
+## ✨ Safety and Integrity Guarantees
+
+1. Legal-move verification
+- Invalid targets are skipped.
+- Conflicts are dropped deterministically.
+
+2. Claim policy
+- Unsupported claim-introducing edits are blocked.
+- `supported_by` citations can be enforced.
+
+3. LaTeX safety
+- Brace/environment/special-char guards prevent fragile edits.
+
+4. Compile guard rollback
+- If pre-run compiles and post-run fails, final output reverts to input.
+
+---
+
+## ✨ Caching
+
+With `REDIS_URL` configured, read-through caching is enabled for:
+- jobs list/detail
+- events
+- profile
+- stats
+- funnel analytics
+
+Jobs list requests are served from a single Redis-backed board snapshot and filtered/sorted in memory, so filter changes avoid duplicating per-query job caches behind the scenes.
+
+Writes invalidate affected keys.
+
+---
+
+## ✨ Related Docs
+
+- [overview.md](overview.md)
+- [frontend-ui.md](frontend-ui.md)
+- [../evaluation/eval-framework.md](../evaluation/eval-framework.md)

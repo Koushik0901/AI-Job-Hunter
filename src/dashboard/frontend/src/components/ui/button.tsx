@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
 
 function joinClasses(...classes: Array<string | undefined>): string {
   return classes.filter(Boolean).join(" ");
@@ -10,15 +11,17 @@ type ButtonSize = "default" | "compact";
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  asChild?: boolean;
 }
 
 export function Button({
   className,
   variant = "default",
   size = "default",
+  asChild = false,
   ...props
 }: ButtonProps): JSX.Element {
+  const Comp = asChild ? Slot : "button";
   const base = variant === "primary" ? "primary-btn" : "ghost-btn";
-  return <button className={joinClasses(base, size === "compact" ? "compact" : undefined, variant === "danger" ? "danger" : undefined, variant === "success" ? "success" : undefined, variant === "warn" ? "warn" : undefined, variant === "primary" ? undefined : undefined, className)} {...props} />;
+  return <Comp className={joinClasses(base, size === "compact" ? "compact" : undefined, variant === "danger" ? "danger" : undefined, variant === "success" ? "success" : undefined, variant === "warn" ? "warn" : undefined, className)} {...props} />;
 }
-

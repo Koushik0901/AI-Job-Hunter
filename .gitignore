@@ -12,6 +12,26 @@ wheels/
 # Secrets and local data
 .env
 *.db
+artifacts_workspace/
+output/
+.tmp/
+.tmp-*.log
+board-screen.png
+assets/Screenshot*.png
+src/dashboard/frontend/*.log
+src/dashboard/frontend/.playwright-cli/
+src/dashboard/frontend/dist/
+src/dashboard/frontend/vite-dev.log
+*.tsbuildinfo
+tmp-test-startprocess.txt
+
+# Generated LaTeX build artifacts
+src/dashboard/backend/latex_templates/**/*.aux
+src/dashboard/backend/latex_templates/**/*.fdb_latexmk
+src/dashboard/backend/latex_templates/**/*.fls
+src/dashboard/backend/latex_templates/**/*.log
+src/dashboard/backend/latex_templates/**/*.out
+src/dashboard/backend/latex_templates/**/*.pdf
 
 # IDE / local tooling
 .claude/settings.local.json

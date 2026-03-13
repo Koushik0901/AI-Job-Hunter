@@ -1,23 +1,20 @@
-# `cli.py lifecycle` CLI Reference
+# 🚀 CLI: `lifecycle`
 
 Command group:
 
 ```bash
-uv run python src/cli.py lifecycle [--db PATH] <subcommand> [options]
+uv run python src/cli.py lifecycle <subcommand>
 ```
 
-This command group manages job application lifecycle state and retention cleanup.
+---
 
-## Subcommands
-
-### `set-status`
+## `set-status`
 
 ```bash
 uv run python src/cli.py lifecycle set-status --url <job_url> --status <status>
 ```
 
-Allowed status values:
-
+Allowed statuses:
 - `not_applied`
 - `staging`
 - `applied`
@@ -25,44 +22,27 @@ Allowed status values:
 - `offer`
 - `rejected`
 
-Writes `jobs.application_status` for the matching URL.
+---
 
-### `prune`
+## `prune`
+
+Dry run:
 
 ```bash
-# dry-run (default)
 uv run python src/cli.py lifecycle prune --days 28
+```
 
-# execute delete
+Apply delete:
+
+```bash
 uv run python src/cli.py lifecycle prune --days 28 --apply
 ```
 
-Pruning criteria in `db.py`:
+Protected statuses are never deleted.
 
-- `application_status` is unset/empty/`not_applied`
-- `posted` is non-empty and parseable by SQLite `date(posted)`
-- posted date is older than threshold (`--days`)
-- rows with status in protected set are never deleted
+---
 
-Protected statuses:
-
-- `staging`
-- `applied`
-- `interviewing`
-- `offer`
-- `rejected`
-- `withdrawn`
-
-`withdrawn` is treated as a legacy protected value for retention only; it is not an allowed target for `set-status`.
-
-## DB resolution behavior
-
-- If `TURSO_URL` is set, Turso is used.
-- Else if `--db PATH` is provided, local SQLite at that path is used.
-- Else default local DB is `<cwd>/jobs.db`.
-
-## Safety notes
+## ✨ Safety
 
 - `prune` defaults to dry-run.
-- `--apply` is required to delete rows.
-- If a URL does not exist, `set-status` reports no match and does not error.
+- `--apply` is required for destructive action.

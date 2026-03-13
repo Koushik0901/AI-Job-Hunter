@@ -37,21 +37,53 @@ logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 _PROMPTS_FILE = Path(__file__).resolve().parent.parent / "prompts.yaml"
+_PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
+_PROMPT_SECTION_FILES = {
+    "enrichment": _PROMPTS_DIR / "jd_enrichment_prompt.yaml",
+    "description_format": _PROMPTS_DIR / "jd_formatter_prompt.yaml",
+}
+
+
+def _coerce_prompt_section(raw: Any, *, source: str) -> dict[str, str]:
+    if not isinstance(raw, dict):
+        raise ValueError(f"{source} must contain a mapping")
+    if "system" in raw or "user" in raw:
+        node = raw
+    else:
+        node = next((value for value in raw.values() if isinstance(value, dict)), None)
+        if node is None:
+            raise ValueError(f"{source} must contain a prompt mapping with 'system'/'user' keys")
+    system = node.get("system")
+    user = node.get("user")
+    if not isinstance(system, str) or not isinstance(user, str):
+        raise ValueError(f"{source} must define string 'system' and 'user' prompts")
+    return {"system": system, "user": user}
 
 
 @lru_cache(maxsize=1)
 def _load_prompts() -> dict[str, Any]:
-    data = yaml.safe_load(_PROMPTS_FILE.read_text(encoding="utf-8")) or {}
-    if not isinstance(data, dict):
-        raise ValueError("prompts.yaml must contain a top-level mapping")
-    return data
+    if _PROMPTS_FILE.exists():
+        data = yaml.safe_load(_PROMPTS_FILE.read_text(encoding="utf-8")) or {}
+        if not isinstance(data, dict):
+            raise ValueError("prompts.yaml must contain a top-level mapping")
+        return data
+
+    prompts: dict[str, Any] = {}
+    for section, path in _PROMPT_SECTION_FILES.items():
+        if not path.exists():
+            continue
+        parsed = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        prompts[section] = _coerce_prompt_section(parsed, source=str(path.name))
+    if prompts:
+        return prompts
+    raise FileNotFoundError("No prompt templates found in prompts.yaml or prompts/")
 
 
 def _prompt_template(section: str, key: str) -> str:
     prompts = _load_prompts()
     node = prompts.get(section, {})
     if not isinstance(node, dict) or key not in node:
-        raise KeyError(f"Missing prompt '{section}.{key}' in prompts.yaml")
+        raise KeyError(f"Missing prompt '{section}.{key}' in prompt configuration")
     value = node[key]
     if not isinstance(value, str):
         raise TypeError(f"Prompt '{section}.{key}' must be a string")

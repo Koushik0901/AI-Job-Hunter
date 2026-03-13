@@ -273,6 +273,35 @@ class MatchScoreTests(unittest.TestCase):
         self.assertEqual(coop_match["breakdown"]["seniority_bias"], -25)
         self.assertEqual(senior_match["breakdown"]["seniority_bias"], -25)
 
+    def test_desired_job_title_alignment_is_boost_only(self) -> None:
+        profile = {
+            "years_experience": 3,
+            "skills": ["python", "sql"],
+            "desired_job_titles": ["Machine Learning Engineer", "Applied Scientist"],
+            "target_role_families": [],
+            "requires_visa_sponsorship": False,
+        }
+        matching_job = {
+            "title": "Machine Learning Engineer",
+            "enrichment": {
+                "required_skills": ["python"],
+                "preferred_skills": [],
+            },
+        }
+        non_matching_job = {
+            "title": "Backend Platform Engineer",
+            "enrichment": {
+                "required_skills": ["python"],
+                "preferred_skills": [],
+            },
+        }
+
+        matched = compute_match_score(matching_job, profile)
+        non_matched = compute_match_score(non_matching_job, profile)
+        self.assertGreater(matched["breakdown"]["desired_title_alignment"], 0)
+        self.assertEqual(non_matched["breakdown"]["desired_title_alignment"], 0)
+        self.assertGreater(matched["score"], non_matched["score"])
+
 
 if __name__ == "__main__":
     unittest.main()

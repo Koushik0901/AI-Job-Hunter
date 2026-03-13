@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getFunnelAnalytics } from "../api";
 import { ThemedLoader } from "../components/ThemedLoader";
+import { Button } from "../components/ui/button";
 import type { FunnelAnalyticsResponse, SourceQualityItem } from "../types";
 
 type RangePreset = "30d" | "90d" | "all";
@@ -28,7 +29,7 @@ const CONVERSION_ITEMS: Array<{
 ];
 
 const ALERT_ITEMS: Array<{ key: keyof FunnelAnalyticsResponse["alerts"]; title: string; detail: string }> = [
-  { key: "staging_stale_7d", title: "Staging stale", detail: "Drafting started, no update in 7+ days." },
+  { key: "staging_overdue_48h", title: "Staging overdue", detail: "Jobs still in staging after 48+ hours." },
   { key: "interviewing_no_activity_5d", title: "Interviewing idle", detail: "No follow-up activity in 5+ days." },
   { key: "backlog_expiring_soon", title: "Backlog expiring", detail: "Jobs close to 3-week freshness cutoff." },
 ];
@@ -325,15 +326,17 @@ export function AnalyticsPage() {
         <div className="analytics-controls">
           <div className="analytics-preset-group" role="group" aria-label="Analytics date window">
             {(["30d", "90d", "all"] as RangePreset[]).map((option) => (
-              <button
+              <Button
                 type="button"
                 key={option}
-                className={`ghost-btn compact ${preset === option ? "active" : ""}`}
+                variant="default"
+                size="compact"
+                className={preset === option ? "active" : undefined}
                 data-icon={preset === option ? "●" : "◦"}
                 onClick={() => setPreset(option)}
               >
                 {option === "all" ? "All time" : `Last ${option.slice(0, -1)} days`}
-              </button>
+              </Button>
             ))}
           </div>
           <label className="toolbar-control analytics-goal-input">
@@ -369,9 +372,9 @@ export function AnalyticsPage() {
               }}
             />
           </label>
-          <button type="button" onClick={() => void load()} className="primary-btn" data-icon="↻">
+          <Button type="button" onClick={() => void load()} variant="primary" data-icon="↻">
             Refresh
-          </button>
+          </Button>
         </div>
       </header>
 

@@ -5,7 +5,8 @@ from pathlib import Path
 
 from rich.console import Console
 
-from db import init_db, prune_not_applied_older_than_days, set_application_status
+from db import init_db, set_application_status
+from services.workspace_operation_service import execute_workspace_operation
 
 
 def register(subparsers) -> None:
@@ -48,11 +49,16 @@ def run(args) -> None:
         return
 
     if args.lifecycle_cmd == "prune":
+        summary = execute_workspace_operation(
+            conn,
+            "prune" if args.apply else "prune_preview",
+            {"days": args.days},
+            console=console,
+        )
+        affected = int(summary.get("affected", 0) or 0)
         if args.apply:
-            deleted = prune_not_applied_older_than_days(conn, args.days, dry_run=False)
-            console.print(f"[green]Deleted {deleted} job(s).[/green]")
+            console.print(f"[green]Deleted {affected} job(s).[/green]")
         else:
-            would_delete = prune_not_applied_older_than_days(conn, args.days, dry_run=True)
-            console.print(f"[yellow]Dry-run:[/yellow] would delete {would_delete} job(s). Use --apply to execute.")
+            console.print(f"[yellow]Dry-run:[/yellow] would delete {affected} job(s). Use --apply to execute.")
         conn.close()
         return
