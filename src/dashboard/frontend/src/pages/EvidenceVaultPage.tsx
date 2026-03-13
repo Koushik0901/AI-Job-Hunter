@@ -1,10 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import Editor from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
-import "monaco-editor/esm/vs/language/json/monaco.contribution";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { ThemedLoader } from "../components/ThemedLoader";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -14,6 +10,8 @@ import { useEvidenceVault } from "../hooks/useEvidenceVault";
 const EVIDENCE_CONTEXT_PATH = "file:///evidence-context.json";
 const PROJECT_CARDS_PATH = "file:///project-cards.json";
 const BRAG_DOCUMENT_PATH = "file:///brag-document.md";
+const MonacoEditor = lazy(() => import("../components/evidence-vault/LazyMonacoEditor"));
+const MarkdownPreview = lazy(() => import("../components/evidence-vault/MarkdownPreview"));
 
 const EVIDENCE_CONTEXT_SCHEMA = {
   type: "object",
@@ -85,6 +83,22 @@ function healthTone(configured: boolean, healthy: boolean): string {
   if (healthy) return "good";
   if (configured) return "warn";
   return "muted";
+}
+
+function editorFallback(label: string, className?: string): JSX.Element {
+  return (
+    <div className={className ?? "evidence-vault-editor-shell"}>
+      <ThemedLoader label={label} />
+    </div>
+  );
+}
+
+function previewFallback(): JSX.Element {
+  return (
+    <div className="evidence-vault-markdown-preview">
+      <ThemedLoader label="Loading preview" />
+    </div>
+  );
 }
 
 export function EvidenceVaultPage() {
@@ -240,26 +254,28 @@ export function EvidenceVaultPage() {
                       Format JSON
                     </Button>
                   </div>
-                  <div className="evidence-vault-editor-shell">
-                    <Editor
-                      beforeMount={configureMonaco}
-                      height="68vh"
-                      language="json"
-                      path={EVIDENCE_CONTEXT_PATH}
-                      theme={monacoTheme}
-                      value={evidenceVault.evidenceContextInput}
-                      onChange={(value) => evidenceVault.setEvidenceContextInput(value ?? "{}")}
-                      options={{
-                        minimap: { enabled: false },
-                        formatOnPaste: true,
-                        formatOnType: true,
-                        scrollBeyondLastLine: false,
-                        wordWrap: "on",
-                        lineNumbersMinChars: 3,
-                        padding: { top: 14, bottom: 14 },
-                      }}
-                    />
-                  </div>
+                  <Suspense fallback={editorFallback("Loading JSON editor")}>
+                    <div className="evidence-vault-editor-shell">
+                      <MonacoEditor
+                        beforeMount={configureMonaco}
+                        height="68vh"
+                        language="json"
+                        path={EVIDENCE_CONTEXT_PATH}
+                        theme={monacoTheme}
+                        value={evidenceVault.evidenceContextInput}
+                        onChange={(value) => evidenceVault.setEvidenceContextInput(value ?? "{}")}
+                        options={{
+                          minimap: { enabled: false },
+                          formatOnPaste: true,
+                          formatOnType: true,
+                          scrollBeyondLastLine: false,
+                          wordWrap: "on",
+                          lineNumbersMinChars: 3,
+                          padding: { top: 14, bottom: 14 },
+                        }}
+                      />
+                    </div>
+                  </Suspense>
                 </TabsContent>
 
                 <TabsContent value="brag" className="evidence-vault-tab-body">
@@ -275,38 +291,39 @@ export function EvidenceVaultPage() {
                     </div>
                   </div>
                   <div className="evidence-vault-markdown-grid">
-                    <div className="evidence-vault-editor-shell evidence-vault-markdown-editor-shell">
-                      <Editor
-                        height="100%"
-                        language="markdown"
-                        path={BRAG_DOCUMENT_PATH}
-                        theme={monacoTheme}
-                        value={evidenceVault.draft.brag_document_markdown}
-                        onChange={(value) => evidenceVault.setBragDocumentMarkdown(value ?? "")}
-                        options={{
-                          minimap: { enabled: false },
-                          scrollBeyondLastLine: false,
-                          wordWrap: "on",
-                          quickSuggestions: false,
-                          padding: { top: 14, bottom: 14 },
-                        }}
-                      />
-                    </div>
+                    <Suspense fallback={editorFallback("Loading markdown editor", "evidence-vault-editor-shell evidence-vault-markdown-editor-shell")}>
+                      <div className="evidence-vault-editor-shell evidence-vault-markdown-editor-shell">
+                        <MonacoEditor
+                          height="100%"
+                          language="markdown"
+                          path={BRAG_DOCUMENT_PATH}
+                          theme={monacoTheme}
+                          value={evidenceVault.draft.brag_document_markdown}
+                          onChange={(value) => evidenceVault.setBragDocumentMarkdown(value ?? "")}
+                          options={{
+                            minimap: { enabled: false },
+                            scrollBeyondLastLine: false,
+                            wordWrap: "on",
+                            quickSuggestions: false,
+                            padding: { top: 14, bottom: 14 },
+                          }}
+                        />
+                      </div>
+                    </Suspense>
                     <div className="evidence-vault-preview-card">
                       <div className="evidence-vault-preview-head">
                         <h3>Live Preview</h3>
                         <span className="soft-chip">{evidenceVault.bragStats.words} words</span>
                         <span className="soft-chip">{evidenceVault.bragStats.headings} headings</span>
                       </div>
-                      <div className="evidence-vault-markdown-preview">
-                        {(evidenceVault.draft.brag_document_markdown ?? "").trim() ? (
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {evidenceVault.draft.brag_document_markdown}
-                          </ReactMarkdown>
-                        ) : (
-                          <p className="board-note">Add markdown to preview how structure and scanability will look to users.</p>
-                        )}
-                      </div>
+                      <Suspense fallback={previewFallback()}>
+                        <div className="evidence-vault-markdown-preview">
+                          <MarkdownPreview
+                            markdown={evidenceVault.draft.brag_document_markdown ?? ""}
+                            emptyState="Add markdown to preview how structure and scanability will look to users."
+                          />
+                        </div>
+                      </Suspense>
                     </div>
                   </div>
                 </TabsContent>
@@ -321,26 +338,28 @@ export function EvidenceVaultPage() {
                       Format JSON
                     </Button>
                   </div>
-                  <div className="evidence-vault-editor-shell">
-                    <Editor
-                      beforeMount={configureMonaco}
-                      height="64vh"
-                      language="json"
-                      path={PROJECT_CARDS_PATH}
-                      theme={monacoTheme}
-                      value={evidenceVault.projectCardsInput}
-                      onChange={(value) => evidenceVault.setProjectCardsInput(value ?? "[]")}
-                      options={{
-                        minimap: { enabled: false },
-                        formatOnPaste: true,
-                        formatOnType: true,
-                        scrollBeyondLastLine: false,
-                        wordWrap: "on",
-                        lineNumbersMinChars: 3,
-                        padding: { top: 14, bottom: 14 },
-                      }}
-                    />
-                  </div>
+                  <Suspense fallback={editorFallback("Loading project card editor")}>
+                    <div className="evidence-vault-editor-shell">
+                      <MonacoEditor
+                        beforeMount={configureMonaco}
+                        height="64vh"
+                        language="json"
+                        path={PROJECT_CARDS_PATH}
+                        theme={monacoTheme}
+                        value={evidenceVault.projectCardsInput}
+                        onChange={(value) => evidenceVault.setProjectCardsInput(value ?? "[]")}
+                        options={{
+                          minimap: { enabled: false },
+                          formatOnPaste: true,
+                          formatOnType: true,
+                          scrollBeyondLastLine: false,
+                          wordWrap: "on",
+                          lineNumbersMinChars: 3,
+                          padding: { top: 14, bottom: 14 },
+                        }}
+                      />
+                    </div>
+                  </Suspense>
                 </TabsContent>
 
                 <TabsContent value="claims" className="evidence-vault-tab-body">

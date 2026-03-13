@@ -32,6 +32,7 @@ src/dashboard/backend/latex_templates/**/*.fls
 src/dashboard/backend/latex_templates/**/*.log
 src/dashboard/backend/latex_templates/**/*.out
 src/dashboard/backend/latex_templates/**/*.pdf
+src/dashboard/backend/latex_templates/**/*.synctex.gz
 
 # IDE / local tooling
 .claude/settings.local.json

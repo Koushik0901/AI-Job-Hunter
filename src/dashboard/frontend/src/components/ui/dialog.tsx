@@ -38,10 +38,16 @@ export function DialogTitle({
   return <DialogPrimitive.Title className={joinClasses("ui-dialog-title", className)} {...props} />;
 }
 
+export function DialogDescription({
+  className,
+  ...props
+}: DialogPrimitive.DialogDescriptionProps): JSX.Element {
+  return <DialogPrimitive.Description className={joinClasses("ui-dialog-description", className)} {...props} />;
+}
+
 export function DialogFooter({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>): JSX.Element {
   return <div className={joinClasses("ui-dialog-footer", className)} {...props} />;
 }
-

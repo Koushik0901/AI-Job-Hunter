@@ -35,6 +35,44 @@ _TEMPLATE_CLASSIC = r"""
 \end{document}
 """.strip()
 
+_TEMPLATE_CLASSIC_COVER_LETTER = r"""
+\documentclass[11pt,a4paper]{article}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage[hidelinks]{hyperref}
+\usepackage{parskip}
+\setlength{\parindent}{0pt}
+
+\begin{document}
+
+\textbf{<<SENDER_NAME>>}\\
+<<SENDER_CONTACT>>
+
+\vspace{1.5em}
+
+<<DATE>>
+
+\vspace{1.5em}
+
+\textbf{<<RECIPIENT_NAME>>}\\
+<<COMPANY>>\\
+<<COMPANY_LOCATION>>
+
+\vspace{1.5em}
+
+\textbf{<<SUBJECT_LINE>>}
+
+\vspace{1em}
+
+<<BODY_PARAGRAPHS>>
+
+\vspace{1.5em}
+
+Sincerely,\\
+<<SENDER_NAME>>
+
+\end{document}
+""".strip()
+
 
 def _escape_latex(text: str) -> str:
     replacements = {
@@ -163,7 +201,7 @@ def _get_template_source(template_id: str, *, kind: TemplateKind) -> str:
             return fallback.read_text(encoding="utf-8")
 
     # Final safety fallback so startup does not break if folder is empty.
-    return _TEMPLATE_CLASSIC
+    return _TEMPLATE_CLASSIC_COVER_LETTER if kind == "cover_letter" else _TEMPLATE_CLASSIC
 
 
 def get_resume_template_source(template_id: str) -> str:

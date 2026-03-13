@@ -13,6 +13,10 @@ export default defineConfig({
           if (id.includes("framer-motion")) return "motion-vendor";
           if (id.includes("react-markdown") || id.includes("remark-gfm")) return "markdown-vendor";
           if (id.includes("sonner")) return "toast-vendor";
+          if (id.includes("@monaco-editor/react")) return "monaco-react";
+          if (id.includes("monaco-latex")) return "monaco-latex";
+          const monacoMatch = id.match(/monaco-editor\/esm\/vs\/([^/]+)/);
+          if (monacoMatch) return `monaco-${monacoMatch[1]}`;
           return undefined;
         },
       },

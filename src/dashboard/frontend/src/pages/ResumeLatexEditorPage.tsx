@@ -48,7 +48,7 @@ import {
 } from "../components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Progress } from "../components/ui/progress";
 
 type ArtifactKind = "resume" | "cover_letter";
@@ -791,6 +791,9 @@ export function ResumeLatexEditorPage({ defaultArtifactType }: ResumeLatexEditor
         <DialogContent className="max-w-5xl">
           <DialogHeader>
             <DialogTitle>{artifactType === "resume" ? "Resume AI Rewrite" : "Cover Letter AI Rewrite"}</DialogTitle>
+            <DialogDescription>
+              Review the live tailoring run, then confirm the generated draft only after the preview and score changes look correct.
+            </DialogDescription>
           </DialogHeader>
           <div className="resume-swarm-modal-body">
             <div className="resume-swarm-status-row">
