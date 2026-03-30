@@ -1,0 +1,1200 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - paragraph [ref=e6]: AI Job Hunter
+        - heading "Job Search Dashboard" [level=1] [ref=e7]
+      - navigation "Primary" [ref=e8]:
+        - link "Today" [ref=e9] [cursor=pointer]:
+          - /url: /today
+        - link "Board" [ref=e10] [cursor=pointer]:
+          - /url: /board
+        - link "Insights" [ref=e11] [cursor=pointer]:
+          - /url: /insights
+      - generic "Toggle dark and light mode" [ref=e12]:
+        - checkbox "Toggle dark and light mode" [checked]
+        - img [ref=e17] [cursor=pointer]
+    - generic [ref=e20]:
+      - generic [ref=e22]:
+        - paragraph [ref=e23]: Board
+        - heading "Pipeline workspace" [level=2] [ref=e24]
+        - paragraph [ref=e25]: Browse the pipeline, move jobs between states, and open the job drawer when it is time to evaluate a role in detail.
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - generic [ref=e28]:
+            - paragraph [ref=e29]: Board controls
+            - heading "Search, filter, and move jobs" [level=3] [ref=e30]
+            - paragraph [ref=e31]: Use the board to manage pipeline state, then open the drawer for deeper evaluation.
+          - generic [ref=e32]:
+            - generic [ref=e33]: Quick find
+            - generic [ref=e34]:
+              - generic [ref=e35]: ⌕
+              - searchbox "Search jobs" [ref=e36]
+              - generic [ref=e37]: "257"
+            - generic [ref=e38]: Search stays pinned while browse controls stay compact
+        - generic [ref=e39]:
+          - region "Browse controls" [ref=e40]:
+            - paragraph [ref=e41]: Browse
+            - button "Toggle browse controls" [ref=e43] [cursor=pointer]:
+              - generic [ref=e44]: Controls
+              - generic [ref=e45]: ▾
+          - region "Quick actions" [ref=e46]:
+            - paragraph [ref=e47]: Actions
+            - generic [ref=e48]:
+              - button "Suppressed" [ref=e49] [cursor=pointer]:
+                - generic [ref=e50]: Suppressed
+                - img [ref=e52]
+              - button "Add Job" [ref=e56] [cursor=pointer]:
+                - generic [ref=e57]: Add Job
+                - img [ref=e59]
+              - button "Refresh" [ref=e61] [cursor=pointer]:
+                - generic [ref=e62]: Refresh
+                - img [ref=e64]
+      - region "Board focus" [ref=e67]:
+        - generic [ref=e68]:
+          - paragraph [ref=e69]: Focus
+          - paragraph [ref=e70]: Jump into a specific work queue without changing your search or filter setup.
+        - generic [ref=e71]:
+          - button "All 257" [ref=e2074] [cursor=pointer]:
+            - generic [ref=e73]: All
+            - strong [ref=e74]: "257"
+          - button "Overdue 2" [ref=e580] [cursor=pointer]:
+            - generic [ref=e76]: Overdue
+            - strong [ref=e77]: "2"
+          - button "Staging 7" [ref=e581] [cursor=pointer]:
+            - generic [ref=e79]: Staging
+            - strong [ref=e80]: "7"
+          - button "High priority 0" [ref=e81] [cursor=pointer]:
+            - generic [ref=e82]: High priority
+            - strong [ref=e83]: "0"
+          - button "Strong match 71" [ref=e582] [cursor=pointer]:
+            - generic [ref=e85]: Strong match
+            - strong [ref=e86]: "71"
+          - button "Matches my titles 0" [ref=e87] [cursor=pointer]:
+            - generic [ref=e88]: Matches my titles
+            - strong [ref=e89]: "0"
+      - region "Pipeline stage distribution" [ref=e90]:
+        - article [ref=e91]:
+          - generic [ref=e92]:
+            - paragraph [ref=e93]: Backlog
+            - strong [ref=e94]: "98"
+          - generic [ref=e95]: Recent roles
+        - article [ref=e97]:
+          - generic [ref=e98]:
+            - paragraph [ref=e99]: Staging
+            - strong [ref=e100]: "7"
+          - generic [ref=e101]: 2 overdue
+        - article [ref=e103]:
+          - generic [ref=e104]:
+            - paragraph [ref=e105]: Applied
+            - strong [ref=e106]: "38"
+          - generic [ref=e107]: Awaiting response
+        - article [ref=e109]:
+          - generic [ref=e110]:
+            - paragraph [ref=e111]: Interviewing
+            - strong [ref=e112]: "3"
+          - generic [ref=e113]: Active loop
+        - article [ref=e115]:
+          - generic [ref=e116]:
+            - paragraph [ref=e117]: Offer
+            - strong [ref=e118]: "0"
+          - generic [ref=e119]: Offer stage
+        - article [ref=e121]:
+          - generic [ref=e122]:
+            - paragraph [ref=e123]: Rejected
+            - strong [ref=e124]: "5"
+          - generic [ref=e125]: Closed outcomes
+      - main [ref=e127]:
+        - paragraph [ref=e128]: Backlog only shows jobs posted in the last 3 weeks; all other stages show full history.
+        - generic [ref=e583]:
+          - generic [ref=e585]:
+            - generic [ref=e587]:
+              - generic [ref=e590]:
+                - heading "Backlog" [level=3] [ref=e591]
+                - paragraph [ref=e592]: Recent roles
+              - generic [ref=e593]: "98"
+            - generic [ref=e594]:
+              - button "YOU.com Medium AI Engineer, Enterprise Solutions San Francisco, CA (Remote) Posted Mar 18 Match 100 • Excellent" [ref=e595]:
+                - button "YOU.com Medium AI Engineer, Enterprise Solutions San Francisco, CA (Remote) Posted Mar 18 Match 100 • Excellent" [ref=e597] [cursor=pointer]:
+                  - generic [ref=e598]:
+                    - paragraph [ref=e601]: YOU.com
+                    - generic [ref=e602]: Medium
+                  - heading "AI Engineer, Enterprise Solutions" [level=4] [ref=e603]
+                  - generic [ref=e605]: San Francisco, CA (Remote)
+                  - generic [ref=e607]: Posted Mar 18
+                  - generic [ref=e610]: Match 100 • Excellent
+              - button "Valsoft Corp Medium AI-ML Engineer - Hotel Revenue Optimization Toronto, Ontario, Canada Posted Mar 17 Match 100 • Excellent" [ref=e611]:
+                - button "Valsoft Corp Medium AI-ML Engineer - Hotel Revenue Optimization Toronto, Ontario, Canada Posted Mar 17 Match 100 • Excellent" [ref=e613] [cursor=pointer]:
+                  - generic [ref=e614]:
+                    - paragraph [ref=e617]: Valsoft Corp
+                    - generic [ref=e618]: Medium
+                  - heading "AI-ML Engineer - Hotel Revenue Optimization" [level=4] [ref=e619]
+                  - generic [ref=e621]: Toronto, Ontario, Canada
+                  - generic [ref=e623]: Posted Mar 17
+                  - generic [ref=e626]: Match 100 • Excellent
+              - button "Valsoft Corp Medium AI-ML Engineer - Hotel Revenue Optimization Montreal, Quebec, Canada Posted Mar 17 Match 100 • Excellent" [ref=e627]:
+                - button "Valsoft Corp Medium AI-ML Engineer - Hotel Revenue Optimization Montreal, Quebec, Canada Posted Mar 17 Match 100 • Excellent" [ref=e629] [cursor=pointer]:
+                  - generic [ref=e630]:
+                    - paragraph [ref=e633]: Valsoft Corp
+                    - generic [ref=e634]: Medium
+                  - heading "AI-ML Engineer - Hotel Revenue Optimization" [level=4] [ref=e635]
+                  - generic [ref=e637]: Montreal, Quebec, Canada
+                  - generic [ref=e639]: Posted Mar 17
+                  - generic [ref=e642]: Match 100 • Excellent
+              - button "SAP Canada Medium Agentic AI Engineering Specialist - Corporate Processes & Information Technology Vancouver, BC Posted Mar 12 Match 100 • Excellent" [ref=e643]:
+                - button "SAP Canada Medium Agentic AI Engineering Specialist - Corporate Processes & Information Technology Vancouver, BC Posted Mar 12 Match 100 • Excellent" [ref=e645] [cursor=pointer]:
+                  - generic [ref=e646]:
+                    - paragraph [ref=e649]: SAP Canada
+                    - generic [ref=e650]: Medium
+                  - heading "Agentic AI Engineering Specialist - Corporate Processes & Information Technology" [level=4] [ref=e651]
+                  - generic [ref=e653]: Vancouver, BC
+                  - generic [ref=e655]: Posted Mar 12
+                  - generic [ref=e658]: Match 100 • Excellent
+              - button "Lyft Medium Data Scientist - Decisions, Mapping Toronto, Canada Posted Mar 10 Match 100 • Excellent" [ref=e659]:
+                - button "Lyft Medium Data Scientist - Decisions, Mapping Toronto, Canada Posted Mar 10 Match 100 • Excellent" [ref=e661] [cursor=pointer]:
+                  - generic [ref=e662]:
+                    - paragraph [ref=e665]: Lyft
+                    - generic [ref=e666]: Medium
+                  - heading "Data Scientist - Decisions, Mapping" [level=4] [ref=e667]
+                  - generic [ref=e669]: Toronto, Canada
+                  - generic [ref=e671]: Posted Mar 10
+                  - generic [ref=e674]: Match 100 • Excellent
+              - button "Valsoft Corp Medium AI Engineer Montreal, Quebec, Canada Posted Mar 10 Match 100 • Excellent" [ref=e675]:
+                - button "Valsoft Corp Medium AI Engineer Montreal, Quebec, Canada Posted Mar 10 Match 100 • Excellent" [ref=e677] [cursor=pointer]:
+                  - generic [ref=e678]:
+                    - paragraph [ref=e681]: Valsoft Corp
+                    - generic [ref=e682]: Medium
+                  - heading "AI Engineer" [level=4] [ref=e683]
+                  - generic [ref=e685]: Montreal, Quebec, Canada
+                  - generic [ref=e687]: Posted Mar 10
+                  - generic [ref=e690]: Match 100 • Excellent
+              - 'button "Correlation One Medium Teaching Assistant: Machine Learning Data Associate Remote: EMEA Posted Mar 16 Match 98 • Excellent" [ref=e691]':
+                - 'button "Correlation One Medium Teaching Assistant: Machine Learning Data Associate Remote: EMEA Posted Mar 16 Match 98 • Excellent" [ref=e693] [cursor=pointer]':
+                  - generic [ref=e694]:
+                    - paragraph [ref=e697]: Correlation One
+                    - generic [ref=e698]: Medium
+                  - 'heading "Teaching Assistant: Machine Learning Data Associate" [level=4] [ref=e699]'
+                  - generic [ref=e701]: "Remote: EMEA"
+                  - generic [ref=e703]: Posted Mar 16
+                  - generic [ref=e706]: Match 98 • Excellent
+              - button "Affirm Medium Software Engineer II, Backend (AI Agents) Remote Canada Posted Mar 10 Match 92 • Excellent" [ref=e707]:
+                - button "Affirm Medium Software Engineer II, Backend (AI Agents) Remote Canada Posted Mar 10 Match 92 • Excellent" [ref=e709] [cursor=pointer]:
+                  - generic [ref=e710]:
+                    - paragraph [ref=e713]: Affirm
+                    - generic [ref=e714]: Medium
+                  - heading "Software Engineer II, Backend (AI Agents)" [level=4] [ref=e715]
+                  - generic [ref=e717]: Remote Canada
+                  - generic [ref=e719]: Posted Mar 10
+                  - generic [ref=e722]: Match 92 • Excellent
+              - button "Strata Decision Technology Medium Applied Machine Learning Engineer Chicago, IL; Remote Posted Mar 12 Match 87 • Excellent" [ref=e723]:
+                - button "Strata Decision Technology Medium Applied Machine Learning Engineer Chicago, IL; Remote Posted Mar 12 Match 87 • Excellent" [ref=e725] [cursor=pointer]:
+                  - generic [ref=e726]:
+                    - paragraph [ref=e729]: Strata Decision Technology
+                    - generic [ref=e730]: Medium
+                  - heading "Applied Machine Learning Engineer" [level=4] [ref=e731]
+                  - generic [ref=e733]: Chicago, IL; Remote
+                  - generic [ref=e735]: Posted Mar 12
+                  - generic [ref=e738]: Match 87 • Excellent
+              - button "Capital Rx Medium Machine Learning Engineer Denver, Colorado, United States; Remote Posted Mar 23 Match 83 • Excellent" [ref=e739]:
+                - button "Capital Rx Medium Machine Learning Engineer Denver, Colorado, United States; Remote Posted Mar 23 Match 83 • Excellent" [ref=e741] [cursor=pointer]:
+                  - generic [ref=e742]:
+                    - paragraph [ref=e745]: Capital Rx
+                    - generic [ref=e746]: Medium
+                  - heading "Machine Learning Engineer" [level=4] [ref=e747]
+                  - generic [ref=e749]: Denver, Colorado, United States; Remote
+                  - generic [ref=e751]: Posted Mar 23
+                  - generic [ref=e754]: Match 83 • Excellent
+              - button "Oura Medium Data Scientist - Movement Remote - United States Posted Mar 9 Match 81 • Excellent" [ref=e755]:
+                - button "Oura Medium Data Scientist - Movement Remote - United States Posted Mar 9 Match 81 • Excellent" [ref=e757] [cursor=pointer]:
+                  - generic [ref=e758]:
+                    - paragraph [ref=e761]: Oura
+                    - generic [ref=e762]: Medium
+                  - heading "Data Scientist - Movement" [level=4] [ref=e763]
+                  - generic [ref=e765]: Remote - United States
+                  - generic [ref=e767]: Posted Mar 9
+                  - generic [ref=e770]: Match 81 • Excellent
+              - button "huaweicanada Medium Researcher – Computer Vision and Autonomous Driving Markham, Ontario, Canada Posted Unknown Match 78 • Good" [ref=e771]:
+                - button "huaweicanada Medium Researcher – Computer Vision and Autonomous Driving Markham, Ontario, Canada Posted Unknown Match 78 • Good" [ref=e773] [cursor=pointer]:
+                  - generic [ref=e774]:
+                    - paragraph [ref=e777]: huaweicanada
+                    - generic [ref=e778]: Medium
+                  - heading "Researcher – Computer Vision and Autonomous Driving" [level=4] [ref=e779]
+                  - generic [ref=e781]: Markham, Ontario, Canada
+                  - generic [ref=e783]: Posted Unknown
+                  - generic [ref=e786]: Match 78 • Good
+              - button "innodatainc Medium AI/ML Research Engineer, LLM Post-Training & Evaluation Remote job Posted Unknown Match 78 • Good" [ref=e787]:
+                - button "innodatainc Medium AI/ML Research Engineer, LLM Post-Training & Evaluation Remote job Posted Unknown Match 78 • Good" [ref=e789] [cursor=pointer]:
+                  - generic [ref=e790]:
+                    - paragraph [ref=e793]: innodatainc
+                    - generic [ref=e794]: Medium
+                  - heading "AI/ML Research Engineer, LLM Post-Training & Evaluation" [level=4] [ref=e795]
+                  - generic [ref=e797]: Remote job
+                  - generic [ref=e799]: Posted Unknown
+                  - generic [ref=e802]: Match 78 • Good
+              - button "innodatainc Medium Language Data Scientist Remote job Posted Unknown Match 78 • Good" [ref=e803]:
+                - button "innodatainc Medium Language Data Scientist Remote job Posted Unknown Match 78 • Good" [ref=e805] [cursor=pointer]:
+                  - generic [ref=e806]:
+                    - paragraph [ref=e809]: innodatainc
+                    - generic [ref=e810]: Medium
+                  - heading "Language Data Scientist" [level=4] [ref=e811]
+                  - generic [ref=e813]: Remote job
+                  - generic [ref=e815]: Posted Unknown
+                  - generic [ref=e818]: Match 78 • Good
+              - button "steelhaus Medium AI Automation Engineer Calgary, Alberta Posted Mar 9 Match 76 • Good" [ref=e819]:
+                - button "steelhaus Medium AI Automation Engineer Calgary, Alberta Posted Mar 9 Match 76 • Good" [ref=e821] [cursor=pointer]:
+                  - generic [ref=e822]:
+                    - paragraph [ref=e825]: steelhaus
+                    - generic [ref=e826]: Medium
+                  - heading "AI Automation Engineer" [level=4] [ref=e827]
+                  - generic [ref=e829]: Calgary, Alberta
+                  - generic [ref=e831]: Posted Mar 9
+                  - generic [ref=e834]: Match 76 • Good
+              - button "Reddit Medium Data Scientist, Ads Remote - United States Posted Mar 19 Match 73 • Good" [ref=e835]:
+                - button "Reddit Medium Data Scientist, Ads Remote - United States Posted Mar 19 Match 73 • Good" [ref=e837] [cursor=pointer]:
+                  - generic [ref=e838]:
+                    - paragraph [ref=e841]: Reddit
+                    - generic [ref=e842]: Medium
+                  - heading "Data Scientist, Ads" [level=4] [ref=e843]
+                  - generic [ref=e845]: Remote - United States
+                  - generic [ref=e847]: Posted Mar 19
+                  - generic [ref=e850]: Match 73 • Good
+              - button "This is right in my wheelhouse. I build RAG systems and LLM-powered data pipelines Medium ingestion, embedding, retrieval, and structured output generation. Python and Node.js, PostgreSQL with pgvector, OpenAI/ Location TBD Posted Mar 15 Match 73 • Good" [ref=e851]:
+                - button "This is right in my wheelhouse. I build RAG systems and LLM-powered data pipelines Medium ingestion, embedding, retrieval, and structured output generation. Python and Node.js, PostgreSQL with pgvector, OpenAI/ Location TBD Posted Mar 15 Match 73 • Good" [ref=e853] [cursor=pointer]:
+                  - generic [ref=e854]:
+                    - paragraph [ref=e857]: This is right in my wheelhouse. I build RAG systems and LLM-powered data pipelines
+                    - generic [ref=e858]: Medium
+                  - heading "ingestion, embedding, retrieval, and structured output generation. Python and Node.js, PostgreSQL with pgvector, OpenAI/" [level=4] [ref=e859]
+                  - generic [ref=e861]: Location TBD
+                  - generic [ref=e863]: Posted Mar 15
+                  - generic [ref=e866]: Match 73 • Good
+              - button "Cresta Medium Data Scientist, Customer Analytics United States, Remote Posted Mar 26 Match 71 • Good" [ref=e867]:
+                - button "Cresta Medium Data Scientist, Customer Analytics United States, Remote Posted Mar 26 Match 71 • Good" [ref=e869] [cursor=pointer]:
+                  - generic [ref=e870]:
+                    - paragraph [ref=e873]: Cresta
+                    - generic [ref=e874]: Medium
+                  - heading "Data Scientist, Customer Analytics" [level=4] [ref=e875]
+                  - generic [ref=e877]: United States, Remote
+                  - generic [ref=e879]: Posted Mar 26
+                  - generic [ref=e882]: Match 71 • Good
+              - button "huaweicanada Medium Researcher - Efficient Architecture for LLMs Montreal, Quebec, Canada Posted Unknown Match 71 • Good" [ref=e883]:
+                - button "huaweicanada Medium Researcher - Efficient Architecture for LLMs Montreal, Quebec, Canada Posted Unknown Match 71 • Good" [ref=e885] [cursor=pointer]:
+                  - generic [ref=e886]:
+                    - paragraph [ref=e889]: huaweicanada
+                    - generic [ref=e890]: Medium
+                  - heading "Researcher - Efficient Architecture for LLMs" [level=4] [ref=e891]
+                  - generic [ref=e893]: Montreal, Quebec, Canada
+                  - generic [ref=e895]: Posted Unknown
+                  - generic [ref=e898]: Match 71 • Good
+              - button "Jerry.Ai Medium Junior Applied Data Scientist Toronto, Ontario Posted Mar 23 Match 70 • Good" [ref=e899]:
+                - button "Jerry.Ai Medium Junior Applied Data Scientist Toronto, Ontario Posted Mar 23 Match 70 • Good" [ref=e901] [cursor=pointer]:
+                  - generic [ref=e902]:
+                    - paragraph [ref=e905]: Jerry.Ai
+                    - generic [ref=e906]: Medium
+                  - heading "Junior Applied Data Scientist" [level=4] [ref=e907]
+                  - generic [ref=e909]: Toronto, Ontario
+                  - generic [ref=e911]: Posted Mar 23
+                  - generic [ref=e914]: Match 70 • Good
+              - button "Spotify Medium Data Scientist - Platform Mission Toronto Posted Mar 12 Match 68 • Good" [ref=e915]:
+                - button "Spotify Medium Data Scientist - Platform Mission Toronto Posted Mar 12 Match 68 • Good" [ref=e917] [cursor=pointer]:
+                  - generic [ref=e918]:
+                    - paragraph [ref=e921]: Spotify
+                    - generic [ref=e922]: Medium
+                  - heading "Data Scientist - Platform Mission" [level=4] [ref=e923]
+                  - generic [ref=e925]: Toronto
+                  - generic [ref=e927]: Posted Mar 12
+                  - generic [ref=e930]: Match 68 • Good
+              - 'button "Sending this to jobs@drswarm.com per instructions, but flagging here too. This is an exact stack match: I''ve shipped Django/Python + Celery/Redis + Postgres + LLM API pipelines in production Medium most directly the Jorge real-estate AI bot (auditable human-in-the-loop handoff flow, rate-limited Redis queues, 1,753 t most directly the Jorge real-estate AI bot (auditable human-in-the-loop handoff flow, rate-limited Redis queues, 1,753 tests) and an AI Workflow API with YAML-driven node pipelines, ARQ workers, and SSE streaming. Strong on the 0→1, own-it-end-to-end pattern. PT/US Pacific timezone. Contract-to-FT works well. Posted Mar 10 Match 67 • Good" [ref=e931]':
+                - 'button "Sending this to jobs@drswarm.com per instructions, but flagging here too. This is an exact stack match: I''ve shipped Django/Python + Celery/Redis + Postgres + LLM API pipelines in production Medium most directly the Jorge real-estate AI bot (auditable human-in-the-loop handoff flow, rate-limited Redis queues, 1,753 t most directly the Jorge real-estate AI bot (auditable human-in-the-loop handoff flow, rate-limited Redis queues, 1,753 tests) and an AI Workflow API with YAML-driven node pipelines, ARQ workers, and SSE streaming. Strong on the 0→1, own-it-end-to-end pattern. PT/US Pacific timezone. Contract-to-FT works well. Posted Mar 10 Match 67 • Good" [ref=e933] [cursor=pointer]':
+                  - generic [ref=e934]:
+                    - paragraph [ref=e937]: "Sending this to jobs@drswarm.com per instructions, but flagging here too. This is an exact stack match: I've shipped Django/Python + Celery/Redis + Postgres + LLM API pipelines in production"
+                    - generic [ref=e938]: Medium
+                  - heading "most directly the Jorge real-estate AI bot (auditable human-in-the-loop handoff flow, rate-limited Redis queues, 1,753 t" [level=4] [ref=e939]
+                  - generic [ref=e941]: most directly the Jorge real-estate AI bot (auditable human-in-the-loop handoff flow, rate-limited Redis queues, 1,753 tests) and an AI Workflow API with YAML-driven node pipelines, ARQ workers, and SSE streaming. Strong on the 0→1, own-it-end-to-end pattern. PT/US Pacific timezone. Contract-to-FT works well.
+                  - generic [ref=e943]: Posted Mar 10
+                  - generic [ref=e946]: Match 67 • Good
+              - button "Reddit Medium Machine Learning Engineer, Ads Remote - United States Posted Mar 25 Match 66 • Good" [ref=e947]:
+                - button "Reddit Medium Machine Learning Engineer, Ads Remote - United States Posted Mar 25 Match 66 • Good" [ref=e949] [cursor=pointer]:
+                  - generic [ref=e950]:
+                    - paragraph [ref=e953]: Reddit
+                    - generic [ref=e954]: Medium
+                  - heading "Machine Learning Engineer, Ads" [level=4] [ref=e955]
+                  - generic [ref=e957]: Remote - United States
+                  - generic [ref=e959]: Posted Mar 25
+                  - generic [ref=e962]: Match 66 • Good
+              - button "Muon Space Medium Remote Sensing Data Scientist, Cal/Val San Jose, CA or Remote Posted Mar 9 Match 65 • Good" [ref=e963]:
+                - button "Muon Space Medium Remote Sensing Data Scientist, Cal/Val San Jose, CA or Remote Posted Mar 9 Match 65 • Good" [ref=e965] [cursor=pointer]:
+                  - generic [ref=e966]:
+                    - paragraph [ref=e969]: Muon Space
+                    - generic [ref=e970]: Medium
+                  - heading "Remote Sensing Data Scientist, Cal/Val" [level=4] [ref=e971]
+                  - generic [ref=e973]: San Jose, CA or Remote
+                  - generic [ref=e975]: Posted Mar 9
+                  - generic [ref=e978]: Match 65 • Good
+              - button "huaweicanada Medium Researcher - Reinforcement Learning & LLM Montreal, Quebec, Canada Posted Unknown Match 64 • Fair" [ref=e979]:
+                - button "huaweicanada Medium Researcher - Reinforcement Learning & LLM Montreal, Quebec, Canada Posted Unknown Match 64 • Fair" [ref=e981] [cursor=pointer]:
+                  - generic [ref=e982]:
+                    - paragraph [ref=e985]: huaweicanada
+                    - generic [ref=e986]: Medium
+                  - heading "Researcher - Reinforcement Learning & LLM" [level=4] [ref=e987]
+                  - generic [ref=e989]: Montreal, Quebec, Canada
+                  - generic [ref=e991]: Posted Unknown
+                  - generic [ref=e994]: Match 64 • Fair
+              - button "Valsoft Corp Medium AI Engineer Canada Posted Mar 16 Match 62 • Fair" [ref=e995]:
+                - button "Valsoft Corp Medium AI Engineer Canada Posted Mar 16 Match 62 • Fair" [ref=e997] [cursor=pointer]:
+                  - generic [ref=e998]:
+                    - paragraph [ref=e1001]: Valsoft Corp
+                    - generic [ref=e1002]: Medium
+                  - heading "AI Engineer" [level=4] [ref=e1003]
+                  - generic [ref=e1005]: Canada
+                  - generic [ref=e1007]: Posted Mar 16
+                  - generic [ref=e1010]: Match 62 • Fair
+              - button "Hearo Medium Founding Engineer - AI Product Intelligence Platform Remote Posted Mar 11 Match 60 • Fair" [ref=e1011]:
+                - button "Hearo Medium Founding Engineer - AI Product Intelligence Platform Remote Posted Mar 11 Match 60 • Fair" [ref=e1013] [cursor=pointer]:
+                  - generic [ref=e1014]:
+                    - paragraph [ref=e1017]: Hearo
+                    - generic [ref=e1018]: Medium
+                  - heading "Founding Engineer - AI Product Intelligence Platform" [level=4] [ref=e1019]
+                  - generic [ref=e1021]: Remote
+                  - generic [ref=e1023]: Posted Mar 11
+                  - generic [ref=e1026]: Match 60 • Fair
+              - button "tether Medium Machine Learning Engineer (100% remote Worldwide) Remote job Posted Unknown Match 59 • Fair" [ref=e1027]:
+                - button "tether Medium Machine Learning Engineer (100% remote Worldwide) Remote job Posted Unknown Match 59 • Fair" [ref=e1029] [cursor=pointer]:
+                  - generic [ref=e1030]:
+                    - paragraph [ref=e1033]: tether
+                    - generic [ref=e1034]: Medium
+                  - heading "Machine Learning Engineer (100% remote Worldwide)" [level=4] [ref=e1035]
+                  - generic [ref=e1037]: Remote job
+                  - generic [ref=e1039]: Posted Unknown
+                  - generic [ref=e1042]: Match 59 • Fair
+              - button "StackAdapt Medium Applied Machine Learning Scientist (Remote) Alberta, Canada; British Columbia; Calgary, Alberta, Canada; California; New York; Ontario; Oregon; Seattle; Texas; Toronto; Vancouver; Washington Posted Mar 23 Match 58 • Fair" [ref=e1043]:
+                - button "StackAdapt Medium Applied Machine Learning Scientist (Remote) Alberta, Canada; British Columbia; Calgary, Alberta, Canada; California; New York; Ontario; Oregon; Seattle; Texas; Toronto; Vancouver; Washington Posted Mar 23 Match 58 • Fair" [ref=e1045] [cursor=pointer]:
+                  - generic [ref=e1046]:
+                    - paragraph [ref=e1049]: StackAdapt
+                    - generic [ref=e1050]: Medium
+                  - heading "Applied Machine Learning Scientist (Remote)" [level=4] [ref=e1051]
+                  - generic [ref=e1053]: Alberta, Canada; British Columbia; Calgary, Alberta, Canada; California; New York; Ontario; Oregon; Seattle; Texas; Toronto; Vancouver; Washington
+                  - generic [ref=e1055]: Posted Mar 23
+                  - generic [ref=e1058]: Match 58 • Fair
+              - button "innodatainc Medium Language Data Scientist Remote job Posted Unknown Match 57 • Fair" [ref=e1059]:
+                - button "innodatainc Medium Language Data Scientist Remote job Posted Unknown Match 57 • Fair" [ref=e1061] [cursor=pointer]:
+                  - generic [ref=e1062]:
+                    - paragraph [ref=e1065]: innodatainc
+                    - generic [ref=e1066]: Medium
+                  - heading "Language Data Scientist" [level=4] [ref=e1067]
+                  - generic [ref=e1069]: Remote job
+                  - generic [ref=e1071]: Posted Unknown
+                  - generic [ref=e1074]: Match 57 • Fair
+              - button "Load More ↓" [ref=e1075] [cursor=pointer]
+          - generic [ref=e1077]:
+            - generic [ref=e1079]:
+              - generic [ref=e1082]:
+                - heading "Staging" [level=3] [ref=e1083]
+                - paragraph [ref=e1084]: 2 overdue
+              - generic [ref=e1085]: "7"
+            - generic [ref=e1086]:
+              - button "CreativeMite Medium AI Hospitality Software Engineer/Developer Stony Plain, AB Posted Mar 25 5h past staging target Match 76 • Good" [ref=e1087]:
+                - button "CreativeMite Medium AI Hospitality Software Engineer/Developer Stony Plain, AB Posted Mar 25 5h past staging target Match 76 • Good" [ref=e1089] [cursor=pointer]:
+                  - generic [ref=e1090]:
+                    - paragraph [ref=e1093]: CreativeMite
+                    - generic [ref=e1094]: Medium
+                  - heading "AI Hospitality Software Engineer/Developer" [level=4] [ref=e1095]
+                  - generic [ref=e1097]: Stony Plain, AB
+                  - generic [ref=e1098]:
+                    - generic [ref=e1099]: Posted Mar 25
+                    - generic [ref=e1100]: 5h past staging target
+                  - generic [ref=e1102]: Match 76 • Good
+              - button "AMD Canada Medium Software AI Engineer (1 year contract) MARKHAM, Canada Posted Mar 25 5h past staging target Match 35 • Low" [ref=e1103]:
+                - button "AMD Canada Medium Software AI Engineer (1 year contract) MARKHAM, Canada Posted Mar 25 5h past staging target Match 35 • Low" [ref=e1105] [cursor=pointer]:
+                  - generic [ref=e1106]:
+                    - paragraph [ref=e1109]: AMD Canada
+                    - generic [ref=e1110]: Medium
+                  - heading "Software AI Engineer (1 year contract)" [level=4] [ref=e1111]
+                  - generic [ref=e1113]: MARKHAM, Canada
+                  - generic [ref=e1114]:
+                    - generic [ref=e1115]: Posted Mar 25
+                    - generic [ref=e1116]: 5h past staging target
+                  - generic [ref=e1118]: Match 35 • Low
+              - button "Company logo forElement Fleet Management Medium Applied AI Specialist – AI Solutions Toronto, ON Posted Mar 26 Staging target in 24h Match 100 • Excellent" [ref=e1119]:
+                - button "Company logo forElement Fleet Management Medium Applied AI Specialist – AI Solutions Toronto, ON Posted Mar 26 Staging target in 24h Match 100 • Excellent" [ref=e1121] [cursor=pointer]:
+                  - generic [ref=e1122]:
+                    - paragraph [ref=e1125]: Company logo forElement Fleet Management
+                    - generic [ref=e1126]: Medium
+                  - heading "Applied AI Specialist – AI Solutions" [level=4] [ref=e1127]
+                  - generic [ref=e1129]: Toronto, ON
+                  - generic [ref=e1130]:
+                    - generic [ref=e1131]: Posted Mar 26
+                    - generic [ref=e1132]: Staging target in 24h
+                  - generic [ref=e1134]: Match 100 • Excellent
+              - button "Coca-Cola Canada Bottling Limited Medium Data Scientist Toronto, ON Posted Mar 26 Staging target in 41h Match 100 • Excellent" [ref=e1135]:
+                - button "Coca-Cola Canada Bottling Limited Medium Data Scientist Toronto, ON Posted Mar 26 Staging target in 41h Match 100 • Excellent" [ref=e1137] [cursor=pointer]:
+                  - generic [ref=e1138]:
+                    - paragraph [ref=e1141]: Coca-Cola Canada Bottling Limited
+                    - generic [ref=e1142]: Medium
+                  - heading "Data Scientist" [level=4] [ref=e1143]
+                  - generic [ref=e1145]: Toronto, ON
+                  - generic [ref=e1146]:
+                    - generic [ref=e1147]: Posted Mar 26
+                    - generic [ref=e1148]: Staging target in 41h
+                  - generic [ref=e1150]: Match 100 • Excellent
+              - button "Codex QA Medium Machine Learning Engineer Remote, Canada Posted Mar 28 Staging target in 42h Match 50 • Fair" [ref=e1151]:
+                - button "Codex QA Medium Machine Learning Engineer Remote, Canada Posted Mar 28 Staging target in 42h Match 50 • Fair" [ref=e1153] [cursor=pointer]:
+                  - generic [ref=e1154]:
+                    - paragraph [ref=e1157]: Codex QA
+                    - generic [ref=e1158]: Medium
+                  - heading "Machine Learning Engineer" [level=4] [ref=e1159]
+                  - generic [ref=e1161]: Remote, Canada
+                  - generic [ref=e1162]:
+                    - generic [ref=e1163]: Posted Mar 28
+                    - generic [ref=e1164]: Staging target in 42h
+                  - generic [ref=e1166]: Match 50 • Fair
+              - button "Boeing Vancouver Medium Data Scientist Vancouver, BC Posted Mar 26 Staging target in 48h Match 50 • Fair" [ref=e1167]:
+                - button "Boeing Vancouver Medium Data Scientist Vancouver, BC Posted Mar 26 Staging target in 48h Match 50 • Fair" [ref=e1169] [cursor=pointer]:
+                  - generic [ref=e1170]:
+                    - paragraph [ref=e1173]: Boeing Vancouver
+                    - generic [ref=e1174]: Medium
+                  - heading "Data Scientist" [level=4] [ref=e1175]
+                  - generic [ref=e1177]: Vancouver, BC
+                  - generic [ref=e1178]:
+                    - generic [ref=e1179]: Posted Mar 26
+                    - generic [ref=e1180]: Staging target in 48h
+                  - generic [ref=e1182]: Match 50 • Fair
+              - button "DSM Enterprises LTD. Medium Embedded Systems & AI Vision Engineer (Contract) Calgary, AB Posted Mar 26 Staging target in 48h Match 50 • Fair" [ref=e1183]:
+                - button "DSM Enterprises LTD. Medium Embedded Systems & AI Vision Engineer (Contract) Calgary, AB Posted Mar 26 Staging target in 48h Match 50 • Fair" [ref=e1185] [cursor=pointer]:
+                  - generic [ref=e1186]:
+                    - paragraph [ref=e1189]: DSM Enterprises LTD.
+                    - generic [ref=e1190]: Medium
+                  - heading "Embedded Systems & AI Vision Engineer (Contract)" [level=4] [ref=e1191]
+                  - generic [ref=e1193]: Calgary, AB
+                  - generic [ref=e1194]:
+                    - generic [ref=e1195]: Posted Mar 26
+                    - generic [ref=e1196]: Staging target in 48h
+                  - generic [ref=e1198]: Match 50 • Fair
+          - generic [ref=e1200]:
+            - generic [ref=e1202]:
+              - generic [ref=e1205]:
+                - heading "Applied" [level=3] [ref=e1206]
+                - paragraph [ref=e1207]: Awaiting response
+              - generic [ref=e1208]: "38"
+            - generic [ref=e1209]:
+              - button "Clario Medium AI Platform Engineer (Cloud & DevOps) Canada Posted Mar 26 Match 100 • Excellent" [ref=e1210]:
+                - button "Clario Medium AI Platform Engineer (Cloud & DevOps) Canada Posted Mar 26 Match 100 • Excellent" [ref=e1212] [cursor=pointer]:
+                  - generic [ref=e1213]:
+                    - paragraph [ref=e1216]: Clario
+                    - generic [ref=e1217]: Medium
+                  - heading "AI Platform Engineer (Cloud & DevOps)" [level=4] [ref=e1218]
+                  - generic [ref=e1220]: Canada
+                  - generic [ref=e1222]: Posted Mar 26
+                  - generic [ref=e1225]: Match 100 • Excellent
+              - button "American Express Medium AI Engineer I - Agentic AI Toronto, Ontario, Canada Posted Mar 26 Match 100 • Excellent" [ref=e1226]:
+                - button "American Express Medium AI Engineer I - Agentic AI Toronto, Ontario, Canada Posted Mar 26 Match 100 • Excellent" [ref=e1228] [cursor=pointer]:
+                  - generic [ref=e1229]:
+                    - paragraph [ref=e1232]: American Express
+                    - generic [ref=e1233]: Medium
+                  - heading "AI Engineer I - Agentic AI" [level=4] [ref=e1234]
+                  - generic [ref=e1236]: Toronto, Ontario, Canada
+                  - generic [ref=e1238]: Posted Mar 26
+                  - generic [ref=e1241]: Match 100 • Excellent
+              - button "Reddit Medium Machine Learning Engineer, Ads Remote - Ontario, Canada Posted Mar 25 Match 100 • Excellent" [ref=e1242]:
+                - button "Reddit Medium Machine Learning Engineer, Ads Remote - Ontario, Canada Posted Mar 25 Match 100 • Excellent" [ref=e1244] [cursor=pointer]:
+                  - generic [ref=e1245]:
+                    - paragraph [ref=e1248]: Reddit
+                    - generic [ref=e1249]: Medium
+                  - heading "Machine Learning Engineer, Ads" [level=4] [ref=e1250]
+                  - generic [ref=e1252]: Remote - Ontario, Canada
+                  - generic [ref=e1254]: Posted Mar 25
+                  - generic [ref=e1257]: Match 100 • Excellent
+              - button "Tucows Domains Medium Intermediate Software Engineer - Artificial Intelligence (AI) Toronto, ON Posted Mar 25 Match 100 • Excellent" [ref=e1258]:
+                - button "Tucows Domains Medium Intermediate Software Engineer - Artificial Intelligence (AI) Toronto, ON Posted Mar 25 Match 100 • Excellent" [ref=e1260] [cursor=pointer]:
+                  - generic [ref=e1261]:
+                    - paragraph [ref=e1264]: Tucows Domains
+                    - generic [ref=e1265]: Medium
+                  - heading "Intermediate Software Engineer - Artificial Intelligence (AI)" [level=4] [ref=e1266]
+                  - generic [ref=e1268]: Toronto, ON
+                  - generic [ref=e1270]: Posted Mar 25
+                  - generic [ref=e1273]: Match 100 • Excellent
+              - button "Jerry.ai Medium Junior Applied Data Scientist Toronto, Ontario; Austin, Texas; Boston, Massachusetts; Chicago, Illinois; Los Angeles, California; New York, New York; Palo Alto, California Posted Mar 25 Match 100 • Excellent" [ref=e1274]:
+                - button "Jerry.ai Medium Junior Applied Data Scientist Toronto, Ontario; Austin, Texas; Boston, Massachusetts; Chicago, Illinois; Los Angeles, California; New York, New York; Palo Alto, California Posted Mar 25 Match 100 • Excellent" [ref=e1276] [cursor=pointer]:
+                  - generic [ref=e1277]:
+                    - paragraph [ref=e1280]: Jerry.ai
+                    - generic [ref=e1281]: Medium
+                  - heading "Junior Applied Data Scientist" [level=4] [ref=e1282]
+                  - generic [ref=e1284]: Toronto, Ontario; Austin, Texas; Boston, Massachusetts; Chicago, Illinois; Los Angeles, California; New York, New York; Palo Alto, California
+                  - generic [ref=e1286]: Posted Mar 25
+                  - generic [ref=e1289]: Match 100 • Excellent
+              - button "Lantern Studios Medium Generative AI Developer – Microsoft Azure AI Stack Calgary, Edmonton, Toronto Posted Mar 24 Match 100 • Excellent" [ref=e1290]:
+                - button "Lantern Studios Medium Generative AI Developer – Microsoft Azure AI Stack Calgary, Edmonton, Toronto Posted Mar 24 Match 100 • Excellent" [ref=e1292] [cursor=pointer]:
+                  - generic [ref=e1293]:
+                    - paragraph [ref=e1296]: Lantern Studios
+                    - generic [ref=e1297]: Medium
+                  - heading "Generative AI Developer – Microsoft Azure AI Stack" [level=4] [ref=e1298]
+                  - generic [ref=e1300]: Calgary, Edmonton, Toronto
+                  - generic [ref=e1302]: Posted Mar 24
+                  - generic [ref=e1305]: Match 100 • Excellent
+              - button "Google Medium Associate Technical Solutions Developer, Data Analytics, Google Cloud Waterloo, ON, Canada Posted Mar 23 Match 100 • Excellent" [ref=e1306]:
+                - button "Google Medium Associate Technical Solutions Developer, Data Analytics, Google Cloud Waterloo, ON, Canada Posted Mar 23 Match 100 • Excellent" [ref=e1308] [cursor=pointer]:
+                  - generic [ref=e1309]:
+                    - paragraph [ref=e1312]: Google
+                    - generic [ref=e1313]: Medium
+                  - heading "Associate Technical Solutions Developer, Data Analytics, Google Cloud" [level=4] [ref=e1314]
+                  - generic [ref=e1316]: Waterloo, ON, Canada
+                  - generic [ref=e1318]: Posted Mar 23
+                  - generic [ref=e1321]: Match 100 • Excellent
+              - button "Seljax Medium Full Stack AI Engineer (In-person or Remote) Spruce Grove, AB Posted Mar 9 Match 100 • Excellent" [ref=e1322]:
+                - button "Seljax Medium Full Stack AI Engineer (In-person or Remote) Spruce Grove, AB Posted Mar 9 Match 100 • Excellent" [ref=e1324] [cursor=pointer]:
+                  - generic [ref=e1325]:
+                    - paragraph [ref=e1328]: Seljax
+                    - generic [ref=e1329]: Medium
+                  - heading "Full Stack AI Engineer (In-person or Remote)" [level=4] [ref=e1330]
+                  - generic [ref=e1332]: Spruce Grove, AB
+                  - generic [ref=e1334]: Posted Mar 9
+                  - generic [ref=e1337]: Match 100 • Excellent
+              - button "Arvexi Medium AI/ML Engineer USA Posted Mar 9 Match 100 • Excellent" [ref=e1338]:
+                - button "Arvexi Medium AI/ML Engineer USA Posted Mar 9 Match 100 • Excellent" [ref=e1340] [cursor=pointer]:
+                  - generic [ref=e1341]:
+                    - paragraph [ref=e1344]: Arvexi
+                    - generic [ref=e1345]: Medium
+                  - heading "AI/ML Engineer" [level=4] [ref=e1346]
+                  - generic [ref=e1348]: USA
+                  - generic [ref=e1350]: Posted Mar 9
+                  - generic [ref=e1353]: Match 100 • Excellent
+              - button "Cresta Medium Machine Learning Engineer (AI Agents) Canada (Remote) Posted Mar 2 Match 100 • Excellent" [ref=e1354]:
+                - button "Cresta Medium Machine Learning Engineer (AI Agents) Canada (Remote) Posted Mar 2 Match 100 • Excellent" [ref=e1356] [cursor=pointer]:
+                  - generic [ref=e1357]:
+                    - paragraph [ref=e1360]: Cresta
+                    - generic [ref=e1361]: Medium
+                  - heading "Machine Learning Engineer (AI Agents)" [level=4] [ref=e1362]
+                  - generic [ref=e1364]: Canada (Remote)
+                  - generic [ref=e1366]: Posted Mar 2
+                  - generic [ref=e1369]: Match 100 • Excellent
+              - button "Cresta Medium Software Engineer, Backend (AI Agent) Canada (Remote) Posted Mar 2 Match 100 • Excellent" [ref=e1370]:
+                - button "Cresta Medium Software Engineer, Backend (AI Agent) Canada (Remote) Posted Mar 2 Match 100 • Excellent" [ref=e1372] [cursor=pointer]:
+                  - generic [ref=e1373]:
+                    - paragraph [ref=e1376]: Cresta
+                    - generic [ref=e1377]: Medium
+                  - heading "Software Engineer, Backend (AI Agent)" [level=4] [ref=e1378]
+                  - generic [ref=e1380]: Canada (Remote)
+                  - generic [ref=e1382]: Posted Mar 2
+                  - generic [ref=e1385]: Match 100 • Excellent
+              - button "FortifyIQ Medium Data & AI Engineer Worldwide Posted Mar 1 Match 100 • Excellent" [ref=e1386]:
+                - button "FortifyIQ Medium Data & AI Engineer Worldwide Posted Mar 1 Match 100 • Excellent" [ref=e1388] [cursor=pointer]:
+                  - generic [ref=e1389]:
+                    - paragraph [ref=e1392]: FortifyIQ
+                    - generic [ref=e1393]: Medium
+                  - heading "Data & AI Engineer" [level=4] [ref=e1394]
+                  - generic [ref=e1396]: Worldwide
+                  - generic [ref=e1398]: Posted Mar 1
+                  - generic [ref=e1401]: Match 100 • Excellent
+              - button "goremutualinsurance Medium Data Scientist Cambridge, Ontario, Canada Posted Feb 27 Match 100 • Excellent" [ref=e1402]:
+                - button "goremutualinsurance Medium Data Scientist Cambridge, Ontario, Canada Posted Feb 27 Match 100 • Excellent" [ref=e1404] [cursor=pointer]:
+                  - generic [ref=e1405]:
+                    - paragraph [ref=e1408]: goremutualinsurance
+                    - generic [ref=e1409]: Medium
+                  - heading "Data Scientist" [level=4] [ref=e1410]
+                  - generic [ref=e1412]: Cambridge, Ontario, Canada
+                  - generic [ref=e1414]: Posted Feb 27
+                  - generic [ref=e1417]: Match 100 • Excellent
+              - button "high5games Medium Machine Learning Engineer with an Agentic focus Canada (Remote) Posted Feb 26 Match 100 • Excellent" [ref=e1418]:
+                - button "high5games Medium Machine Learning Engineer with an Agentic focus Canada (Remote) Posted Feb 26 Match 100 • Excellent" [ref=e1420] [cursor=pointer]:
+                  - generic [ref=e1421]:
+                    - paragraph [ref=e1424]: high5games
+                    - generic [ref=e1425]: Medium
+                  - heading "Machine Learning Engineer with an Agentic focus" [level=4] [ref=e1426]
+                  - generic [ref=e1428]: Canada (Remote)
+                  - generic [ref=e1430]: Posted Feb 26
+                  - generic [ref=e1433]: Match 100 • Excellent
+              - button "ExaCare AI Medium Machine Learning Engineer Canada Posted Feb 26 Match 100 • Excellent" [ref=e1434]:
+                - button "ExaCare AI Medium Machine Learning Engineer Canada Posted Feb 26 Match 100 • Excellent" [ref=e1436] [cursor=pointer]:
+                  - generic [ref=e1437]:
+                    - paragraph [ref=e1440]: ExaCare AI
+                    - generic [ref=e1441]: Medium
+                  - heading "Machine Learning Engineer" [level=4] [ref=e1442]
+                  - generic [ref=e1444]: Canada
+                  - generic [ref=e1446]: Posted Feb 26
+                  - generic [ref=e1449]: Match 100 • Excellent
+              - button "Achievers Medium Data Scientist Toronto Posted Feb 23 Match 100 • Excellent" [ref=e1450]:
+                - button "Achievers Medium Data Scientist Toronto Posted Feb 23 Match 100 • Excellent" [ref=e1452] [cursor=pointer]:
+                  - generic [ref=e1453]:
+                    - paragraph [ref=e1456]: Achievers
+                    - generic [ref=e1457]: Medium
+                  - heading "Data Scientist" [level=4] [ref=e1458]
+                  - generic [ref=e1460]: Toronto
+                  - generic [ref=e1462]: Posted Feb 23
+                  - generic [ref=e1465]: Match 100 • Excellent
+              - button "Braze Medium Forward-Deployed Data Scientist Vancouver Posted Feb 10 Match 100 • Excellent" [ref=e1466]:
+                - button "Braze Medium Forward-Deployed Data Scientist Vancouver Posted Feb 10 Match 100 • Excellent" [ref=e1468] [cursor=pointer]:
+                  - generic [ref=e1469]:
+                    - paragraph [ref=e1472]: Braze
+                    - generic [ref=e1473]: Medium
+                  - heading "Forward-Deployed Data Scientist" [level=4] [ref=e1474]
+                  - generic [ref=e1476]: Vancouver
+                  - generic [ref=e1478]: Posted Feb 10
+                  - generic [ref=e1481]: Match 100 • Excellent
+              - button "The Canadian Resident Matching Service (CaRMS) Medium Junior Data Scientist Canada Posted Feb 8 Match 100 • Excellent" [ref=e1482]:
+                - button "The Canadian Resident Matching Service (CaRMS) Medium Junior Data Scientist Canada Posted Feb 8 Match 100 • Excellent" [ref=e1484] [cursor=pointer]:
+                  - generic [ref=e1485]:
+                    - paragraph [ref=e1488]: The Canadian Resident Matching Service (CaRMS)
+                    - generic [ref=e1489]: Medium
+                  - heading "Junior Data Scientist" [level=4] [ref=e1490]
+                  - generic [ref=e1492]: Canada
+                  - generic [ref=e1494]: Posted Feb 8
+                  - generic [ref=e1497]: Match 100 • Excellent
+              - button "Go Auto Medium Data Scientist - Generative AI (Marketing Focus) 10220 184 Street NW, Edmonton, AB Posted Mar 24 Match 99 • Excellent" [ref=e1498]:
+                - button "Go Auto Medium Data Scientist - Generative AI (Marketing Focus) 10220 184 Street NW, Edmonton, AB Posted Mar 24 Match 99 • Excellent" [ref=e1500] [cursor=pointer]:
+                  - generic [ref=e1501]:
+                    - paragraph [ref=e1504]: Go Auto
+                    - generic [ref=e1505]: Medium
+                  - heading "Data Scientist - Generative AI (Marketing Focus)" [level=4] [ref=e1506]
+                  - generic [ref=e1508]: 10220 184 Street NW, Edmonton, AB
+                  - generic [ref=e1510]: Posted Mar 24
+                  - generic [ref=e1513]: Match 99 • Excellent
+              - button "IBM Medium AI Developer Calgary, Alberta, Canada Posted Feb 23 Match 98 • Excellent" [ref=e1514]:
+                - button "IBM Medium AI Developer Calgary, Alberta, Canada Posted Feb 23 Match 98 • Excellent" [ref=e1516] [cursor=pointer]:
+                  - generic [ref=e1517]:
+                    - paragraph [ref=e1520]: IBM
+                    - generic [ref=e1521]: Medium
+                  - heading "AI Developer" [level=4] [ref=e1522]
+                  - generic [ref=e1524]: Calgary, Alberta, Canada
+                  - generic [ref=e1526]: Posted Feb 23
+                  - generic [ref=e1529]: Match 98 • Excellent
+              - button "Analytic Labs Medium AI Engineer Remote Posted Mar 1 Match 97 • Excellent" [ref=e1530]:
+                - button "Analytic Labs Medium AI Engineer Remote Posted Mar 1 Match 97 • Excellent" [ref=e1532] [cursor=pointer]:
+                  - generic [ref=e1533]:
+                    - paragraph [ref=e1536]: Analytic Labs
+                    - generic [ref=e1537]: Medium
+                  - heading "AI Engineer" [level=4] [ref=e1538]
+                  - generic [ref=e1540]: Remote
+                  - generic [ref=e1542]: Posted Mar 1
+                  - generic [ref=e1545]: Match 97 • Excellent
+              - button "Mutual of Omaha Medium Data Scientist - Remote Remote Posted Feb 26 Match 91 • Excellent" [ref=e1546]:
+                - button "Mutual of Omaha Medium Data Scientist - Remote Remote Posted Feb 26 Match 91 • Excellent" [ref=e1548] [cursor=pointer]:
+                  - generic [ref=e1549]:
+                    - paragraph [ref=e1552]: Mutual of Omaha
+                    - generic [ref=e1553]: Medium
+                  - heading "Data Scientist - Remote" [level=4] [ref=e1554]
+                  - generic [ref=e1556]: Remote
+                  - generic [ref=e1558]: Posted Feb 26
+                  - generic [ref=e1561]: Match 91 • Excellent
+              - button "mthree Medium Junior Data Scientist Canada Posted Feb 24 Match 91 • Excellent" [ref=e1562]:
+                - button "mthree Medium Junior Data Scientist Canada Posted Feb 24 Match 91 • Excellent" [ref=e1564] [cursor=pointer]:
+                  - generic [ref=e1565]:
+                    - paragraph [ref=e1568]: mthree
+                    - generic [ref=e1569]: Medium
+                  - heading "Junior Data Scientist" [level=4] [ref=e1570]
+                  - generic [ref=e1572]: Canada
+                  - generic [ref=e1574]: Posted Feb 24
+                  - generic [ref=e1577]: Match 91 • Excellent
+              - button "Clario Medium AI Software Engineer - Multiple Openings Canada Posted Feb 21 Match 88 • Excellent" [ref=e1578]:
+                - button "Clario Medium AI Software Engineer - Multiple Openings Canada Posted Feb 21 Match 88 • Excellent" [ref=e1580] [cursor=pointer]:
+                  - generic [ref=e1581]:
+                    - paragraph [ref=e1584]: Clario
+                    - generic [ref=e1585]: Medium
+                  - heading "AI Software Engineer - Multiple Openings" [level=4] [ref=e1586]
+                  - generic [ref=e1588]: Canada
+                  - generic [ref=e1590]: Posted Feb 21
+                  - generic [ref=e1593]: Match 88 • Excellent
+              - button "Infoblox Canada Medium Data Scientist Burnaby Posted Mar 19 Match 82 • Excellent" [ref=e1594]:
+                - button "Infoblox Canada Medium Data Scientist Burnaby Posted Mar 19 Match 82 • Excellent" [ref=e1596] [cursor=pointer]:
+                  - generic [ref=e1597]:
+                    - paragraph [ref=e1600]: Infoblox Canada
+                    - generic [ref=e1601]: Medium
+                  - heading "Data Scientist" [level=4] [ref=e1602]
+                  - generic [ref=e1604]: Burnaby
+                  - generic [ref=e1606]: Posted Mar 19
+                  - generic [ref=e1609]: Match 82 • Excellent
+              - button "Cresta Medium NLP Specialist United States, Remote Posted Mar 10 Match 82 • Excellent" [ref=e1610]:
+                - button "Cresta Medium NLP Specialist United States, Remote Posted Mar 10 Match 82 • Excellent" [ref=e1612] [cursor=pointer]:
+                  - generic [ref=e1613]:
+                    - paragraph [ref=e1616]: Cresta
+                    - generic [ref=e1617]: Medium
+                  - heading "NLP Specialist" [level=4] [ref=e1618]
+                  - generic [ref=e1620]: United States, Remote
+                  - generic [ref=e1622]: Posted Mar 10
+                  - generic [ref=e1625]: Match 82 • Excellent
+              - button "Canonical Medium MLOps Field Engineer Home based - Worldwide Posted Mar 25 Match 81 • Excellent" [ref=e1626]:
+                - button "Canonical Medium MLOps Field Engineer Home based - Worldwide Posted Mar 25 Match 81 • Excellent" [ref=e1628] [cursor=pointer]:
+                  - generic [ref=e1629]:
+                    - paragraph [ref=e1632]: Canonical
+                    - generic [ref=e1633]: Medium
+                  - heading "MLOps Field Engineer" [level=4] [ref=e1634]
+                  - generic [ref=e1636]: Home based - Worldwide
+                  - generic [ref=e1638]: Posted Mar 25
+                  - generic [ref=e1641]: Match 81 • Excellent
+              - button "PolyML Medium Data Scientist Waterloo, Ontario Posted Mar 1 Match 81 • Excellent" [ref=e1642]:
+                - button "PolyML Medium Data Scientist Waterloo, Ontario Posted Mar 1 Match 81 • Excellent" [ref=e1644] [cursor=pointer]:
+                  - generic [ref=e1645]:
+                    - paragraph [ref=e1648]: PolyML
+                    - generic [ref=e1649]: Medium
+                  - heading "Data Scientist" [level=4] [ref=e1650]
+                  - generic [ref=e1652]: Waterloo, Ontario
+                  - generic [ref=e1654]: Posted Mar 1
+                  - generic [ref=e1657]: Match 81 • Excellent
+              - button "Manulife Medium GEN AI Engineer Toronto, ON Posted Mar 12 Match 75 • Good" [ref=e1658]:
+                - button "Manulife Medium GEN AI Engineer Toronto, ON Posted Mar 12 Match 75 • Good" [ref=e1660] [cursor=pointer]:
+                  - generic [ref=e1661]:
+                    - paragraph [ref=e1664]: Manulife
+                    - generic [ref=e1665]: Medium
+                  - heading "GEN AI Engineer" [level=4] [ref=e1666]
+                  - generic [ref=e1668]: Toronto, ON
+                  - generic [ref=e1670]: Posted Mar 12
+                  - generic [ref=e1673]: Match 75 • Good
+              - button "RBC Borealis Medium Machine Learning Software Engineer Vancouver, BC Posted Feb 23 Match 72 • Good" [ref=e1674]:
+                - button "RBC Borealis Medium Machine Learning Software Engineer Vancouver, BC Posted Feb 23 Match 72 • Good" [ref=e1676] [cursor=pointer]:
+                  - generic [ref=e1677]:
+                    - paragraph [ref=e1680]: RBC Borealis
+                    - generic [ref=e1681]: Medium
+                  - heading "Machine Learning Software Engineer" [level=4] [ref=e1682]
+                  - generic [ref=e1684]: Vancouver, BC
+                  - generic [ref=e1686]: Posted Feb 23
+                  - generic [ref=e1689]: Match 72 • Good
+              - button "Databricks Medium AI Engineer - FDE (Forward Deployed Engineer) Canada Posted Feb 25 Match 71 • Good" [ref=e1690]:
+                - button "Databricks Medium AI Engineer - FDE (Forward Deployed Engineer) Canada Posted Feb 25 Match 71 • Good" [ref=e1692] [cursor=pointer]:
+                  - generic [ref=e1693]:
+                    - paragraph [ref=e1696]: Databricks
+                    - generic [ref=e1697]: Medium
+                  - heading "AI Engineer - FDE (Forward Deployed Engineer)" [level=4] [ref=e1698]
+                  - generic [ref=e1700]: Canada
+                  - generic [ref=e1702]: Posted Feb 25
+                  - generic [ref=e1705]: Match 71 • Good
+              - button "Cohere Medium Research Engineer Canada Posted Feb 17 Match 71 • Good" [ref=e1706]:
+                - button "Cohere Medium Research Engineer Canada Posted Feb 17 Match 71 • Good" [ref=e1708] [cursor=pointer]:
+                  - generic [ref=e1709]:
+                    - paragraph [ref=e1712]: Cohere
+                    - generic [ref=e1713]: Medium
+                  - heading "Research Engineer" [level=4] [ref=e1714]
+                  - generic [ref=e1716]: Canada
+                  - generic [ref=e1718]: Posted Feb 17
+                  - generic [ref=e1721]: Match 71 • Good
+              - button "Jerry.Ai Medium Junior Applied Data Scientist Toronto, Ontario Posted Mar 27 Match 70 • Good" [ref=e1722]:
+                - button "Jerry.Ai Medium Junior Applied Data Scientist Toronto, Ontario Posted Mar 27 Match 70 • Good" [ref=e1724] [cursor=pointer]:
+                  - generic [ref=e1725]:
+                    - paragraph [ref=e1728]: Jerry.Ai
+                    - generic [ref=e1729]: Medium
+                  - heading "Junior Applied Data Scientist" [level=4] [ref=e1730]
+                  - generic [ref=e1732]: Toronto, Ontario
+                  - generic [ref=e1734]: Posted Mar 27
+                  - generic [ref=e1737]: Match 70 • Good
+              - button "EviSmart Medium AI & Automation Engineer Vancouver, British Columbia, Canada Posted Mar 25 Match 64 • Fair" [ref=e1738]:
+                - button "EviSmart Medium AI & Automation Engineer Vancouver, British Columbia, Canada Posted Mar 25 Match 64 • Fair" [ref=e1740] [cursor=pointer]:
+                  - generic [ref=e1741]:
+                    - paragraph [ref=e1744]: EviSmart
+                    - generic [ref=e1745]: Medium
+                  - heading "AI & Automation Engineer" [level=4] [ref=e1746]
+                  - generic [ref=e1748]: Vancouver, British Columbia, Canada
+                  - generic [ref=e1750]: Posted Mar 25
+                  - generic [ref=e1753]: Match 64 • Fair
+              - button "OnDeck AI Medium Founding Machine Learning Engineer Vancouver, BC Posted Mar 1 Match 50 • Fair" [ref=e1754]:
+                - button "OnDeck AI Medium Founding Machine Learning Engineer Vancouver, BC Posted Mar 1 Match 50 • Fair" [ref=e1756] [cursor=pointer]:
+                  - generic [ref=e1757]:
+                    - paragraph [ref=e1760]: OnDeck AI
+                    - generic [ref=e1761]: Medium
+                  - heading "Founding Machine Learning Engineer" [level=4] [ref=e1762]
+                  - generic [ref=e1764]: Vancouver, BC
+                  - generic [ref=e1766]: Posted Mar 1
+                  - generic [ref=e1769]: Match 50 • Fair
+              - button "Eli Health Medium Maching Learning Engineer Canada Posted Mar 28 Match 41 • Low" [ref=e1770]:
+                - button "Eli Health Medium Maching Learning Engineer Canada Posted Mar 28 Match 41 • Low" [ref=e1772] [cursor=pointer]:
+                  - generic [ref=e1773]:
+                    - paragraph [ref=e1776]: Eli Health
+                    - generic [ref=e1777]: Medium
+                  - heading "Maching Learning Engineer" [level=4] [ref=e1778]
+                  - generic [ref=e1780]: Canada
+                  - generic [ref=e1782]: Posted Mar 28
+                  - generic [ref=e1785]: Match 41 • Low
+              - button "AlertDriving Medium Artificial intelligence engineer Remote Posted Mar 1 Match 37 • Low" [ref=e1786]:
+                - button "AlertDriving Medium Artificial intelligence engineer Remote Posted Mar 1 Match 37 • Low" [ref=e1788] [cursor=pointer]:
+                  - generic [ref=e1789]:
+                    - paragraph [ref=e1792]: AlertDriving
+                    - generic [ref=e1793]: Medium
+                  - heading "Artificial intelligence engineer" [level=4] [ref=e1794]
+                  - generic [ref=e1796]: Remote
+                  - generic [ref=e1798]: Posted Mar 1
+                  - generic [ref=e1801]: Match 37 • Low
+              - button "AI Engineer (Conversational AI) Medium Yuna Health Canada Posted Feb 24 Match 28 • Low" [ref=e2075]:
+                - button "AI Engineer (Conversational AI) Medium Yuna Health Canada Posted Feb 24 Match 28 • Low" [ref=e2077] [cursor=pointer]:
+                  - generic [ref=e2078]:
+                    - paragraph [ref=e2081]: AI Engineer (Conversational AI)
+                    - generic [ref=e2082]: Medium
+                  - heading "Yuna Health" [level=4] [ref=e2083]
+                  - generic [ref=e2085]: Canada
+                  - generic [ref=e2087]: Posted Feb 24
+                  - generic [ref=e2090]: Match 28 • Low
+          - generic [ref=e1803]:
+            - generic [ref=e1805]:
+              - generic [ref=e1808]:
+                - heading "Interviewing" [level=3] [ref=e1809]
+                - paragraph [ref=e1810]: Active loop
+              - generic [ref=e1811]: "3"
+            - generic [ref=e1812]:
+              - button "Sirion Medium Ai Engineer/Agent Builder Toronto, ON Posted Mar 16 Match 97 • Excellent" [ref=e1813]:
+                - button "Sirion Medium Ai Engineer/Agent Builder Toronto, ON Posted Mar 16 Match 97 • Excellent" [ref=e1815] [cursor=pointer]:
+                  - generic [ref=e1816]:
+                    - paragraph [ref=e1819]: Sirion
+                    - generic [ref=e1820]: Medium
+                  - heading "Ai Engineer/Agent Builder" [level=4] [ref=e1821]
+                  - generic [ref=e1823]: Toronto, ON
+                  - generic [ref=e1825]: Posted Mar 16
+                  - generic [ref=e1828]: Match 97 • Excellent
+              - button "Safari AI Medium Software Engineer, ML Ops (New Grad) Vancouver Posted Mar 17 Match 91 • Excellent" [ref=e1829]:
+                - button "Safari AI Medium Software Engineer, ML Ops (New Grad) Vancouver Posted Mar 17 Match 91 • Excellent" [ref=e1831] [cursor=pointer]:
+                  - generic [ref=e1832]:
+                    - paragraph [ref=e1835]: Safari AI
+                    - generic [ref=e1836]: Medium
+                  - heading "Software Engineer, ML Ops (New Grad)" [level=4] [ref=e1837]
+                  - generic [ref=e1839]: Vancouver
+                  - generic [ref=e1841]: Posted Mar 17
+                  - generic [ref=e1844]: Match 91 • Excellent
+              - button "Geologic Medium AI Prompt Specialist Calgary, AB Posted Feb 23 Match 82 • Excellent" [ref=e1845]:
+                - button "Geologic Medium AI Prompt Specialist Calgary, AB Posted Feb 23 Match 82 • Excellent" [ref=e1847] [cursor=pointer]:
+                  - generic [ref=e1848]:
+                    - paragraph [ref=e1851]: Geologic
+                    - generic [ref=e1852]: Medium
+                  - heading "AI Prompt Specialist" [level=4] [ref=e1853]
+                  - generic [ref=e1855]: Calgary, AB
+                  - generic [ref=e1857]: Posted Feb 23
+                  - generic [ref=e1860]: Match 82 • Excellent
+          - generic [ref=e1862]:
+            - generic [ref=e1864]:
+              - generic [ref=e1867]:
+                - heading "Offer" [level=3] [ref=e1868]
+                - paragraph [ref=e1869]: Offer stage
+              - generic [ref=e1870]: "0"
+            - generic [ref=e1872]:
+              - strong [ref=e1873]: No offers yet
+              - paragraph [ref=e1874]: Offers and final-stage negotiations will stay visible here for quick comparison.
+          - generic [ref=e1876]:
+            - generic [ref=e1878]:
+              - generic [ref=e1881]:
+                - heading "Rejected" [level=3] [ref=e1882]
+                - paragraph [ref=e1883]: Closed outcomes
+              - generic [ref=e1884]: "5"
+            - generic [ref=e1885]:
+              - button "Experis Medium Data Scientist Canada Posted Feb 26 Match 100 • Excellent" [ref=e1886]:
+                - button "Experis Medium Data Scientist Canada Posted Feb 26 Match 100 • Excellent" [ref=e1888] [cursor=pointer]:
+                  - generic [ref=e1889]:
+                    - paragraph [ref=e1892]: Experis
+                    - generic [ref=e1893]: Medium
+                  - heading "Data Scientist" [level=4] [ref=e1894]
+                  - generic [ref=e1896]: Canada
+                  - generic [ref=e1898]: Posted Feb 26
+                  - generic [ref=e1901]: Match 100 • Excellent
+              - 'button "Amii (Alberta Machine Intelligence Institute) Medium Machine Learning Resident - Client: ConeTec (1 year term) Edmonton, AB Posted Feb 20 Match 93 • Excellent" [ref=e1902]':
+                - 'button "Amii (Alberta Machine Intelligence Institute) Medium Machine Learning Resident - Client: ConeTec (1 year term) Edmonton, AB Posted Feb 20 Match 93 • Excellent" [ref=e1904] [cursor=pointer]':
+                  - generic [ref=e1905]:
+                    - paragraph [ref=e1908]: Amii (Alberta Machine Intelligence Institute)
+                    - generic [ref=e1909]: Medium
+                  - 'heading "Machine Learning Resident - Client: ConeTec (1 year term)" [level=4] [ref=e1910]'
+                  - generic [ref=e1912]: Edmonton, AB
+                  - generic [ref=e1914]: Posted Feb 20
+                  - generic [ref=e1917]: Match 93 • Excellent
+              - button "OpenSport.io Medium AI Software Developer Vancouver, BC Posted Feb 20 Match 87 • Excellent" [ref=e1918]:
+                - button "OpenSport.io Medium AI Software Developer Vancouver, BC Posted Feb 20 Match 87 • Excellent" [ref=e1920] [cursor=pointer]:
+                  - generic [ref=e1921]:
+                    - paragraph [ref=e1924]: OpenSport.io
+                    - generic [ref=e1925]: Medium
+                  - heading "AI Software Developer" [level=4] [ref=e1926]
+                  - generic [ref=e1928]: Vancouver, BC
+                  - generic [ref=e1930]: Posted Feb 20
+                  - generic [ref=e1933]: Match 87 • Excellent
+              - button "Wordly.ai Medium ML Research Engineer United States Posted Jan 9 Match 77 • Good" [ref=e1934]:
+                - button "Wordly.ai Medium ML Research Engineer United States Posted Jan 9 Match 77 • Good" [ref=e1936] [cursor=pointer]:
+                  - generic [ref=e1937]:
+                    - paragraph [ref=e1940]: Wordly.ai
+                    - generic [ref=e1941]: Medium
+                  - heading "ML Research Engineer" [level=4] [ref=e1942]
+                  - generic [ref=e1944]: United States
+                  - generic [ref=e1946]: Posted Jan 9
+                  - generic [ref=e1949]: Match 77 • Good
+              - button "BIS Safety Software Medium AI Adoption Lead Sherwood Park, AB Posted Mar 16 Match 37 • Low" [ref=e1950]:
+                - button "BIS Safety Software Medium AI Adoption Lead Sherwood Park, AB Posted Mar 16 Match 37 • Low" [ref=e1952] [cursor=pointer]:
+                  - generic [ref=e1953]:
+                    - paragraph [ref=e1956]: BIS Safety Software
+                    - generic [ref=e1957]: Medium
+                  - heading "AI Adoption Lead" [level=4] [ref=e1958]
+                  - generic [ref=e1960]: Sherwood Park, AB
+                  - generic [ref=e1962]: Posted Mar 16
+                  - generic [ref=e1965]: Match 37 • Low
+        - status [ref=e1966]
+        - button "Close details" [ref=e284]
+        - complementary [ref=e285]:
+          - generic [ref=e286]:
+            - generic [ref=e287]:
+              - generic [ref=e288]:
+                - generic [ref=e289]:
+                  - generic [ref=e290]: Not Applied
+                  - generic [ref=e291]: Medium priority
+                - generic [ref=e292]:
+                  - heading "AI Engineer, Enterprise Solutions" [level=2] [ref=e293]
+                  - button "Close ×" [ref=e294] [cursor=pointer]
+                - paragraph [ref=e295]:
+                  - text: YOU.com
+                  - generic [ref=e296]: • San Francisco, CA (Remote)
+                - generic [ref=e297]:
+                  - generic [ref=e298]: Match 100 • Excellent
+                  - generic [ref=e299]: greenhouse
+                  - generic [ref=e300]: Posted 3/18/2026, 12:00:00 AM
+                - generic [ref=e301]:
+                  - generic [ref=e302]: Tracking updated -
+                  - generic [ref=e303]: Applied -
+                  - generic [ref=e304]: Target -
+              - link "Open original posting" [ref=e306] [cursor=pointer]:
+                - /url: https://job-boards.greenhouse.io/youcom/jobs/4866878008
+            - generic [ref=e307]:
+              - generic [ref=e309]:
+                - paragraph [ref=e310]: Pipeline controls
+                - heading "Keep this role moving" [level=3] [ref=e311]
+              - generic [ref=e312]:
+                - generic [ref=e313]:
+                  - generic [ref=e314]: Status
+                  - combobox "Tracking status" [ref=e316] [cursor=pointer]:
+                    - generic [ref=e317]: Not Applied
+                    - img [ref=e318]
+                - generic [ref=e320]:
+                  - generic [ref=e321]: Priority
+                  - combobox "Priority" [ref=e323] [cursor=pointer]:
+                    - generic [ref=e324]: Medium
+                    - img [ref=e325]
+                - generic [ref=e327]:
+                  - generic [ref=e328]: Applied Date
+                  - textbox "Applied Date" [ref=e329]
+                - generic [ref=e330]:
+                  - generic [ref=e331]: Target Compensation
+                  - textbox "Target Compensation" [ref=e332]
+                - generic [ref=e333]:
+                  - generic [ref=e334]: Next Step
+                  - textbox "Next Step" [ref=e335]
+            - generic [ref=e336]:
+              - generic [ref=e337]:
+                - generic [ref=e338]:
+                  - paragraph [ref=e339]: Assistant
+                  - heading "Recommendation" [level=3] [ref=e340]
+                - generic [ref=e341]: Archive
+              - generic [ref=e342]:
+                - generic [ref=e343]:
+                  - generic [ref=e344]: Interview likelihood
+                  - strong [ref=e345]: "11"
+                - generic [ref=e346]:
+                  - generic [ref=e347]: Urgency
+                  - strong [ref=e348]: "30"
+                - generic [ref=e349]:
+                  - generic [ref=e350]: Friction
+                  - strong [ref=e351]: "12"
+                - generic [ref=e352]:
+                  - generic [ref=e353]: Confidence
+                  - strong [ref=e354]: "68"
+              - list [ref=e355]:
+                - listitem [ref=e356]: Fit signals are weak relative to your target profile.
+              - generic [ref=e357]:
+                - button "Apply Now ↗" [ref=e358] [cursor=pointer]
+                - button "Review Manually ↗" [ref=e359] [cursor=pointer]
+                - button "Hold ↗" [ref=e360] [cursor=pointer]
+                - button "Archive +" [ref=e361] [cursor=pointer]
+            - generic [ref=e362]:
+              - heading "Fit Overview" [level=3] [ref=e363]
+              - generic [ref=e364]:
+                - generic [ref=e365]: Required 5/5
+                - generic [ref=e366]: Preferred 1/6
+                - generic [ref=e367]: Confidence high
+              - generic [ref=e368]:
+                - heading "Skill Alignment" [level=4] [ref=e369]
+                - generic [ref=e370]:
+                  - article [ref=e371]:
+                    - generic [ref=e372]:
+                      - paragraph [ref=e373]: You already have these
+                      - generic [ref=e374]: "6"
+                    - generic [ref=e375]:
+                      - generic [ref=e376]:
+                        - paragraph [ref=e377]: Required
+                        - list [ref=e1967]:
+                          - listitem [ref=e1968]:
+                            - article [ref=e1969]:
+                              - generic [ref=e1970]: ✓
+                              - generic [ref=e1971]: Python
+                          - listitem [ref=e1972]:
+                            - article [ref=e1973]:
+                              - generic [ref=e1974]: ✓
+                              - generic [ref=e1975]: Kubernetes
+                          - listitem [ref=e1976]:
+                            - article [ref=e1977]:
+                              - generic [ref=e1978]: ✓
+                              - generic [ref=e1979]: AWS
+                          - listitem [ref=e1980]:
+                            - article [ref=e1981]:
+                              - generic [ref=e1982]: ✓
+                              - generic [ref=e1983]: LLMs
+                          - listitem [ref=e1984]:
+                            - article [ref=e1985]:
+                              - generic [ref=e1986]: ✓
+                              - generic [ref=e1987]: machine learning
+                      - generic [ref=e379]:
+                        - paragraph [ref=e380]: Preferred
+                        - list [ref=e1988]:
+                          - listitem [ref=e1989]:
+                            - article [ref=e1990]:
+                              - generic [ref=e1991]: ✓
+                              - generic [ref=e1992]: Terraform
+                  - article [ref=e382]:
+                    - generic [ref=e383]:
+                      - paragraph [ref=e384]: Gaps to close
+                      - generic [ref=e385]: "5"
+                    - generic [ref=e386]:
+                      - generic [ref=e387]:
+                        - paragraph [ref=e388]: Required
+                        - list
+                        - paragraph [ref=e1993]: No required gaps.
+                      - generic [ref=e420]:
+                        - paragraph [ref=e421]: Preferred
+                        - list [ref=e1994]:
+                          - listitem [ref=e1995]:
+                            - 'button "Add missing preferred skill: Pulumi" [ref=e1996] [cursor=pointer]':
+                              - generic [ref=e1997]: ✕
+                              - generic [ref=e1998]: Pulumi
+                              - generic [ref=e2000]: Nice-to-have
+                          - listitem [ref=e2001]:
+                            - 'button "Add missing preferred skill: ERP" [ref=e2002] [cursor=pointer]':
+                              - generic [ref=e2003]: ✕
+                              - generic [ref=e2004]: ERP
+                              - generic [ref=e2006]: Nice-to-have
+                          - listitem [ref=e2007]:
+                            - 'button "Add missing preferred skill: CRM" [ref=e2008] [cursor=pointer]':
+                              - generic [ref=e2009]: ✕
+                              - generic [ref=e2010]: CRM
+                              - generic [ref=e2012]: Nice-to-have
+                          - listitem [ref=e2013]:
+                            - 'button "Add missing preferred skill: healthcare" [ref=e2014] [cursor=pointer]':
+                              - generic [ref=e2015]: ✕
+                              - generic [ref=e2016]: healthcare
+                              - generic [ref=e2018]: Nice-to-have
+                          - listitem [ref=e2019]:
+                            - 'button "Add missing preferred skill: finance" [ref=e2020] [cursor=pointer]':
+                              - generic [ref=e2021]: ✕
+                              - generic [ref=e2022]: finance
+                              - generic [ref=e2024]: Nice-to-have
+              - button "Show score details" [ref=e460] [cursor=pointer]
+            - generic [ref=e461]:
+              - heading "Core Requirements" [level=3] [ref=e462]
+              - generic [ref=e464]: Core checks 2/3
+              - generic [ref=e465]:
+                - article [ref=e466]:
+                  - generic [ref=e467]: ✓
+                  - generic [ref=e468]:
+                    - paragraph [ref=e469]: Experience
+                    - paragraph [ref=e470]: 3 yrs vs min 2 yrs
+                - article [ref=e471]:
+                  - generic [ref=e472]: •
+                  - generic [ref=e473]:
+                    - paragraph [ref=e474]: Education
+                    - paragraph [ref=e475]: No minimum degree listed
+                - article [ref=e476]:
+                  - generic [ref=e477]: ✓
+                  - generic [ref=e478]:
+                    - paragraph [ref=e479]: Visa / Eligibility
+                    - paragraph [ref=e480]: Visa compatibility looks okay
+            - generic [ref=e482]:
+              - heading "Enrichment" [level=3] [ref=e483]
+              - generic [ref=e484]:
+                - paragraph [ref=e485]:
+                  - strong [ref=e486]: "Work mode:"
+                  - text: remote
+                - paragraph [ref=e487]:
+                  - strong [ref=e488]: "Remote geo:"
+                  - text: "-"
+                - paragraph [ref=e489]:
+                  - strong [ref=e490]: "Canada eligible:"
+                  - text: unknown
+                - paragraph [ref=e491]:
+                  - strong [ref=e492]: "Seniority:"
+                  - text: junior
+                - paragraph [ref=e493]:
+                  - strong [ref=e494]: "Role family:"
+                  - text: ml engineer
+                - paragraph [ref=e495]:
+                  - strong [ref=e496]: "Experience:"
+                  - text: 2 - -
+                - paragraph [ref=e497]:
+                  - strong [ref=e498]: "Minimum degree:"
+                  - text: "-"
+                - paragraph [ref=e499]:
+                  - strong [ref=e500]: "Salary:"
+                  - text: USD 165,000 - 200,000
+                - paragraph [ref=e501]:
+                  - strong [ref=e502]: "Visa:"
+                  - text: unknown
+            - generic [ref=e503]:
+              - generic [ref=e504]:
+                - heading "Job Description" [level=3] [ref=e505]
+                - button "Export PDF ↓" [ref=e507] [cursor=pointer]
+              - generic [ref=e508]:
+                - paragraph [ref=e2091]:
+                  - strong [ref=e2092]: "Title:"
+                  - text: AI Engineer, Enterprise Solutions
+                  - strong [ref=e2093]: "Company:"
+                  - text: YOU.com
+                  - strong [ref=e2094]: "Location:"
+                  - text: San Francisco, CA (Remote)
+                - paragraph [ref=e2095]: you.com is an AI‑powered search and productivity platform designed to empower users with personalized, efficient, and trustworthy search experiences. As a cutting‑edge technology company, we combine advanced AI models with user‑first principles to deliver tools that enhance discovery, creativity, and productivity. At you.com, we are on a mission to create the most helpful search engine in the world—one that prioritizes transparency, privacy, and user control. We’re building a team of innovators, problem‑solvers, and visionaries who are passionate about shaping the future of AI and technology. At you.com, you’ll have the opportunity to work on impactful projects, collaborate with some of the brightest minds in the industry, and grow your career in an environment that values creativity, diversity, and curiosity. If you’re ready to make a difference and help us revolutionize the way people search and work, we’d love to have you join us!
+                - heading "About the Role" [level=4] [ref=e2096]
+                - paragraph [ref=e2097]: AI is transforming how enterprises sell, support, and operate — surfacing hidden knowledge, automating workflows, and collapsing weeks of effort into minutes. As an AI Engineer, Enterprise Solutions, you’ll act like a startup CTO, turning this vision into robust, production‑ready AI solutions that ship fast and deliver measurable wins for our customers. You will get a front seat to AI applications in the economy along with defining and shaping the future.
+                - heading "Responsibilities" [level=4] [ref=e2098]
+                - list [ref=e2099]:
+                  - listitem [ref=e2100]:
+                    - strong [ref=e2101]: "Build and Ship:"
+                    - text: Design and develop AI applications primarily in Python. Run evaluations to validate models and package solutions for Kubernetes, AWS, or adapt them to customer on‑premises clusters.
+                  - listitem [ref=e2102]:
+                    - strong [ref=e2103]: "Work with Customers:"
+                    - text: Lead discovery sessions, guide pilot projects, and ensure successful deployments. Collaborate mostly remotely with occasional on‑site workshops.
+                  - listitem [ref=e2104]:
+                    - strong [ref=e2105]: "Run and Improve:"
+                    - text: Monitor system performance and reliability. Add to the logging, billing and auth services. Build internal tooling to automate repetitive tasks.
+                  - listitem [ref=e2106]:
+                    - strong [ref=e2107]: "Share What You Learn:"
+                    - text: Provide feedback on patterns, pain points, and reusable modules to the core product team to influence the future direction of the AI platform.
+                - heading "Qualifications Required" [level=4] [ref=e2108]
+                - list [ref=e2109]:
+                  - listitem [ref=e2110]: 2+ years of experience writing solid production‑quality software.
+                  - listitem [ref=e2111]: Hands‑on experience with LLMs and a solid understanding of machine learning fundamentals.
+                  - listitem [ref=e2112]: "Strong customer empathy: ability to listen, ask insightful questions, and translate real‑world pain points into intuitive technical designs."
+                  - listitem [ref=e2113]: "Product‑minded approach: focus on outcomes, comfortable shaping scope with product managers, defining success metrics, and making trade‑offs to accelerate learning."
+                  - listitem [ref=e2114]: Excellent communication skills, able to engage effectively with executives and engineers both remotely and on‑site.
+                  - listitem [ref=e2115]: Versatile problem‑solver who thrives in ambiguous environments and enjoys rapid learning.
+                - heading "Nice to Have" [level=4] [ref=e2116]
+                - list [ref=e2117]:
+                  - listitem [ref=e2118]: Experience in forward‑deployed or product‑oriented roles.
+                  - listitem [ref=e2119]: Exposure to regulated industries such as healthcare or finance.
+                  - listitem [ref=e2120]: Proficiency with Terraform or Pulumi and experience across multiple cloud platforms.
+                  - listitem [ref=e2121]: Experience integrating with ERP, CRM, or other large enterprise systems.
+                - heading "Compensation" [level=4] [ref=e2122]
+                - paragraph [ref=e2123]:
+                  - strong [ref=e2124]: "Salary Band:"
+                  - text: $165,000 – $200,000 USD
+                - heading "Company Perks" [level=4] [ref=e2125]
+                - list [ref=e2126]:
+                  - listitem [ref=e2127]: Hubs in San Francisco and New York City offering regular in‑person gatherings and co‑working sessions.
+                  - listitem [ref=e2128]: Flexible PTO with U.S. holidays observed and a week shutdown in December to rest and recharge*.
+                  - listitem [ref=e2129]: A competitive health insurance plan covers 100% of the policyholder and 75% for dependents*.
+                  - listitem [ref=e2130]: 12 weeks of paid parental leave in the US*.
+                  - listitem [ref=e2131]: 401k program, 3% match – vested immediately!*.
+                  - listitem [ref=e2132]: $500 work‑from‑home stipend to be used up to a year of your start date*.
+                  - listitem [ref=e2133]: $1,200 per year Health & Wellness Allowance to support your personal goals*.
+                  - listitem [ref=e2134]: The chance to collaborate with a team at the forefront of AI research.
+                  - listitem [ref=e2135]: Certain perks and benefits are limited to full‑time employees only.
+                - heading "Eligibility" [level=4] [ref=e2136]
+                - paragraph [ref=e2137]: "You.com participates in E‑Verify. We will provide the Social Security Administration (SSA) and, if necessary, the Department of Homeland Security (DHS) with information from each new employee’s Form I‑9 to confirm work authorization (English/Spanish: E‑Verify Participation / Right to Work). We are an inclusive, equitable, and accessible workplace. Please let us know if you require accommodation for any portion of the recruitment and hiring process."
+                - paragraph [ref=e2138]:
+                  - strong [ref=e2139]: "Beware of recruiting scams:"
+                  - text: You.com will only contact you through official @you.com email addresses and will never ask for payment or sensitive personal information during the hiring process.
+            - generic [ref=e558]:
+              - heading "Timeline" [level=3] [ref=e559]
+              - paragraph [ref=e560]: No events yet.
+            - generic [ref=e561]:
+              - heading "Relevance" [level=3] [ref=e562]
+              - paragraph [ref=e563]: Mark jobs that are out-of-scope to hide them and prevent future re-ingestion.
+              - button "Not a Fit" [ref=e564] [cursor=pointer]:
+                - generic [ref=e565]: Not a Fit
+                - img [ref=e567]
+            - generic [ref=e568]:
+              - heading "Danger Zone" [level=3] [ref=e569]
+              - paragraph [ref=e570]: This permanently removes the job and linked records from the database.
+              - button "Delete Job" [ref=e571] [cursor=pointer]:
+                - generic [ref=e572]: Delete Job
+                - img [ref=e574]
+  - region "Notifications alt+T"

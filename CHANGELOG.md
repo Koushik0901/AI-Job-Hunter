@@ -1,211 +1,55 @@
 # Changelog
 
-All notable project changes are tracked in this file.
-
-This project follows a simple Keep a Changelog style with date-based entries.
-
-## 2026-02-27
+## 2026-03-30
 
 ### Changed
+- Simplified the manual-add modal so it now behaves like a compact form instead of a feature explainer.
+- Required fields are now marked directly in the form, with lightweight validation and invalid highlighting on save attempt.
+- Duplicate-aware manual add now uses concise messaging and reopens the existing record without extra explanatory banners or footer copy.
 
-- Kanban columns now get independent internal scrollbars whenever they overflow their viewport height, so each stage (Backlog, Applied, etc.) scrolls when needed while the board still moves as a single page (`docs/dashboard/frontend-ui.md`, `docs/dashboard/overview.md`).
+### Fixed
+- Hardened assistant-surface cache invalidation so `Today` and `Insights` stay fresh after tracking changes, events, suppress/unsuppress, decisions, deletes, and action updates.
+- Cleaned up later-stage recommendation wording so `applied`, `interviewing`, and `offer` jobs no longer fall back to early-stage “fit is weak” style reasoning.
+- Verified the retry-processing drawer flow end to end with a real failed-processing state and retry transition.
 
-## 2026-02-26
+### Docs
+- Refreshed `README.md`, `CHANGELOG.md`, and `TODO.md` to match the current dashboard structure, processing model, caching behavior, and backlog status.
 
-### Changed
-
-- Board toolbar now houses view/sort/filter/search inside a single “Controls” capsule with active filter badges, leaving the action buttons (`Suppressed`, `Add Job`, `Refresh`) visually spaced and fixed-width.
-- The kanban grid is sized to roughly two viewports so the entire board scrolls vertically together while the backlog note stays visible; the side rail now defaults to a collapsed icon column with tooltip labels and reopens via the burger toggle.
-- Manual job creation opens the detail drawer instantly, queues enrichment/description formatting in the background, and silently refreshes the board once the LLM work completes so the UI stays responsive.
-- Dashboard documentation now documents the refreshed board controls, vertical scroll behavior, and manual-job workflow in `docs/dashboard/frontend-ui.md` plus the overview primer on board interactions.
-
-## 2026-02-25
+## 2026-03-29
 
 ### Added
-
-- Funnel analytics feature slice:
-  - new backend endpoint `GET /api/analytics/funnel`
-  - date presets (`30d`, `90d`, `all`) and optional `from`/`to` override support
-  - stage counts and conversion metrics for pipeline progression
-  - new frontend `Analytics` page and nav route (`/analytics`)
-  - analytics Redis cache TTL via `DASHBOARD_CACHE_TTL_ANALYTICS_FC`
-  - Phase 1 analytics expansion:
-    - conversion deltas vs previous equal-length window
-    - weekly goals tracking (applications + interview activities)
-    - actionable alerts (`staging_stale_7d`, `interviewing_no_activity_5d`, `backlog_expiring_soon`)
-    - configurable goal targets via `applications_goal_target` and `interviews_goal_target`
-  - Phase 2 analytics expansion:
-    - cohort funnel by posted week (`cohorts`)
-    - source quality summaries (`source_quality.ats`, `source_quality.companies`)
-    - analytics UI sections for cohort table + ATS/company quality rankings
-    - click-through drill-down from analytics rows to board filters (`ats`, `company`, `posted_after`, `posted_before`)
-  - Phase 3 analytics expansion:
-    - forecast summary payload (`forecast`) with confidence bands and 7d/30d horizon windows
-    - optional API input `forecast_apps_per_week` for scenario planning
-    - analytics forecast simulator UI with instant scenario recalculation
-- Recruitee ATS integration:
-  - added `recruitee` as a supported `company_sources.ats_type`
-  - added Recruitee fetch/normalize/description support in scrape pipeline
-  - added Recruitee probe support in `add_company` discovery flow
-  - added Recruitee link parsing to source import service
-  - added regression tests for Recruitee slug/url parsing and normalization
-- Description formatting enrichment output:
-  - new `job_enrichments.formatted_description` column
-  - best-effort LLM formatting pass in `src/enrich.py`
-  - dashboard description rendering now prefers formatted text and falls back to raw `jobs.description`
-- Dedicated enrichment automation workflow:
-  - new `.github/workflows/enrichment.yml`
-  - supports scheduled `enrich_backfill` and manual `processing_mode` options
-- Tests for new formatting flow:
-  - `tests/test_enrich.py`
-  - repository round-trip assertion for `formatted_description`
-- Dashboard job deletion capability:
-  - new backend endpoint `DELETE /api/jobs/{job_url}`
-  - transactional delete cascade across `job_events`, `job_tracking`, `job_enrichments`, and `jobs`
-- Redis-backed dashboard API caching (optional via `REDIS_URL`):
-  - cached reads for jobs list/detail/events, profile, and stats
-  - write-time invalidation for tracking/profile/event/job mutations
-  - configurable per-endpoint TTL env vars (`DASHBOARD_CACHE_TTL_*`)
-- Scoring regression coverage:
-  - new test coverage for acronym/expanded and compact skill normalization in `tests/test_match_score.py`
-- New enrichment-only CLI mode for formatting gaps:
-  - `--jd-reformat-missing` targets rows with `enrichment_status='ok'` and empty `formatted_description`
-  - `--jd-reformat-all` refreshes formatted descriptions across all `enrichment_status='ok'` rows
-  - useful for running description formatting catch-up/refresh without full re-enrichment
+- Durable job processing state with `processing`, `ready`, and `failed` states visible in the dashboard.
+- Retry-processing API and drawer retry action for failed background enrichment / formatting / recommendation work.
+- Redis + `ETag` cache parity for `Today`, daily briefing, action queue, conversion, source quality, profile gaps, and profile insights.
+- Stage-aware recommendation presentation fields for narrative later-stage guidance.
 
 ### Changed
-
-- Split automation responsibilities:
-  - `.github/workflows/daily_scrape.yml` now runs scrape with `--no-enrich-llm`
-  - enrichment and description formatting run in separate workflow
-- Enrichment runtime model config now supports two independent env vars:
-  - `ENRICHMENT_MODEL`
-  - `DESCRIPTION_FORMAT_MODEL`
-- Prompt ownership changed to file-based runtime loading:
-  - `src/enrich.py` now loads prompts from `prompts.yaml`
-  - inline prompt source-of-truth strings removed from code
-- Docs updated across environment, scheduling, CLI, architecture, dashboard, storage, and integration references for the new formatting/enrichment split.
-- Detail drawer fit UI now uses a compact skill matrix (`matched` vs `gaps`) with one-click add-to-profile for missing skills.
-- Detail drawer now includes a `Danger Zone` delete button that removes the job from DB and refreshes board state.
-- Added `redis` runtime dependency for dashboard cache support.
-- Dashboard Redis job-detail cache now uses bounded LRU eviction to cap memory growth:
-  - new env var `DASHBOARD_CACHE_MAX_JOB_DETAILS` (default `24`, clamp `1..500`)
-  - least-recently-used detail entries are evicted when capacity is exceeded
-- Board page now preserves frontend in-memory state across route remounts:
-  - returning `Board -> Profile -> Board` reuses jobs/stats/profile/filter/detail/event cache state
-  - avoids immediate full board/detail re-fetch within freshness window
-- Skill matching robustness improved across backend scoring and sidebar fit UI:
-  - canonical normalization now handles punctuation, compact forms, acronyms, and parenthetical variants
-  - examples: `RAG` / `rag` / `Retrieval Augmented Generation (RAG)`, `CI/CD` / `cicd`, `GenAI` / `generative ai`
-  - profile add/dedupe and sidebar gap rendering now align with scorer normalization to reduce false skill gaps
-- Enrichment GitHub workflow input renamed to `processing_mode` and now supports:
-  - `enrich_backfill`
-  - `re_enrich_all`
-  - `jd_reformat_missing`
-  - `jd_reformat_all`
-- Match scoring seniority bias updated to demote out-of-scope roles equally:
-  - `intern`/`co-op` roles now receive the same `-25` penalty as `senior`/`staff`/`principal`
-  - title-based seniority detection now treats `co-op`/`coop` as intern-level
-
-## 2026-02-24
-
-### Added
-
-- Job match scoring system and profile persistence:
-  - deterministic scorer in `src/match_score.py`
-  - `candidate_profile` table and profile CRUD helpers in `src/db.py`
-  - dashboard profile endpoints (`GET/PUT /api/profile`)
-  - dashboard list/detail match payloads and `match_desc` sorting
-  - CLI scrape `Match` column and `--sort-by {match|posted}`
-- Dashboard theme mode system:
-  - dark/light toggle in header
-  - animated theme transition
-  - persisted preference in browser storage
-- New frontend component set for rebuilt dashboard UI:
-  - `ThemeToggle`
-  - ReactBits-style `SpotlightSurface`
-  - ReactBits-style `ShimmerTag`
-  - route shell and pages:
-    - `components/layout/AppShell.tsx`
-    - `pages/BoardPage.tsx`
-    - `pages/ProfilePage.tsx`
-- Backend detail response now includes enrichment payload from `job_enrichments`:
-  - exposed under `JobDetail.enrichment`
-  - parsed JSON array fields (`required_skills`, `preferred_skills`, `red_flags`)
-
-### Changed
-
-- Documentation now includes a full match scoring rubric and cross-links:
-  - new `docs/dashboard/match-scoring.md`
-  - updates across README, docs index, dashboard, architecture, CLI, storage, quickstart, glossary, and references
-- Full dashboard frontend redesign (`src/dashboard/frontend/*`) with Himalayas-inspired professional visual direction.
-- Replaced prior frontend structure with:
-  - route-based dashboard navigation (`/` board, `/profile` profile)
-  - dedicated profile page with manual save flow and tokenized editors
-  - kanban board + drag/drop status transitions
-  - right-side job detail drawer
-  - inline tracking edits synced to DB via `PATCH /api/jobs/{job_url}/tracking`
-  - enrichment rendering in job detail panel
-- Updated dashboard documentation set and references to match current behavior and component layout.
-- Replaced `withdrawn` board stage with `staging` stage in the dashboard pipeline order (`Backlog -> Staging -> Applied -> Interviewing -> Offer -> Rejected`).
-- Updated lifecycle status handling across frontend/backend/CLI to support `staging` and removed `withdrawn` from selectable status transitions.
-- Added legacy status normalization in dashboard repository so existing `withdrawn` rows are surfaced as `rejected` in board/detail/stats responses.
-
-## 2026-02-23
-
-### Added
-
-- DB-first source-management docs: `docs/configuration/company-sources.md`.
-- New CLI docs:
-  - `docs/cli/sources.md`
-  - `docs/cli/lifecycle.md`
-- Root project changelog (`CHANGELOG.md`).
-- Job tracker dashboard stack:
-  - FastAPI backend (`src/dashboard/backend/`)
-  - React/Vite frontend (`src/dashboard/frontend/`)
-  - Dashboard docs under `docs/dashboard/`
-- New frontend interaction components:
-  - Spotlight hover cards for stats (`SpotlightCard`)
-  - Motion-driven column and timeline transitions (`framer-motion`)
-  - Drag/drop micro-interactions (drop-target glow, drag state, moved-card pulse)
-- New DB tracking tables:
-  - `job_tracking`
-  - `job_events`
-
-### Changed
-
-- Full documentation refresh aligned to current architecture:
-  - `src/cli.py` as single entrypoint
-  - split command modules in `src/commands/*`
-  - split service modules in `src/services/*`
-  - DB-only company source registry (`company_sources`)
-- Updated `README.md`, quickstart, docs index, architecture, data flow, storage, operations, and references.
-- Updated eval docs to reflect `crawl --source-db` and DB-backed source loading.
-- Updated runbook with lifecycle pruning and source-registry operational procedures.
-- Added dashboard command/run instructions to `README.md` and docs index.
-- Refined dashboard UX from Stitch exports baseline into production-ready UI behaviors and documented the final interaction model.
+- `Today` was reworked into an operational landing page organized around `Must do today`, `Follow up today`, `Review later`, and `Top notes`.
+- Manual add now opens instantly while background processing runs asynchronously.
+- Manual add now prevents duplicates by exact URL and by normalized title + company + location + posted-month matching.
+- Job descriptions are normalized before persistence and before enrichment sees the text.
+- Clicking outside the drawer now closes it consistently on desktop and mobile.
 
 ### Removed
+- Application-brief UI and API surface from the active dashboard product flow.
 
-- YAML-based company-source documentation references.
-- Legacy `src/scrape.py` references from docs.
-
-## 2026-02-21
+## 2026-03-28
 
 ### Added
-
-- Structured documentation set under `docs/`.
-- CLI, architecture, integrations, operations, evaluation, and reference pages.
+- Interview-focused advisor layer with interview-likelihood scoring, recommendation reasons, manual decision overrides, action queue persistence, outcome analytics, and profile-gap insights.
+- Daily briefing system with:
+  - persisted one-row-per-day briefing state
+  - dashboard Daily Briefing panel
+  - Telegram daily briefing formatter and send path
+  - same-day Telegram send dedupe
+  - CLI entrypoint: `uv run python src/cli.py daily-briefing`
 
 ### Changed
+- Workspace scrape, enrich, and JD reformat flows now refresh the stored daily briefing after successful runs.
+- Dashboard is now split into `Today`, `Board`, and `Insights`, with assistant and analytics surfaces moved off the Kanban page.
+- Board drawer keeps the core evaluation workflow but is reordered for easier scanning, with timeline and cleanup actions pushed to the bottom.
+- `.env.example` now documents `JOB_HUNTER_TIMEZONE` for local-day briefing generation and Telegram dedupe.
 
-- `README.md` converted to concise command + docs gateway.
-
-## Changelog Process
-
-For every behavior, interface, or operational change:
-
-1. Add/update docs in `docs/`.
-2. Append an entry here in `CHANGELOG.md`.
-3. Append docs-only details in `docs/reference/changelog-docs.md`.
-4. Include date and clear Added/Changed/Removed notes.
+### Notes
+- The daily briefing is sourced from the same recommendation, action, and profile analytics already shown in the dashboard, so Telegram and the board use the same canonical payload.
+- Scheduling remains external to the backend process; the repo provides the CLI command and a scheduler-friendly interface rather than an in-process scheduler.

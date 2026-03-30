@@ -1,0 +1,231 @@
+- generic [ref=e2]:
+  - generic [ref=e20]:
+    - button "Toggle navigation" [ref=e21] [cursor=pointer]
+    - complementary [ref=e26]:
+      - navigation "Primary navigation" [ref=e27]:
+        - link "Board" [ref=e28] [cursor=pointer]:
+          - /url: /
+          - img [ref=e30]
+          - text: Board
+        - link "Artifacts" [ref=e34] [cursor=pointer]:
+          - /url: /artifacts
+          - img [ref=e36]
+          - text: Artifacts
+        - link "Analytics" [ref=e39] [cursor=pointer]:
+          - /url: /analytics
+          - img [ref=e41]
+          - text: Analytics
+        - link "Workspace" [ref=e46] [cursor=pointer]:
+          - /url: /workspace
+          - img [ref=e48]
+          - text: Workspace
+        - link "Evidence Vault" [ref=e51] [cursor=pointer]:
+          - /url: /evidence-vault
+          - img [ref=e53]
+          - text: Evidence Vault
+        - link "Profile" [ref=e56] [cursor=pointer]:
+          - /url: /profile
+          - img [ref=e58]
+          - text: Profile
+    - generic [ref=e63]:
+      - generic [ref=e64]:
+        - generic [ref=e65]:
+          - generic [ref=e66]:
+            - paragraph [ref=e67]: Pipeline desk
+            - heading "Job Application Pipeline" [level=3] [ref=e68]
+            - paragraph [ref=e69]: Review the queue, move quickly, and keep every opportunity in an explicit next state.
+          - generic [ref=e70]:
+            - generic [ref=e71]: Quick find
+            - generic [ref=e72]:
+              - generic [ref=e73]: ⌕
+              - searchbox "Search jobs" [active] [ref=e74]: reddit
+              - generic [ref=e75]: "7"
+            - generic [ref=e76]: Search stays pinned while browse controls stay compact
+        - generic [ref=e77]:
+          - region "Browse controls" [ref=e78]:
+            - paragraph [ref=e79]: Browse
+            - button "Toggle browse controls" [ref=e81] [cursor=pointer]:
+              - generic [ref=e82]: Controls
+              - generic [ref=e83]: ▾
+          - region "Quick actions" [ref=e84]:
+            - paragraph [ref=e85]: Actions
+            - generic [ref=e86]:
+              - button "Suppressed" [ref=e87] [cursor=pointer]:
+                - generic [ref=e88]: Suppressed
+                - img [ref=e90]
+              - button "Add Job" [ref=e94] [cursor=pointer]:
+                - generic [ref=e95]: Add Job
+                - img [ref=e97]
+              - button "Refresh" [ref=e99] [cursor=pointer]:
+                - generic [ref=e100]: Refresh
+                - img [ref=e102]
+      - region "Board focus" [ref=e105]:
+        - generic [ref=e106]:
+          - paragraph [ref=e107]: Focus
+          - paragraph [ref=e108]: Jump into a specific work queue without changing your search or filter setup.
+        - generic [ref=e109]:
+          - button "All 7" [ref=e1349] [cursor=pointer]:
+            - generic [ref=e111]: All
+            - strong [ref=e112]: "7"
+          - button "Overdue 0" [ref=e1350] [cursor=pointer]:
+            - generic [ref=e114]: Overdue
+            - strong [ref=e115]: "0"
+          - button "Staging 0" [ref=e1351] [cursor=pointer]:
+            - generic [ref=e117]: Staging
+            - strong [ref=e118]: "0"
+          - button "High priority 0" [ref=e119] [cursor=pointer]:
+            - generic [ref=e120]: High priority
+            - strong [ref=e121]: "0"
+          - button "Strong match 2" [ref=e1352] [cursor=pointer]:
+            - generic [ref=e123]: Strong match
+            - strong [ref=e124]: "2"
+          - button "Matches my titles 0" [ref=e125] [cursor=pointer]:
+            - generic [ref=e126]: Matches my titles
+            - strong [ref=e127]: "0"
+      - generic [ref=e128]:
+        - generic [ref=e129]:
+          - paragraph [ref=e130]: Score Refresh Status
+          - paragraph [ref=e131]: "Last recompute: never"
+          - paragraph [ref=e132]: "Duration: 0ms"
+        - button "Recompute now ↻" [ref=e133] [cursor=pointer]
+      - region "Pipeline stage distribution" [ref=e134]:
+        - article [ref=e135]:
+          - generic [ref=e136]:
+            - paragraph [ref=e137]: Backlog
+            - strong [ref=e138]: "5"
+          - generic [ref=e139]: Recent roles
+        - article [ref=e141]:
+          - generic [ref=e142]:
+            - paragraph [ref=e143]: Staging
+            - strong [ref=e144]: "0"
+          - generic [ref=e145]: 48h review lane
+        - article [ref=e147]:
+          - generic [ref=e148]:
+            - paragraph [ref=e149]: Applied
+            - strong [ref=e150]: "1"
+          - generic [ref=e151]: Awaiting response
+        - article [ref=e153]:
+          - generic [ref=e154]:
+            - paragraph [ref=e155]: Interviewing
+            - strong [ref=e156]: "0"
+          - generic [ref=e157]: Interview cycle
+        - article [ref=e159]:
+          - generic [ref=e160]:
+            - paragraph [ref=e161]: Offer
+            - strong [ref=e162]: "0"
+          - generic [ref=e163]: Offer stage
+        - article [ref=e165]:
+          - generic [ref=e166]:
+            - paragraph [ref=e167]: Rejected
+            - strong [ref=e168]: "0"
+          - generic [ref=e169]: Archived outcomes
+      - main [ref=e171]:
+        - paragraph [ref=e172]: Backlog only shows jobs posted in the last 3 weeks; all other stages show full history.
+        - generic [ref=e173]:
+          - generic [ref=e175]:
+            - generic [ref=e177]:
+              - generic [ref=e180]:
+                - heading "Backlog" [level=3] [ref=e181]
+                - paragraph [ref=e182]: Recent roles
+              - generic [ref=e183]: "5"
+            - generic [ref=e184]:
+              - button "Reddit Medium Data Scientist, Ads Remote - Ontario, Canada Posted 3 Mar Match 100 • Excellent" [ref=e217]:
+                - button "Reddit Medium Data Scientist, Ads Remote - Ontario, Canada Posted 3 Mar Match 100 • Excellent" [ref=e219] [cursor=pointer]:
+                  - generic [ref=e220]:
+                    - paragraph [ref=e223]: Reddit
+                    - generic [ref=e224]: Medium
+                  - heading "Data Scientist, Ads" [level=4] [ref=e225]
+                  - generic [ref=e227]: Remote - Ontario, Canada
+                  - generic [ref=e229]: Posted 3 Mar
+                  - generic [ref=e232]: Match 100 • Excellent
+              - button "Reddit Medium Data Scientist, Ads Remote - United States Posted 3 Mar Match 71 • Good" [ref=e489]:
+                - button "Reddit Medium Data Scientist, Ads Remote - United States Posted 3 Mar Match 71 • Good" [ref=e491] [cursor=pointer]:
+                  - generic [ref=e492]:
+                    - paragraph [ref=e495]: Reddit
+                    - generic [ref=e496]: Medium
+                  - heading "Data Scientist, Ads" [level=4] [ref=e497]
+                  - generic [ref=e499]: Remote - United States
+                  - generic [ref=e501]: Posted 3 Mar
+                  - generic [ref=e504]: Match 71 • Good
+              - button "Reddit Medium Machine Learning Engineer, Ads Remote - United States Posted 3 Mar Match 66 • Good" [ref=e553]:
+                - button "Reddit Medium Machine Learning Engineer, Ads Remote - United States Posted 3 Mar Match 66 • Good" [ref=e555] [cursor=pointer]:
+                  - generic [ref=e556]:
+                    - paragraph [ref=e559]: Reddit
+                    - generic [ref=e560]: Medium
+                  - heading "Machine Learning Engineer, Ads" [level=4] [ref=e561]
+                  - generic [ref=e563]: Remote - United States
+                  - generic [ref=e565]: Posted 3 Mar
+                  - generic [ref=e568]: Match 66 • Good
+              - button "Reddit Medium Machine Learning Engineer Remote - United States Posted 8 Mar Match 54 • Fair" [ref=e1353]:
+                - button "Reddit Medium Machine Learning Engineer Remote - United States Posted 8 Mar Match 54 • Fair" [ref=e1355] [cursor=pointer]:
+                  - generic [ref=e1356]:
+                    - paragraph [ref=e1359]: Reddit
+                    - generic [ref=e1360]: Medium
+                  - heading "Machine Learning Engineer" [level=4] [ref=e1361]
+                  - generic [ref=e1363]: Remote - United States
+                  - generic [ref=e1365]: Posted 8 Mar
+                  - generic [ref=e1368]: Match 54 • Fair
+              - button "Reddit Medium Data Science Manager Remote - United States Posted 3 Mar Match 0 • Low" [ref=e1369]:
+                - button "Reddit Medium Data Science Manager Remote - United States Posted 3 Mar Match 0 • Low" [ref=e1371] [cursor=pointer]:
+                  - generic [ref=e1372]:
+                    - paragraph [ref=e1375]: Reddit
+                    - generic [ref=e1376]: Medium
+                  - heading "Data Science Manager" [level=4] [ref=e1377]
+                  - generic [ref=e1379]: Remote - United States
+                  - generic [ref=e1381]: Posted 3 Mar
+                  - generic [ref=e1384]: Match 0 • Low
+          - generic [ref=e667]:
+            - generic [ref=e669]:
+              - generic [ref=e672]:
+                - heading "Staging" [level=3] [ref=e673]
+                - paragraph [ref=e674]: 48h review lane
+              - generic [ref=e675]: "0"
+            - generic [ref=e1385]:
+              - strong [ref=e1386]: No roles in review
+              - paragraph [ref=e1387]: Move strong candidates here when you want a short, focused decision window.
+          - generic [ref=e742]:
+            - generic [ref=e744]:
+              - generic [ref=e747]:
+                - heading "Applied" [level=3] [ref=e748]
+                - paragraph [ref=e749]: Awaiting response
+              - generic [ref=e750]: "1"
+            - button "Reddit Medium Machine Learning Engineer, Ads Remote - Ontario, Canada Posted 3 Mar Match 100 • Excellent" [ref=e800]:
+              - button "Reddit Medium Machine Learning Engineer, Ads Remote - Ontario, Canada Posted 3 Mar Match 100 • Excellent" [ref=e802] [cursor=pointer]:
+                - generic [ref=e803]:
+                  - paragraph [ref=e806]: Reddit
+                  - generic [ref=e807]: Medium
+                - heading "Machine Learning Engineer, Ads" [level=4] [ref=e808]
+                - generic [ref=e810]: Remote - Ontario, Canada
+                - generic [ref=e812]: Posted 3 Mar
+                - generic [ref=e815]: Match 100 • Excellent
+          - generic [ref=e1217]:
+            - generic [ref=e1219]:
+              - generic [ref=e1222]:
+                - heading "Interviewing" [level=3] [ref=e1223]
+                - paragraph [ref=e1224]: Interview cycle
+              - generic [ref=e1225]: "0"
+            - generic [ref=e1388]:
+              - strong [ref=e1389]: No interview loops
+              - paragraph [ref=e1390]: This column becomes the operational center once conversations start moving.
+          - generic [ref=e1292]:
+            - generic [ref=e1294]:
+              - generic [ref=e1297]:
+                - heading "Offer" [level=3] [ref=e1298]
+                - paragraph [ref=e1299]: Offer stage
+              - generic [ref=e1300]: "0"
+            - generic [ref=e1391]:
+              - strong [ref=e1392]: No offers yet
+              - paragraph [ref=e1393]: Offers and final-stage negotiations will stay visible here for quick comparison.
+          - generic [ref=e1319]:
+            - generic [ref=e1321]:
+              - generic [ref=e1324]:
+                - heading "Rejected" [level=3] [ref=e1325]
+                - paragraph [ref=e1326]: Archived outcomes
+              - generic [ref=e1327]: "0"
+            - generic [ref=e1394]:
+              - strong [ref=e1395]: No closed roles
+              - paragraph [ref=e1396]: Rejected opportunities remain here as historical context once they are resolved.
+        - status [ref=e1345]
+        - complementary [ref=e1346]:
+          - generic [ref=e1347]: Select a job card to inspect details.
+  - region "Notifications alt+T"

@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent))
 
 from notify import _load_dotenv
-from commands import company_sources, job_lifecycle, scrape_jobs
+from commands import company_sources, daily_briefing, scrape_jobs
 
 
 def main() -> None:
@@ -19,7 +19,7 @@ def main() -> None:
 
     scrape_jobs.register(sub)
     company_sources.register(sub)
-    job_lifecycle.register(sub)
+    daily_briefing.register(sub)
 
     args = parser.parse_args()
     if args.command == "scrape":
@@ -28,8 +28,8 @@ def main() -> None:
     if args.command == "sources":
         company_sources.run(args)
         return
-    if args.command == "lifecycle":
-        job_lifecycle.run(args)
+    if args.command == "daily-briefing":
+        daily_briefing.run(args)
         return
 
 

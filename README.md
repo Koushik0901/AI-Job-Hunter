@@ -1,66 +1,184 @@
+<div align="center">
+
 # AI Job Hunter
 
-An open-source, single-user job search workspace that starts blank and adapts to the person running it.
+### A job-search workflow system built to turn scattered listings into a disciplined application pipeline
 
-You add your own targets, sources, profile data, resume baseline, and evidence. Nothing in a fresh clone should assume a specific job title, company list, resume, or personal history.
+<p>
+  <img alt="Python backend" src="https://img.shields.io/badge/backend-python-1f3b73?style=for-the-badge">
+  <img alt="React frontend" src="https://img.shields.io/badge/frontend-react-0f172a?style=for-the-badge">
+  <img alt="Redis caching" src="https://img.shields.io/badge/cache-redis-7f1d1d?style=for-the-badge">
+  <img alt="AI-assisted enrichment" src="https://img.shields.io/badge/workflow-ai--assisted-243b2f?style=for-the-badge">
+</p>
 
----
-
-## ✨ What This Project Actually Does
-
-You get one system with three practical layers:
-
-1. Discovery and lifecycle
-- Scrape ATS boards + HN hiring threads.
-- Normalize and store jobs.
-- Track each job across `not_applied -> staging -> applied -> interviewing -> offer/rejected`.
-
-2. Dashboard and artifacts
-- Kanban board with detail drawer.
-- Resume and cover-letter artifact editors.
-- Versioned artifact storage.
-- PDF compile + preview.
-
-3. Agentic optimization
-- Resume swarm pipeline.
-- Cover-letter swarm pipeline.
-- Legal-move editing, claim validation, and compile-safe rollback.
+</div>
 
 ---
 
-## Quick Start
+> **Why this exists**
+>
+> I built AI Job Hunter after realizing that job boards are good at discovery, but weak at helping a candidate actually manage the work that starts after a good role is found.
 
-### 🔹 1) Install
+## The Problem
 
-Requires Python `3.12+` and `uv`.
+My real workflow looked something like this:
 
-```bash
-uv sync
-```
+1. search across LinkedIn, Indeed, Himalayas, Workopolis, and direct company career pages  
+2. open promising roles one by one  
+3. copy descriptions into ChatGPT to understand fit and prep application work  
+4. track applications and follow-ups in tabs, notes, and memory  
+5. come back later and reconstruct what had already been done
 
-### 2) Configure
+That process created the same friction over and over:
 
-```bash
-cp .env.example .env
-```
+| What broke | Why it mattered |
+| --- | --- |
+| Jobs were scattered across too many sources | High-signal roles were easy to lose in volume |
+| Descriptions were noisy and inconsistent | Comparing opportunities quickly was harder than it should have been |
+| Application status lived in my head | Follow-ups and next actions became unreliable |
+| “Interesting” and “active pipeline” blurred together | Good opportunities were not getting structured attention |
+| There was no daily operating view | The search felt reactive instead of intentional |
 
-Fill in only what you plan to use.
+AI Job Hunter is my attempt to solve that like a systems problem, not just a note-taking problem.
 
-Minimum startup options:
-- Local mode: no DB env vars required; the app will create a local SQLite database.
-- Turso mode: set `TURSO_URL` and `TURSO_AUTH_TOKEN`.
+## What I Built
 
-Optional services:
-- `REDIS_URL` for API caching.
-- `OPENROUTER_API_KEY` for enrichment and swarm features.
-- `QDRANT_URL` and `QDRANT_API_KEY` for evidence retrieval.
-- Telegram variables only if you want notifications.
+The product combines sourcing, workflow management, and assistant-style prioritization into one system.
 
-### 3) Run backend + frontend
+<table>
+  <tr>
+    <td valign="top" width="33%">
+
+### Today
+
+The daily operating surface.
+
+- daily briefing
+- action queue
+- follow-ups due
+- concise next-step notes
+
+Built to answer:
+
+- what should I do today?
+- which jobs need action now?
+
+    </td>
+    <td valign="top" width="33%">
+
+### Board
+
+The pipeline workspace.
+
+- Kanban and list views
+- search, filters, and focus modes
+- manual add
+- duplicate-aware job creation
+- drag-and-drop stage movement
+- rich job drawer
+
+    </td>
+    <td valign="top" width="33%">
+
+### Insights
+
+The longer-horizon review page.
+
+- conversion metrics
+- source quality
+- profile-gap analysis
+- targeting guidance
+
+    </td>
+  </tr>
+</table>
+
+## What Makes It Useful
+
+This is not just a list of saved links.
+
+It is designed to reduce workflow overhead during an active search:
+
+- manually added jobs open immediately while enrichment and recommendation work continue in the background
+- duplicates are detected and reused instead of silently multiplying
+- job descriptions are normalized before enrichment and storage
+- recommendations change based on application stage
+- daily briefing and action queues compress a large backlog into a smaller set of concrete actions
+
+## Why This Is Stronger Than a Normal Job Board
+
+Job boards optimize for listing discovery.
+
+This project is built for what happens *after* discovery:
+
+| Job boards usually help with | AI Job Hunter is built for |
+| --- | --- |
+| finding listings | evaluating and prioritizing opportunities |
+| browsing roles | tracking a real application pipeline |
+| one listing at a time | cross-source comparison and workflow continuity |
+| passive search | deliberate daily execution |
+
+## What This Demonstrates
+
+For a technical recruiter or hiring manager, this project is meant to show how I approach software:
+
+- I build from a real operational problem
+- I design workflows, not just isolated screens
+- I care about reliability details like retries, duplicate control, caching, and async processing
+- I use AI for leverage, but I still design the surrounding product and state model carefully
+- I like turning messy human processes into software that is calmer and more structured to use
+
+## Current Capabilities
+
+### Manual add
+
+- required fields are clearly marked
+- save opens the job immediately
+- duplicates reopen the existing record
+- enrichment, formatting, and recommendation work continue after save
+- failed background processing can be retried from the drawer
+
+### Background processing
+
+Jobs expose a compact processing state:
+
+- `processing`
+- `ready`
+- `failed`
+
+### Recommendation model
+
+- early-stage jobs use opportunity evaluation
+- later-stage jobs use active-process guidance
+- the UI avoids misleading “interview likelihood” framing for jobs already in progress
+
+### Performance model
+
+The dashboard uses layered caching:
+
+- browser memory reuse
+- `ETag`-based HTTP revalidation
+- Redis-backed server-side caching for board and assistant reads
+
+## Stack
+
+| Layer | Tools |
+| --- | --- |
+| Frontend | React, Vite, TypeScript |
+| Backend | Python |
+| Data / storage | SQLite or Turso |
+| Cache | Redis |
+| Workflow | scraping, enrichment, formatting, recommendation, daily briefing |
+
+## Running Locally
+
+### Backend
 
 ```bash
 uv run python src/dashboard/backend/main.py
 ```
+
+### Frontend
 
 ```bash
 cd src/dashboard/frontend
@@ -68,182 +186,43 @@ npm install
 npm run dev
 ```
 
-Backend: `http://127.0.0.1:8000`
-Frontend: `http://localhost:5173`
-
-### 4) First-run flow
-
-Fresh clones should start blank:
-1. Open `/workspace` and confirm service health.
-2. Open `/profile` and enter your desired job titles, skills, and optional resume baseline.
-3. Add or import company sources from `/workspace`.
-4. Run a scrape from `/workspace`.
-5. Use the board and artifacts UI for the jobs relevant to your own search.
-
----
-
-## Most Used Commands
+### CLI
 
 ```bash
-# 🚀 Daily scrape pipeline
-uv run python src/cli.py scrape
-
-# 🚀 Source management
-uv run python src/cli.py sources list
-uv run python src/cli.py sources check example-company
-uv run python src/cli.py sources enable example-company
-uv run python src/cli.py sources disable example-company
-
-# 🚀 Lifecycle
-uv run python src/cli.py lifecycle set-status --url <job_url> --status applied
-uv run python src/cli.py lifecycle prune --days 28 --apply
-
-# 🚀 Eval framework
-uv run python eval/eval.py crawl
-uv run python eval/eval.py build
-uv run python eval/eval.py run
-uv run python eval/eval.py report
-
-# 🚀 Swarm acceptance benchmark
-uv run python eval/swarm_benchmark.py build-dataset --out eval/swarm_dataset.yaml --limit 50 --statuses staging applied interviewing not_applied offer rejected archived
-uv run python eval/swarm_benchmark.py run --dataset eval/swarm_dataset.yaml --cycles 2 --compile-check --out-dir eval/results
+uv run python src/cli.py --help
 ```
 
----
+Useful commands:
 
-## ✨ Resume Swarm Pipeline (How It Works)
+```bash
+uv run python src/cli.py scrape
+uv run python src/cli.py sources list
+uv run python src/cli.py sources check example-company
+uv run python src/cli.py daily-briefing
+uv run python src/cli.py daily-briefing --refresh-only
+uv run python src/cli.py daily-briefing --send-now
+```
 
-This is a bounded optimization loop, not open-ended rewriting.
+## Configuration
 
-Flow:
+Copy `.env.example` to `.env` and set the values you use locally.
 
-1. `score_node`
-- LLM scorer reads JD + resume text + evidence context.
-- Outputs strict JSON: score breakdown, risks, `Fix_Plan`, non-negotiables.
+Important keys:
 
-2. `rewrite_node`
-- LLM rewriter reads JD + scorer JSON + current resume LaTeX.
-- Outputs legal operations (`moves`) with fix linkage.
-
-3. `verify_moves_node` (deterministic)
-- Confirms targets exist and are editable.
-- Applies conflict policy (priority-first, skip collisions).
-- Enforces op budget and change budget.
-
-4. `apply_node` (deterministic)
-- Applies legal moves to LaTeX.
-- Emits applied/failed/no-op details and policy reasons.
-
-5. `decide_next`
-- Controller loop gate only (LLM never sees cycle counters).
-- Stops by gate rules or continues to next cycle.
-
-6. `final_score_node`
-- Produces final score JSON for result + timeline.
-
-Output:
-- Final resume LaTeX.
-- Final score JSON.
-- Full event history for UI timeline.
-
----
-
-## ✨ Cover-Letter Swarm Pipeline (How It Works)
-
-Cover-letter flow is similar, but includes drafting and tone controls.
-
-Flow:
-
-1. `draft_node`
-- Generates an initial grounded draft in LaTeX body context.
-
-2. `score_node`
-- Scores the draft against JD and evidence constraints.
-
-3. `rewrite_node`
-- Produces legal cover-letter edits (line/block bounded).
-
-4. `verify_moves_node`
-- Deterministic target validation + conflict filtering.
-
-5. `apply_node`
-- Deterministic LaTeX apply with policy checks.
-
-6. `decide_next` + `final_score_node`
-- Gate-based loop and final scoring.
-
-Tone guard:
-- Deterministic heuristic path can force another cycle when writing drifts into low-quality style patterns.
-
----
-
-## ✨ How LaTeX Is Handled Safely
-
-This is where reliability comes from.
-
-1. Parse first
-- Source is parsed into `line_id`, `block_id`, `region_id`, `editable`, `line_kind`.
-
-2. Legal moves only
-- Resume supports bounded operations like `replace_line`, `insert_line_after`, `delete_line`, `replace_block`, `swap_blocks`.
-- Cover letter supports the bounded subset for its tagged structure.
-
-3. Deterministic apply
-- No fuzzy patching.
-- Exact target resolution with controlled fallback.
-- Conflicts are skipped and logged.
-
-4. Safety guards
-- Claim validator blocks unsupported claim introduction.
-- `supported_by` citations can be required for claim-adding edits.
-- LaTeX safety checks catch brace/environment/special-char issues.
-
-5. Compile guard rollback
-- If input compiled and edited output does not, output is automatically reverted.
-- This guarantees zero compile regressions in accepted final output.
-
----
-
-## ✨ Documentation Map
-
-Start here:
-- [docs/INDEX.md](docs/INDEX.md)
-
-High-traffic docs:
-- [docs/dashboard/overview.md](docs/dashboard/overview.md)
-- [docs/dashboard/backend-api.md](docs/dashboard/backend-api.md)
-- [eval/README.md](eval/README.md)
-- [docs/evaluation/eval-framework.md](docs/evaluation/eval-framework.md)
-
----
-
-## ✨ Runtime Controls (Swarm)
-
-Key env vars:
+- `DB_PATH`, `TURSO_URL`, `TURSO_AUTH_TOKEN`
+- `REDIS_URL`
+- `DASHBOARD_CACHE_TTL_JOBS_LIST`
+- `DASHBOARD_CACHE_TTL_JOB_DETAIL`
+- `DASHBOARD_CACHE_TTL_EVENTS`
+- `DASHBOARD_CACHE_TTL_STATS`
+- `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`
+- `JOB_HUNTER_TIMEZONE`
 - `OPENROUTER_API_KEY`
-- `RESUME_SWARM_SCORING_MODEL`, `RESUME_SWARM_REWRITE_MODEL`
-- `COVER_LETTER_SWARM_DRAFT_MODEL`, `COVER_LETTER_SWARM_SCORING_MODEL`, `COVER_LETTER_SWARM_REWRITE_MODEL`
-- `SWARM_MIN_SCORE_DELTA`
-- `SWARM_MAX_OPS_PER_CYCLE`
-- `SWARM_MAX_CHANGED_LINE_RATIO`
-- `SWARM_FORCE_ON_NON_NEGOTIABLES`
-- `SWARM_COMPILE_ROLLBACK`
+- `ENRICHMENT_MODEL`
+- `DESCRIPTION_FORMAT_MODEL`
 
-Evidence retrieval controls:
-- `EVIDENCE_RETRIEVAL_MODE`
-- `EVIDENCE_MAX_TOP_K`
-- `EVIDENCE_MIN_LEXICAL_OVERLAP`
-- `EVIDENCE_MIN_VECTOR_SCORE`
-- `QDRANT_URL`, `QDRANT_API_KEY`, `QDRANT_EVIDENCE_COLLECTION`
+## Current Boundaries
 
----
-
-## ✨ Current Reliability Snapshot
-
-On the 50-case swarm benchmark:
-- Apply success: `83.29%`
-- Out-of-region violations: `0`
-- Compile regressions: `0/100`
-- Acceptance gates: all pass
-
-(See `eval/results/swarm_benchmark_*.md` for latest run.)
+- resume tailoring and cover-letter generation are intentionally not part of this README story yet
+- outbound recruiter messaging workflows are not built into the product yet
+- smart manual-add parsing from pasted job-board URLs is still future work

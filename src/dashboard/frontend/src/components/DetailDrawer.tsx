@@ -1,11 +1,11 @@
 import { motion } from "framer-motion";
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
-import type { ArtifactSummary, CandidateProfile, JobDetail, JobEvent, Priority, TrackingStatus } from "../types";
-import { preloadRouteChunk } from "../routePreload";
+import { toast } from "sonner";
+import { fetchJobDescriptionPdf } from "../api";
+import { formatDateTime } from "../dateUtils";
+import type { CandidateProfile, JobDetail, JobEvent, JobSummary, Priority, Recommendation, TrackingStatus } from "../types";
 import { AnimatedList } from "./reactbits/AnimatedList";
-import { ThemedLoader } from "./ThemedLoader";
 import { ThemedSelect } from "./ThemedSelect";
 import {
   AlertDialog,
@@ -19,25 +19,21 @@ import {
 } from "./ui/alert-dialog";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Progress } from "./ui/progress";
 
 interface DetailDrawerProps {
   open: boolean;
   loading: boolean;
   job: JobDetail | null;
+  summaryJob?: JobSummary | null;
   profile: CandidateProfile | null;
   events: JobEvent[];
-  artifacts?: ArtifactSummary[];
-  artifactsLoading?: boolean;
-  artifactsGenerating?: boolean;
-  artifactStarterStage?: string;
-  artifactStarterProgress?: number;
   enrichmentPending?: boolean;
   onClose: () => void;
   onAddSkillToProfile?: (skill: string) => Promise<void>;
   onDeleteJob?: (jobId: string) => Promise<void>;
   onSuppressJob?: (jobId: string, reason?: string) => Promise<void>;
-  onGenerateArtifacts?: (jobId: string) => Promise<void>;
+  onRetryProcessing?: (jobId: string) => Promise<void>;
+  onSaveDecision?: (jobId: string, recommendation: Recommendation) => Promise<void>;
   onChangeTracking: (patch: {
     status?: TrackingStatus;
     priority?: Priority;
@@ -95,6 +91,25 @@ function salaryLabel(job: JobDetail): string {
     return `${currency} ${enrichment.salary_min.toLocaleString()} - ${enrichment.salary_max.toLocaleString()}`;
   }
   return `${currency} ${(enrichment.salary_min ?? enrichment.salary_max)?.toLocaleString()}`;
+}
+
+function slugifyFilenamePart(value: string | null | undefined): string {
+  const normalized = (value ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized;
+}
+
+function buildDescriptionFilename(job: JobDetail, extension: "md" | "pdf"): string {
+  const parts = [
+    slugifyFilenamePart(job.company),
+    slugifyFilenamePart(job.title),
+    "job-description",
+  ].filter(Boolean);
+  return parts.length > 0 ? `${parts.join("-")}.${extension}` : `job-description-${job.id}.${extension}`;
 }
 
 function formatDescription(description: string): ReactNode {
@@ -257,18 +272,42 @@ function requiredImpact(index: number, total: number): "critical" | "important" 
   return index < Math.ceil(total * 0.5) ? "critical" : "important";
 }
 
-function formatDateTime(value: string | null | undefined): string {
-  if (!value) return "-";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf())) return value;
-  return parsed.toLocaleString();
-}
-
 function titleCaseLabel(value: string | null | undefined): string {
   if (!value) return "-";
   return value
     .replaceAll("_", " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function recommendationLabel(value: string | null | undefined): string {
+  if (!value) return "Unrated";
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+type RecommendationGuidanceMode = "evaluation" | "stage_narrative";
+
+type RecommendationGuidanceFields = {
+  guidance_mode?: RecommendationGuidanceMode | null;
+  guidance_title?: string | null;
+  guidance_summary?: string | null;
+  guidance_reasons?: string[];
+  next_best_action?: string | null;
+  health_label?: string | null;
+};
+
+function recommendationGuidance(job: JobDetail): JobDetail & RecommendationGuidanceFields {
+  return job as JobDetail & RecommendationGuidanceFields;
+}
+
+function guidanceModeLabel(mode: RecommendationGuidanceMode | null | undefined): string {
+  if (mode === "stage_narrative") return "Active process";
+  return "Opportunity review";
+}
+
+function isStageNarrativeJob(job: JobDetail): boolean {
+  return ["applied", "interviewing", "offer"].includes(job.tracking_status);
 }
 
 function matchTone(job: JobDetail): "high" | "medium" | "low" | "pending" {
@@ -293,19 +332,16 @@ export function DetailDrawer({
   open,
   loading,
   job,
+  summaryJob = null,
   profile,
   events,
-  artifacts = [],
-  artifactsLoading = false,
-  artifactsGenerating = false,
-  artifactStarterStage = "queued",
-  artifactStarterProgress = 0,
   enrichmentPending = false,
   onClose,
   onAddSkillToProfile,
   onDeleteJob,
   onSuppressJob,
-  onGenerateArtifacts,
+  onRetryProcessing,
+  onSaveDecision,
   onChangeTracking,
 }: DetailDrawerProps) {
   const requiredSkills = job?.enrichment ? cleanSkills(job.enrichment.required_skills) : [];
@@ -331,6 +367,8 @@ export function DetailDrawer({
     target_compensation?: string | null;
   } | null>(null);
   const [overdueActionBusy, setOverdueActionBusy] = useState(false);
+  const [decisionBusy, setDecisionBusy] = useState<Recommendation | null>(null);
+  const [retryProcessingBusy, setRetryProcessingBusy] = useState(false);
   useEffect(() => {
     setSkillActionState({});
     setOptimisticSkillAdds({});
@@ -351,6 +389,7 @@ export function DetailDrawer({
     setOverdueDialogOpen(false);
     setPendingTrackingPatch(null);
     setOverdueActionBusy(false);
+    setRetryProcessingBusy(false);
   }, [job?.url]);
   useEffect(() => {
     function onEscape(event: KeyboardEvent): void {
@@ -490,6 +529,28 @@ export function DetailDrawer({
     };
   }, [job?.enrichment, profile, requiredSkills, preferredSkills, optimisticSkillAdds]);
 
+  async function handleExportPdf(): Promise<void> {
+    if (!job) return;
+    const formattedMarkdown = job.enrichment?.formatted_description?.trim() ?? "";
+    if (!formattedMarkdown) {
+      toast.error("PDF export is only available after JD formatting finishes.");
+      return;
+    }
+    try {
+      const { blob, filename } = await fetchJobDescriptionPdf(job.id, buildDescriptionFilename(job, "pdf"));
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "PDF export failed");
+    }
+  }
+
   async function addSkill(skill: string): Promise<void> {
     if (!onAddSkillToProfile) return;
     const key = normalizeSkill(skill);
@@ -620,15 +681,121 @@ export function DetailDrawer({
       setOverdueActionBusy(false);
     }
   }
-  const descriptionText = job?.enrichment?.formatted_description || job?.description || "";
+
+  async function handleRecommendationOverride(next: Recommendation): Promise<void> {
+    if (!job || !onSaveDecision || decisionBusy) return;
+    setDecisionBusy(next);
+    try {
+      await onSaveDecision(job.id, next);
+    } finally {
+      setDecisionBusy(null);
+    }
+  }
+
+  async function handleRetryProcessing(): Promise<void> {
+    if (!job || !onRetryProcessing) {
+      return;
+    }
+    try {
+      setRetryProcessingBusy(true);
+      await onRetryProcessing(job.id);
+    } finally {
+      setRetryProcessingBusy(false);
+    }
+  }
+
+  const formattedDescription = job?.enrichment?.formatted_description?.trim() ?? "";
+  const canExportFormattedDescription = formattedDescription.length > 0;
+  const descriptionText = formattedDescription || job?.description || "";
+  function handleBackdropClose(event?: { preventDefault?: () => void; stopPropagation?: () => void }): void {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (open) {
+      onClose();
+    }
+  }
 
   return (
     <>
-      {open && <button className="drawer-overlay" onClick={onClose} type="button" aria-label="Close details" />}
+      {open && (
+        <button
+          className="drawer-overlay"
+          type="button"
+          aria-label="Close details"
+          onPointerDown={handleBackdropClose}
+          onClick={handleBackdropClose}
+        />
+      )}
       <aside className={`detail-drawer ${open ? "open" : ""}`}>
         {loading ? (
-          <div className="drawer-loading">
-            <ThemedLoader label="Loading job details" />
+          <div className="drawer-loading drawer-skeleton">
+            <header className="drawer-hero">
+              <div className="drawer-hero-copy">
+                <div className="drawer-hero-meta">
+                  {summaryJob ? (
+                    <>
+                      <span className={`drawer-status-pill status-${summaryJob.status.replaceAll("_", "-")}`}>
+                        {titleCaseLabel(summaryJob.status)}
+                      </span>
+                      <span className={`drawer-priority-pill priority-${summaryJob.priority ?? "medium"}`}>
+                        {titleCaseLabel(summaryJob.priority ?? "medium")} priority
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="drawer-skeleton-pill" />
+                      <span className="drawer-skeleton-pill" />
+                    </>
+                  )}
+                </div>
+                <div className="drawer-top">
+                  <h2>{summaryJob?.title ?? "Loading job details"}</h2>
+                  <Button type="button" onClick={onClose} variant="default" data-icon="×">Close</Button>
+                </div>
+                <p className="drawer-company">
+                  {summaryJob ? `${summaryJob.company}${summaryJob.location ? ` • ${summaryJob.location}` : ""}` : "Preparing job summary"}
+                </p>
+                <div className="drawer-summary-chips">
+                  <span className="drawer-summary-chip tone-match match-pending">Fetching detail…</span>
+                  {summaryJob?.ats ? <span className="drawer-summary-chip tone-ats">{summaryJob.ats}</span> : null}
+                  {summaryJob?.posted ? <span className="drawer-summary-chip tone-date">Posted {formatDateTime(summaryJob.posted)}</span> : null}
+                </div>
+              </div>
+            </header>
+            <div className="drawer-skeleton-sections" aria-hidden="true">
+              <section className="detail-block">
+                <h3>Fit Overview</h3>
+                <div className="drawer-skeleton-lines">
+                  <span className="skeleton-line long" />
+                  <span className="skeleton-line medium" />
+                  <span className="skeleton-line medium" />
+                </div>
+              </section>
+              <section className="detail-block">
+                <h3>Enrichment</h3>
+                <div className="drawer-skeleton-grid">
+                  {Array.from({ length: 6 }, (_, index) => (
+                    <span key={`enrichment-skeleton-${index}`} className="skeleton-line medium" />
+                  ))}
+                </div>
+              </section>
+              <section className="detail-block">
+                <h3>Job Description</h3>
+                <div className="drawer-skeleton-lines">
+                  <span className="skeleton-line long" />
+                  <span className="skeleton-line long" />
+                  <span className="skeleton-line medium" />
+                  <span className="skeleton-line short" />
+                </div>
+              </section>
+              <section className="detail-block">
+                <h3>Timeline</h3>
+                <div className="drawer-skeleton-lines">
+                  <span className="skeleton-line medium" />
+                  <span className="skeleton-line medium" />
+                </div>
+              </section>
+            </div>
           </div>
         ) : job ? (
           <motion.div
@@ -742,97 +909,137 @@ export function DetailDrawer({
                   />
                 </label>
               </div>
+              {job.tracking_status === "staging" && (
+                <div className="drawer-inline-callout">
+                  <div className="drawer-inline-callout-copy">
+                    <strong>Staging SLA (48h)</strong>
+                    <span>
+                      Entered {formatDateTime(job.staging_entered_at)} · Due {formatDateTime(job.staging_due_at)} · {job.staging_overdue ? "Overdue" : "On track"}
+                      {typeof job.staging_age_hours === "number" ? ` · Age ${job.staging_age_hours}h` : ""}
+                    </span>
+                  </div>
+                  <div className="fact-grid-actions">
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="compact"
+                      data-icon="✓"
+                      disabled={trackingUpdating !== false}
+                      onClick={() => void handleStatusChange("applied")}
+                    >
+                      Mark Applied
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      size="compact"
+                      data-icon="✕"
+                      disabled={trackingUpdating !== false}
+                      onClick={() => void handleStatusChange("rejected")}
+                    >
+                      Mark Rejected
+                    </Button>
+                  </div>
+                </div>
+              )}
             </section>
 
-            {job.tracking_status === "staging" && (
-              <section className="detail-block">
-                <h3>Staging SLA (48h)</h3>
-                <div className="fact-grid">
-                  <p>
-                    <strong>Entered:</strong> {formatDateTime(job.staging_entered_at)}
-                  </p>
-                  <p>
-                    <strong>Due:</strong> {formatDateTime(job.staging_due_at)}
-                  </p>
-                  <p>
-                    <strong>State:</strong> {job.staging_overdue ? "Overdue" : "On track"}
-                  </p>
-                  {typeof job.staging_age_hours === "number" && (
-                    <p>
-                      <strong>Age:</strong> {job.staging_age_hours}h
-                    </p>
-                  )}
+            <section className="detail-block detail-block-compact">
+              {(() => {
+                const guidance = recommendationGuidance(job);
+                const guidanceMode = guidance.guidance_mode ?? (isStageNarrativeJob(job) ? "stage_narrative" : "evaluation");
+                const guidanceTitle = guidance.guidance_title ?? (guidanceMode === "stage_narrative" ? `${titleCaseLabel(job.tracking_status)} stage` : recommendationLabel(job.recommendation));
+                const guidanceSummary = guidance.guidance_summary ?? (guidanceMode === "stage_narrative"
+                  ? "Use the drawer to stay current on the active stage and the next touchpoint."
+                  : "Use the drawer to compare fit, urgency, friction, and confidence before acting.");
+                const guidanceReasons = (guidance.guidance_reasons && guidance.guidance_reasons.length > 0
+                  ? guidance.guidance_reasons
+                  : job.recommendation_reasons).slice(0, 4);
+                const nextBestAction = guidance.next_best_action ?? (guidanceMode === "stage_narrative"
+                  ? "Keep the role moving."
+                  : job.recommendation
+                    ? `${recommendationLabel(job.recommendation)} it.`
+                    : "Wait for analysis to finish.");
+                const healthLabel = guidance.health_label ?? (guidanceMode === "stage_narrative"
+                  ? titleCaseLabel(job.tracking_status)
+                  : recommendationLabel(job.recommendation));
+                return (
+                  <>
+              <div className="detail-block-head">
+                <div>
+                  <p className="drawer-section-kicker">Assistant</p>
+                  <h3>Recommendation</h3>
                 </div>
-                <div className="fact-grid-actions">
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="compact"
-                    data-icon="✓"
-                    disabled={trackingUpdating !== false}
-                    onClick={() => void handleStatusChange("applied")}
-                  >
-                    Mark Applied
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="danger"
-                    size="compact"
-                    data-icon="✕"
-                    disabled={trackingUpdating !== false}
-                    onClick={() => void handleStatusChange("rejected")}
-                  >
-                    Mark Rejected
-                  </Button>
-                </div>
-              </section>
-            )}
-
-            <section className="detail-block">
-              <h3>Artifacts</h3>
-              <div className="fact-grid">
-                {["resume", "cover_letter"].map((kind) => {
-                  const artifact = artifacts.find((item) => item.artifact_type === kind);
-                  const label = kind === "resume" ? "Resume" : "Cover Letter";
-                  const openHref = kind === "resume"
-                    ? `/jobs/${encodeURIComponent(job.id)}/artifacts/resume`
-                    : `/jobs/${encodeURIComponent(job.id)}/artifacts/cover-letter`;
-                  return (
-                    <p key={kind}>
-                      <strong>{label}:</strong>{" "}
-                      {artifact ? (
-                        <>
-                          {artifact.active_version?.label ?? "draft"} v{artifact.active_version?.version ?? 1}{" "}
-                          <Link to={openHref} className="external-link" style={{ display: "inline" }} onMouseEnter={() => preloadRouteChunk("artifacts")} onFocus={() => preloadRouteChunk("artifacts")}>
-                            Open
-                          </Link>
-                        </>
-                      ) : (
-                        "Not created"
-                      )}
-                    </p>
-                  );
-                })}
+                <span className={`assistant-recommendation-chip recommendation-${job.recommendation ?? "hold"}`}>
+                  {recommendationLabel(job.recommendation)}
+                </span>
               </div>
-              {artifactsGenerating && artifacts.length === 0 ? (
-                <div className="artifact-generate-progress" aria-live="polite">
-                  <p className="empty-text">Generating starter drafts ({artifactStarterStage.replaceAll("_", " ")})...</p>
-                  <Progress value={artifactStarterProgress} />
+              <div className="drawer-summary-chips">
+                <span className={`drawer-summary-chip tone-match match-${guidanceMode === "stage_narrative" ? "medium" : "high"}`}>
+                  {guidanceModeLabel(guidanceMode)}
+                </span>
+                <span className="drawer-summary-chip tone-ats">{titleCaseLabel(healthLabel)}</span>
+                <span className="drawer-summary-chip tone-date">{nextBestAction}</span>
+              </div>
+              <p className="detail-block-note">{guidanceSummary}</p>
+              <h4 className="fit-subheading">{guidanceTitle}</h4>
+              {guidanceMode === "stage_narrative" ? (
+                <div className="assistant-metric-grid">
+                  <div className="assistant-metric-card">
+                    <span>Health</span>
+                    <strong>{titleCaseLabel(healthLabel)}</strong>
+                  </div>
+                  <div className="assistant-metric-card">
+                    <span>Next best action</span>
+                    <strong>{nextBestAction}</strong>
+                  </div>
                 </div>
-              ) : artifactsLoading && artifacts.length === 0 ? (
-                <p className="empty-text">Loading artifacts...</p>
-              ) : artifacts.length === 0 ? (
-                <Button
-                  type="button"
-                  variant="default"
-                  size="compact"
-                  data-icon="＋"
-                  onClick={() => job && onGenerateArtifacts ? void onGenerateArtifacts(job.id) : undefined}
-                  disabled={!onGenerateArtifacts || artifactsLoading || artifactsGenerating}
-                >
-                  Generate starter drafts
-                </Button>
+              ) : (
+                <div className="assistant-metric-grid">
+                  <div className="assistant-metric-card">
+                    <span>Fit</span>
+                    <strong>{valueOrDash(job.fit_score)}</strong>
+                  </div>
+                  <div className="assistant-metric-card">
+                    <span>Urgency</span>
+                    <strong>{valueOrDash(job.urgency_score)}</strong>
+                  </div>
+                  <div className="assistant-metric-card">
+                    <span>Friction</span>
+                    <strong>{valueOrDash(job.friction_score)}</strong>
+                  </div>
+                  <div className="assistant-metric-card">
+                    <span>Confidence</span>
+                    <strong>{valueOrDash(job.confidence_score)}</strong>
+                  </div>
+                </div>
+              )}
+              {guidanceReasons.length > 0 ? (
+                <ul className="assistant-bullet-list">
+                  {guidanceReasons.map((reason, index) => (
+                    <li key={`${reason}-${index}`}>{reason}</li>
+                  ))}
+                </ul>
               ) : null}
+              {onSaveDecision ? (
+                <div className="assistant-chip-list">
+                  {(["apply_now", "review_manually", "hold", "archive"] as Recommendation[]).map((option) => (
+                    <Button
+                      key={option}
+                      type="button"
+                      size="compact"
+                      variant={job.recommendation === option ? "primary" : "default"}
+                      disabled={Boolean(decisionBusy)}
+                      onClick={() => void handleRecommendationOverride(option)}
+                    >
+                      {decisionBusy === option ? "Saving..." : recommendationLabel(option)}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+                  </>
+                );
+              })()}
             </section>
 
             <section className="detail-block">
@@ -842,7 +1049,6 @@ export function DetailDrawer({
                   <div className="fit-summary">
                     <Badge>Required {fitData.requiredMet}/{fitData.requiredChecks.length || 0}</Badge>
                     <Badge>Preferred {fitData.preferredMet}/{fitData.preferredChecks.length || 0}</Badge>
-                    <Badge>Core checks {fitData.corePassCount}/{fitData.coreChecks.length}</Badge>
                     <Badge>Confidence {job.match?.confidence ?? "-"}</Badge>
                   </div>
 
@@ -959,27 +1165,6 @@ export function DetailDrawer({
                     </div>
                   </div>
 
-                  <div className="fit-group">
-                    <h4 className="fit-subheading">Core Requirements</h4>
-                    <div className="fit-list">
-                      {fitData.coreChecks.map((item) => (
-                        <article key={`core-fit-${item.label}`} className={`fit-card ${item.state}`}>
-                          <span className={`fit-icon ${item.state}`} aria-hidden="true">{fitIconFor(item.state)}</span>
-                          <div>
-                            <p className="fit-label">{item.label}</p>
-                            <p className="fit-detail">{item.detail}</p>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  </div>
-
-                  {fitData.missingRequiredHighlights.length > 0 && (
-                <p className="fit-missing">
-                      Missing key requirements: {fitData.missingRequiredHighlights.map((item) => `${item.label} (${item.impact})`).join(", ")}
-                    </p>
-                  )}
-
                   <div className="match-secondary">
                     <button
                       type="button"
@@ -1014,7 +1199,65 @@ export function DetailDrawer({
             </section>
 
             <section className="detail-block">
+              <h3>Core Requirements</h3>
+              {fitData ? (
+                <>
+                  <div className="fit-summary">
+                    <Badge>Core checks {fitData.corePassCount}/{fitData.coreChecks.length}</Badge>
+                  </div>
+                  <div className="fit-list">
+                    {fitData.coreChecks.map((item) => (
+                      <article key={`core-fit-${item.label}`} className={`fit-card ${item.state}`}>
+                        <span className={`fit-icon ${item.state}`} aria-hidden="true">{fitIconFor(item.state)}</span>
+                        <div>
+                          <p className="fit-label">{item.label}</p>
+                          <p className="fit-detail">{item.detail}</p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  {fitData.missingRequiredHighlights.length > 0 && (
+                    <p className="fit-missing">
+                      Missing key requirements: {fitData.missingRequiredHighlights.map((item) => `${item.label} (${item.impact})`).join(", ")}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="empty-text">Core requirement checks are unavailable because enrichment data is missing.</p>
+              )}
+            </section>
+
+            <section className="detail-block">
               <h3>Enrichment</h3>
+              <div className={`processing-state-card state-${job.processing.state}`}>
+                <div className="processing-state-copy">
+                  <div className="processing-state-head">
+                    <Badge>{titleCaseLabel(job.processing.state)}</Badge>
+                    {job.processing.step && job.processing.step !== "complete" ? <Badge>{titleCaseLabel(job.processing.step)}</Badge> : null}
+                    {job.processing.retry_count > 0 ? <Badge>Retries {job.processing.retry_count}</Badge> : null}
+                  </div>
+                  <p className="detail-block-note">
+                    {job.processing.message || (job.processing.state === "ready" ? "Job is ready." : "Background processing is running.")}
+                  </p>
+                  {job.processing.last_error ? (
+                    <p className="empty-text tiny">Last error: {job.processing.last_error}</p>
+                  ) : null}
+                  {job.processing.last_processed_at ? (
+                    <p className="empty-text tiny">Last updated {formatDateTime(job.processing.last_processed_at)}</p>
+                  ) : null}
+                </div>
+                {job.processing.state === "failed" && onRetryProcessing ? (
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="compact"
+                    disabled={retryProcessingBusy}
+                    onClick={() => void handleRetryProcessing()}
+                  >
+                    {retryProcessingBusy ? "Retrying..." : "Retry processing"}
+                  </Button>
+                ) : null}
+              </div>
               {enrichmentPending && (
                 <p className="empty-text detail-block-note">
                   Enrichment and markdown formatting are still processing in the background. This panel will update automatically.
@@ -1040,7 +1283,29 @@ export function DetailDrawer({
             </section>
 
             <section className="detail-block">
-              <h3>Job Description</h3>
+              <div className="detail-block-head">
+                <h3>Job Description</h3>
+                <div className="detail-block-actions">
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="compact"
+                    data-icon="↓"
+                    className="detail-export-btn"
+                    onClick={() => void handleExportPdf()}
+                    disabled={!canExportFormattedDescription}
+                    aria-disabled={!canExportFormattedDescription}
+                    title={canExportFormattedDescription ? "Download formatted job description as PDF" : "Available after JD markdown formatting finishes"}
+                  >
+                    Export PDF
+                  </Button>
+                </div>
+              </div>
+              {!canExportFormattedDescription && (
+                <p className="empty-text detail-block-note detail-export-note">
+                  Available after JD markdown formatting finishes.
+                </p>
+              )}
               {formatDescription(descriptionText)}
             </section>
 

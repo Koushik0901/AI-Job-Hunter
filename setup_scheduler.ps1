@@ -1,5 +1,5 @@
 # setup_scheduler.ps1
-# Registers a Windows Task Scheduler task that runs the AI job scraper daily.
+# Registers a Windows Task Scheduler task that runs the daily briefing command.
 #
 # Usage (from project directory, in an elevated PowerShell prompt):
 #   powershell -ExecutionPolicy Bypass -File setup_scheduler.ps1
@@ -23,7 +23,7 @@ if (-not $uvPath) {
 
 $action = New-ScheduledTaskAction `
     -Execute $uvPath `
-    -Argument "run python src/cli.py scrape" `
+    -Argument "run python src/cli.py daily-briefing" `
     -WorkingDirectory $scriptDir
 
 $trigger = New-ScheduledTaskTrigger -Daily -At $runAt
@@ -38,7 +38,7 @@ Register-ScheduledTask `
     -Action $action `
     -Trigger $trigger `
     -Settings $settings `
-    -Description "Daily ML/AI job scraper with Telegram notifications" `
+    -Description "Daily AI Job Hunter briefing with Telegram delivery and dashboard refresh" `
     -Force | Out-Null
 
 Write-Host ""

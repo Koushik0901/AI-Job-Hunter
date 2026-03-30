@@ -1,17 +1,44 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { addProfileSkill, createManualJob, deleteJob, generateStarterArtifacts, getJobArtifacts, getJobDetail, getJobEvents, getJobsWithParams, getProfile, getStarterArtifactsStatus, getSuppressions, patchTracking, suppressJob, unsuppressJob } from "../api";
+import {
+  addProfileSkill,
+  createManualJob,
+  deleteJob,
+  getJobDetail,
+  getJobEvents,
+  getJobsWithParams,
+  getProfile,
+  getSuppressions,
+  patchTracking,
+  retryJobProcessing,
+  saveJobDecision,
+  suppressJob,
+  unsuppressJob,
+  isManualJobCreateDuplicateResponse,
+  manualJobCreateResponseToDetail,
+} from "../api";
 import { DetailDrawer } from "../components/DetailDrawer";
 import { JobCard } from "../components/JobCard";
-import { ScoreRecomputeStatus } from "../components/ScoreRecomputeStatus";
 import { ThemedLoader } from "../components/ThemedLoader";
 import { ThemedSelect } from "../components/ThemedSelect";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Kanban, KanbanBoard, KanbanColumn, KanbanItem, KanbanOverlay } from "../components/ui/kanban";
-import type { ArtifactStarterStatus, ArtifactSummary, CandidateProfile, JobDetail, JobEvent, JobSummary, ManualJobCreateRequest, SuppressedJob, TrackingPatchRequest, TrackingStatus } from "../types";
+import { dateValueMs, formatDateShort } from "../dateUtils";
+import type {
+  CandidateProfile,
+  JobDetail,
+  JobEvent,
+  JobSummary,
+  ManualJobCreateRequest,
+  Recommendation,
+  SuppressedJob,
+  TrackingPatchRequest,
+  TrackingStatus,
+} from "../types";
 
 const STATUS_COLUMNS: Array<{ id: TrackingStatus; label: string }> = [
   { id: "not_applied", label: "Backlog" },
@@ -52,7 +79,12 @@ const MANUAL_STAGE_OPTIONS: Array<{ value: TrackingStatus; label: string }> = [
 const BACKLOG_PAGE_SIZE = 30;
 const BACKLOG_MAX_AGE_DAYS = 21;
 const BOARD_CACHE_TTL_MS = 3 * 60 * 1000;
+const DETAIL_CACHE_TTL_MS = 10 * 60 * 1000;
+const EVENTS_CACHE_TTL_MS = 5 * 60 * 1000;
 const JOBS_QUERY_CACHE_CAP = 4;
+const DETAIL_CACHE_CAP = 12;
+const EVENTS_CACHE_CAP = 8;
+const HOVER_PREFETCH_DELAY_MS = 150;
 const BOARD_CACHE_SCHEMA_VERSION = 7;
 const BOARD_INITIAL_FETCH_LIMIT = 200;
 const BOARD_MAX_FETCH_LIMIT = 500;
@@ -74,17 +106,55 @@ const BOARD_FOCUS_OPTIONS = [
   { value: "desired_title_match", label: "Matches my titles" },
 ] as const;
 
+const pageEase = [0.22, 0.84, 0.24, 1] as [number, number, number, number];
+
+const MANUAL_REQUIRED_FIELDS = [
+  { key: "url", label: "Job URL" },
+  { key: "company", label: "Company" },
+  { key: "title", label: "Title" },
+  { key: "description", label: "Description" },
+] as const;
+
+const pageRevealVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05,
+      delayChildren: 0.04,
+    },
+  },
+};
+
+const sectionRevealVariants = {
+  hidden: { opacity: 0, y: 18 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.38, ease: pageEase },
+  },
+};
+
 type BoardView = "kanban" | "list";
 type SortOption = "match_desc" | "posted_desc" | "updated_desc" | "company_asc";
 type FocusMode = typeof BOARD_FOCUS_OPTIONS[number]["value"];
+type MemoryCacheEntry<T> = { value: T; fetchedAt: number; touchedAt: number };
+type MemoryCacheRecord<T> = Record<string, MemoryCacheEntry<T>>;
+type ManualDuplicateCandidate = {
+  jobId: string;
+  title: string;
+  company: string;
+  location: string;
+  posted: string;
+  matchKind: "url" | "content";
+};
 
 type BoardPageCache = {
   version: number;
   jobs: JobSummary[];
   profile: CandidateProfile | null;
-  detailCache: Record<string, JobDetail>;
-  eventsCache: Record<string, JobEvent[]>;
-  artifactCache: Record<string, ArtifactSummary[]>;
+  detailCache: MemoryCacheRecord<JobDetail>;
+  eventsCache: MemoryCacheRecord<JobEvent[]>;
   searchQuery: string;
   viewMode: BoardView;
   sortOption: SortOption;
@@ -108,8 +178,84 @@ function buildQueryKey(
   company: string,
   postedAfter: string,
   postedBefore: string,
+  sort: SortOption,
 ): string {
-  return `${status}|${ats.trim().toLowerCase()}|${company.trim().toLowerCase()}|${postedAfter}|${postedBefore}`;
+  return `${status}|${ats.trim().toLowerCase()}|${company.trim().toLowerCase()}|${postedAfter}|${postedBefore}|${sort}`;
+}
+
+function normalizeManualDuplicateText(raw: string | null | undefined): string {
+  return (raw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\u00a0/g, " ")
+    .replace(/&nbsp;|&#160;/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeManualDuplicateUrl(raw: string | null | undefined): string {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return "";
+  try {
+    const parsed = new URL(trimmed);
+    parsed.hash = "";
+    parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/";
+    return parsed.toString().toLowerCase().replace(/\/+$/, "");
+  } catch {
+    return trimmed.toLowerCase().replace(/\/+$/, "");
+  }
+}
+
+function normalizeManualDuplicateMonth(raw: string | null | undefined): string {
+  const trimmed = (raw ?? "").trim();
+  return /^\d{4}-\d{2}/.test(trimmed) ? trimmed.slice(0, 7) : "";
+}
+
+function findManualDuplicateCandidate(form: ManualJobCreateRequest, jobs: JobSummary[]): ManualDuplicateCandidate | null {
+  const normalizedUrl = normalizeManualDuplicateUrl(form.url);
+  if (normalizedUrl) {
+    for (const job of jobs) {
+      if (normalizeManualDuplicateUrl(job.url) === normalizedUrl) {
+        return {
+          jobId: job.id,
+          title: job.title,
+          company: job.company,
+          location: job.location,
+          posted: job.posted,
+          matchKind: "url",
+        };
+      }
+    }
+  }
+
+  const normalizedTitle = normalizeManualDuplicateText(form.title);
+  const normalizedCompany = normalizeManualDuplicateText(form.company);
+  const normalizedLocation = normalizeManualDuplicateText(form.location ?? "");
+  const normalizedPostedMonth = normalizeManualDuplicateMonth(form.posted);
+  if (!normalizedTitle || !normalizedCompany || !normalizedLocation || !normalizedPostedMonth) {
+    return null;
+  }
+
+  for (const job of jobs) {
+    if (
+      normalizeManualDuplicateText(job.title) === normalizedTitle &&
+      normalizeManualDuplicateText(job.company) === normalizedCompany &&
+      normalizeManualDuplicateText(job.location) === normalizedLocation &&
+      normalizeManualDuplicateMonth(job.posted) === normalizedPostedMonth
+    ) {
+      return {
+        jobId: job.id,
+        title: job.title,
+        company: job.company,
+        location: job.location,
+        posted: job.posted,
+        matchKind: "content",
+      };
+    }
+  }
+
+  return null;
 }
 
 function getJobsQueryCache(key: string): JobSummary[] | null {
@@ -137,12 +283,58 @@ function setJobsQueryCache(key: string, items: JobSummary[]): void {
   }
 }
 
-function isOlderThanDays(value: string, days: number): boolean {
-  if (!value) return false;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf())) return false;
+function pruneRecordCache<T>(cache: MemoryCacheRecord<T>, ttlMs: number, cap: number): MemoryCacheRecord<T> {
   const now = Date.now();
-  const ageMs = now - parsed.getTime();
+  const freshEntries = Object.entries(cache)
+    .filter(([, entry]) => now - entry.fetchedAt < ttlMs)
+    .sort((left, right) => right[1].touchedAt - left[1].touchedAt)
+    .slice(0, cap);
+  return Object.fromEntries(freshEntries);
+}
+
+function getRecordCacheValue<T>(cache: MemoryCacheRecord<T>, key: string, ttlMs: number): T | null {
+  const entry = cache[key];
+  if (!entry) return null;
+  if (Date.now() - entry.fetchedAt >= ttlMs) {
+    return null;
+  }
+  return entry.value;
+}
+
+function upsertRecordCache<T>(cache: MemoryCacheRecord<T>, key: string, value: T, ttlMs: number, cap: number): MemoryCacheRecord<T> {
+  const now = Date.now();
+  return pruneRecordCache(
+    {
+      ...cache,
+      [key]: {
+        value,
+        fetchedAt: now,
+        touchedAt: now,
+      },
+    },
+    ttlMs,
+    cap,
+  );
+}
+
+function removeRecordCacheValue<T>(cache: MemoryCacheRecord<T>, key: string): MemoryCacheRecord<T> {
+  if (!cache[key]) {
+    return cache;
+  }
+  const next = { ...cache };
+  delete next[key];
+  return next;
+}
+
+function skeletonColumnCards(columnId: TrackingStatus): number {
+  return columnId === "not_applied" ? 5 : 3;
+}
+
+function isOlderThanDays(value: string, days: number): boolean {
+  const valueMs = dateValueMs(value);
+  if (valueMs === null) return false;
+  const now = Date.now();
+  const ageMs = now - valueMs;
   return ageMs > days * 24 * 60 * 60 * 1000;
 }
 
@@ -226,6 +418,13 @@ function focusModeLabel(mode: FocusMode): string {
   return BOARD_FOCUS_OPTIONS.find((option) => option.value === mode)?.label ?? "All";
 }
 
+function recommendationLabel(value: Recommendation | string | null | undefined): string {
+  if (!value) return "Unrated";
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 function matchesFocusMode(job: JobSummary, mode: FocusMode): boolean {
   if (mode === "all") return true;
   if (mode === "overdue") return Boolean(job.staging_overdue);
@@ -255,6 +454,20 @@ function detailToSummary(detail: JobDetail): JobSummary {
     staging_due_at: detail.staging_due_at,
     staging_overdue: detail.staging_overdue,
     staging_age_hours: detail.staging_age_hours,
+    fit_score: detail.fit_score,
+    interview_likelihood_score: detail.interview_likelihood_score,
+    urgency_score: detail.urgency_score,
+    friction_score: detail.friction_score,
+    confidence_score: detail.confidence_score,
+    recommendation: detail.recommendation,
+    recommendation_reasons: detail.recommendation_reasons,
+    guidance_mode: detail.guidance_mode,
+    guidance_title: detail.guidance_title,
+    guidance_summary: detail.guidance_summary,
+    guidance_reasons: detail.guidance_reasons,
+    next_best_action: detail.next_best_action,
+    health_label: detail.health_label,
+    processing: detail.processing,
   };
 }
 
@@ -264,6 +477,10 @@ function hasReadyEnrichment(detail: JobDetail): boolean {
   const status = (enrichment.enrichment_status ?? "").trim().toLowerCase();
   if (status === "ok" || status === "success") return true;
   return Boolean((enrichment.formatted_description ?? "").trim());
+}
+
+function isProcessingResolved(detail: JobDetail): boolean {
+  return detail.processing.state === "ready" || detail.processing.state === "failed";
 }
 
 function stagingSlaLabel(job: JobSummary): string | null {
@@ -288,7 +505,7 @@ function emptyColumnCopy(status: TrackingStatus): { title: string; body: string 
   if (status === "not_applied") {
     return {
       title: "No backlog roles",
-      body: "Newly discovered roles will land here when they are still fresh enough to review. Add sources in Workspace if this stays empty.",
+      body: "Newly discovered roles will land here when they are still fresh enough to review. Add or enable company sources if this stays empty.",
     };
   }
   if (status === "staging") {
@@ -322,18 +539,22 @@ function emptyColumnCopy(status: TrackingStatus): { title: string; body: string 
 }
 
 export function BoardPage() {
+  const portalRoot = typeof document !== "undefined" ? document.body : null;
   const [searchParams, setSearchParams] = useSearchParams();
   const initialStatusFilter = parseStatusFilter(searchParams.get("status"));
   const initialAtsFilter = (searchParams.get("ats") ?? "").trim();
   const initialCompanyFilter = (searchParams.get("company") ?? "").trim();
   const initialPostedAfterFilter = parseIsoDate(searchParams.get("posted_after"));
   const initialPostedBeforeFilter = parseIsoDate(searchParams.get("posted_before"));
+  const initialSelectedJobId = (searchParams.get("job") ?? "").trim() || null;
+  const initialSortOption = boardPageCache?.sortOption ?? "match_desc";
   const initialQueryKey = buildQueryKey(
     initialStatusFilter,
     initialAtsFilter,
     initialCompanyFilter,
     initialPostedAfterFilter,
     initialPostedBeforeFilter,
+    initialSortOption,
   );
   const now = Date.now();
   const hasFreshCache =
@@ -341,24 +562,23 @@ export function BoardPage() {
     boardPageCache.version === BOARD_CACHE_SCHEMA_VERSION &&
     now - boardPageCache.fetchedAt < BOARD_CACHE_TTL_MS &&
     boardPageCache.queryKey === initialQueryKey;
+  const initialDetailCache = hasFreshCache ? pruneRecordCache(boardPageCache?.detailCache ?? {}, DETAIL_CACHE_TTL_MS, DETAIL_CACHE_CAP) : {};
+  const initialEventsCache = hasFreshCache ? pruneRecordCache(boardPageCache?.eventsCache ?? {}, EVENTS_CACHE_TTL_MS, EVENTS_CACHE_CAP) : {};
 
   const [jobs, setJobs] = useState<JobSummary[]>(() => (hasFreshCache ? boardPageCache?.jobs ?? [] : []));
   const [profile, setProfile] = useState<CandidateProfile | null>(() => (hasFreshCache ? boardPageCache?.profile ?? null : null));
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(initialSelectedJobId);
   const [selectedJob, setSelectedJob] = useState<JobDetail | null>(null);
   const [events, setEvents] = useState<JobEvent[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detailCache, setDetailCache] = useState<Record<string, JobDetail>>(() => (hasFreshCache ? boardPageCache?.detailCache ?? {} : {}));
-  const [eventsCache, setEventsCache] = useState<Record<string, JobEvent[]>>(() => (hasFreshCache ? boardPageCache?.eventsCache ?? {} : {}));
-  const [artifactCache, setArtifactCache] = useState<Record<string, ArtifactSummary[]>>(() => (hasFreshCache ? boardPageCache?.artifactCache ?? {} : {}));
-  const [artifactsLoading, setArtifactsLoading] = useState(false);
-  const [artifactsGenerating, setArtifactsGenerating] = useState(false);
-  const [artifactStarterStatus, setArtifactStarterStatus] = useState<ArtifactStarterStatus | null>(null);
+  const [detailCache, setDetailCache] = useState<MemoryCacheRecord<JobDetail>>(() => initialDetailCache);
+  const [eventsCache, setEventsCache] = useState<MemoryCacheRecord<JobEvent[]>>(() => initialEventsCache);
   const [pendingEnrichmentByUrl, setPendingEnrichmentByUrl] = useState<Record<string, true>>({});
   const [loading, setLoading] = useState<boolean>(() => !hasFreshCache);
   const [isRefreshingBoard, setIsRefreshingBoard] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [manualError, setManualError] = useState<string | null>(null);
+  const [manualAttemptedSubmit, setManualAttemptedSubmit] = useState(false);
   const [isManualCreateOpen, setIsManualCreateOpen] = useState(false);
   const [isManualSaving, setIsManualSaving] = useState(false);
   const [isSuppressionPanelOpen, setIsSuppressionPanelOpen] = useState(false);
@@ -397,7 +617,7 @@ export function BoardPage() {
   const [draftPostedAfterFilter, setDraftPostedAfterFilter] = useState(() => (hasFreshCache ? boardPageCache?.postedAfterFilter ?? "" : initialPostedAfterFilter));
   const [draftPostedBeforeFilter, setDraftPostedBeforeFilter] = useState(() => (hasFreshCache ? boardPageCache?.postedBeforeFilter ?? "" : initialPostedBeforeFilter));
   const detailInflightRef = useRef(new Set<string>());
-  const eventsInflightRef = useRef(new Set<string>());
+  const hoverPrefetchTimerRef = useRef<Record<string, number>>({});
   const manualEnrichTimerRef = useRef<Record<string, number>>({});
   const latestQueryKeyRef = useRef(initialQueryKey);
   const filterPanelRef = useRef<HTMLDivElement | null>(null);
@@ -414,19 +634,63 @@ export function BoardPage() {
   });
   const [activeDragItemId, setActiveDragItemId] = useState<string | null>(null);
   const lastFetchedAtRef = useRef<number>(hasFreshCache ? boardPageCache?.fetchedAt ?? 0 : 0);
+  const selectedSummary = useMemo(() => {
+    if (!selectedJobId) return null;
+    return jobs.find((job) => job.id === selectedJobId) ?? null;
+  }, [jobs, selectedJobId]);
   const selectedUrl = useMemo(() => {
     if (!selectedJobId) return null;
-    const selectedSummary = jobs.find((job) => job.id === selectedJobId);
     if (selectedSummary?.url) return selectedSummary.url;
     if (selectedJob?.id === selectedJobId) return selectedJob.url;
     return null;
-  }, [jobs, selectedJob, selectedJobId]);
+  }, [selectedSummary, selectedJob, selectedJobId]);
+  const manualMissingRequiredFields = useMemo(() => {
+    return MANUAL_REQUIRED_FIELDS.filter((field) => {
+      if (field.key === "url") return !manualForm.url.trim();
+      if (field.key === "company") return !manualForm.company.trim();
+      if (field.key === "title") return !manualForm.title.trim();
+      return !manualForm.description.trim();
+    }).map((field) => field.label);
+  }, [manualForm.company, manualForm.description, manualForm.title, manualForm.url]);
+  const manualDuplicateCandidate = useMemo(() => findManualDuplicateCandidate(manualForm, jobs), [manualForm, jobs]);
 
-  const queryKey = buildQueryKey(statusFilter, atsFilter, companyFilter, postedAfterFilter, postedBeforeFilter);
+  function isManualFieldMissing(field: (typeof MANUAL_REQUIRED_FIELDS)[number]["key"]): boolean {
+    if (field === "url") return !manualForm.url.trim();
+    if (field === "company") return !manualForm.company.trim();
+    if (field === "title") return !manualForm.title.trim();
+    return !manualForm.description.trim();
+  }
+
+  const queryKey = buildQueryKey(statusFilter, atsFilter, companyFilter, postedAfterFilter, postedBeforeFilter, sortOption);
 
   useEffect(() => {
     latestQueryKeyRef.current = queryKey;
   }, [queryKey]);
+
+  useEffect(() => {
+    const nextSelectedJobId = (searchParams.get("job") ?? "").trim() || null;
+    setSelectedJobId((current) => (current === nextSelectedJobId ? current : nextSelectedJobId));
+  }, [searchParams]);
+
+  function rememberDetail(detail: JobDetail): void {
+    setDetailCache((current) => upsertRecordCache(current, detail.url, detail, DETAIL_CACHE_TTL_MS, DETAIL_CACHE_CAP));
+  }
+
+  function rememberEvents(url: string, timeline: JobEvent[]): void {
+    setEventsCache((current) => upsertRecordCache(current, url, timeline, EVENTS_CACHE_TTL_MS, EVENTS_CACHE_CAP));
+  }
+
+  function forgetCachedUrl(url: string): void {
+    setDetailCache((current) => removeRecordCacheValue(current, url));
+    setEventsCache((current) => removeRecordCacheValue(current, url));
+  }
+
+  function clearHoverPrefetch(jobId: string): void {
+    const timer = hoverPrefetchTimerRef.current[jobId];
+    if (!timer) return;
+    window.clearTimeout(timer);
+    delete hoverPrefetchTimerRef.current[jobId];
+  }
 
   async function loadBoard(options: { force?: boolean; silent?: boolean } = {}): Promise<void> {
     const force = options.force ?? false;
@@ -520,6 +784,10 @@ export function BoardPage() {
 
   useEffect(() => {
     return () => {
+      for (const timer of Object.values(hoverPrefetchTimerRef.current)) {
+        window.clearTimeout(timer);
+      }
+      hoverPrefetchTimerRef.current = {};
       for (const timer of Object.values(manualEnrichTimerRef.current)) {
         window.clearTimeout(timer);
       }
@@ -532,9 +800,8 @@ export function BoardPage() {
       version: BOARD_CACHE_SCHEMA_VERSION,
       jobs,
       profile,
-      detailCache,
-      eventsCache,
-      artifactCache,
+      detailCache: pruneRecordCache(detailCache, DETAIL_CACHE_TTL_MS, DETAIL_CACHE_CAP),
+      eventsCache: pruneRecordCache(eventsCache, EVENTS_CACHE_TTL_MS, EVENTS_CACHE_CAP),
       searchQuery,
       viewMode,
       sortOption,
@@ -553,7 +820,6 @@ export function BoardPage() {
     profile,
     detailCache,
     eventsCache,
-    artifactCache,
     searchQuery,
     viewMode,
     sortOption,
@@ -601,17 +867,28 @@ export function BoardPage() {
       return;
     }
 
-    const selectedSummary = jobs.find((job) => job.id === selectedJobId);
     const jobUrl = selectedSummary?.url ?? (selectedJob?.id === selectedJobId ? selectedJob.url : null);
     if (!jobUrl) {
-      setSelectedJob(null);
-      setEvents([]);
-      setDetailLoading(false);
+      setDetailLoading(true);
+      void Promise.all([getJobDetail(selectedJobId), getJobEvents(selectedJobId)])
+        .then(([detail, timeline]) => {
+          rememberDetail(detail);
+          rememberEvents(detail.url, timeline);
+          setSelectedJob(detail);
+          setEvents(timeline);
+        })
+        .catch(() => {
+          setSelectedJob(null);
+          setEvents([]);
+        })
+        .finally(() => {
+          setDetailLoading(false);
+        });
       return;
     }
 
-    const cachedDetail = detailCache[jobUrl];
-    const cachedEvents = eventsCache[jobUrl];
+    const cachedDetail = getRecordCacheValue(detailCache, jobUrl, DETAIL_CACHE_TTL_MS);
+    const cachedEvents = getRecordCacheValue(eventsCache, jobUrl, EVENTS_CACHE_TTL_MS);
 
     if (cachedDetail) {
       setSelectedJob(cachedDetail);
@@ -643,9 +920,9 @@ export function BoardPage() {
     if (!cachedDetail) {
       requests.push(
         getJobDetail(selectedJobId).then((detail) => {
-          setDetailCache((current) => ({ ...current, [detail.url]: detail }));
+          rememberDetail(detail);
           setSelectedJob(detail);
-          if (hasReadyEnrichment(detail)) {
+          if (hasReadyEnrichment(detail) || isProcessingResolved(detail)) {
             setPendingEnrichmentByUrl((current) => {
               if (!current[detail.url]) return current;
               const { [detail.url]: _, ...rest } = current;
@@ -659,7 +936,7 @@ export function BoardPage() {
     if (!cachedEvents) {
       requests.push(
         getJobEvents(selectedJobId).then((timeline) => {
-          setEventsCache((current) => ({ ...current, [jobUrl]: timeline }));
+          rememberEvents(jobUrl, timeline);
           setEvents(timeline);
         }),
       );
@@ -668,39 +945,18 @@ export function BoardPage() {
     void Promise.allSettled(requests).finally(() => {
       setDetailLoading(false);
     });
-  }, [selectedJob, selectedJobId, jobs, detailCache, eventsCache]);
-
-  useEffect(() => {
-    if (!selectedJobId || !selectedUrl) {
-      return;
-    }
-    setArtifactStarterStatus(null);
-    if (artifactCache[selectedUrl]) {
-      return;
-    }
-    setArtifactsLoading(true);
-    void getJobArtifacts(selectedJobId)
-      .then((rows) => {
-        setArtifactCache((current) => ({ ...current, [selectedUrl]: rows }));
-      })
-      .catch(() => {
-        setArtifactCache((current) => ({ ...current, [selectedUrl]: [] }));
-      })
-      .finally(() => {
-        setArtifactsLoading(false);
-      });
-  }, [selectedJobId, selectedUrl, artifactCache]);
+  }, [selectedSummary, selectedJob, selectedJobId, jobs, detailCache, eventsCache]);
 
   async function prefetchJobDetail(jobId: string): Promise<void> {
     const summary = jobs.find((job) => job.id === jobId);
-    if (!summary?.url || detailCache[summary.url] || detailInflightRef.current.has(summary.url)) {
+    if (!summary?.url || getRecordCacheValue(detailCache, summary.url, DETAIL_CACHE_TTL_MS) || detailInflightRef.current.has(summary.url)) {
       return;
     }
     detailInflightRef.current.add(summary.url);
     try {
       const detail = await getJobDetail(jobId);
-      setDetailCache((current) => (current[detail.url] ? current : { ...current, [detail.url]: detail }));
-      if (hasReadyEnrichment(detail)) {
+      rememberDetail(detail);
+      if (hasReadyEnrichment(detail) || isProcessingResolved(detail)) {
         setPendingEnrichmentByUrl((current) => {
           if (!current[detail.url]) return current;
           const { [detail.url]: _, ...rest } = current;
@@ -714,25 +970,16 @@ export function BoardPage() {
     }
   }
 
-  async function prefetchJobEvents(jobId: string): Promise<void> {
+  function scheduleJobPrefetch(jobId: string): void {
     const summary = jobs.find((job) => job.id === jobId);
-    if (!summary?.url || eventsCache[summary.url] || eventsInflightRef.current.has(summary.url)) {
+    if (!summary?.url || getRecordCacheValue(detailCache, summary.url, DETAIL_CACHE_TTL_MS)) {
       return;
     }
-    eventsInflightRef.current.add(summary.url);
-    try {
-      const timeline = await getJobEvents(jobId);
-      setEventsCache((current) => (current[summary.url] ? current : { ...current, [summary.url]: timeline }));
-    } catch {
-      // Ignore background prefetch failures (e.g., record removed mid-flight).
-    } finally {
-      eventsInflightRef.current.delete(summary.url);
-    }
-  }
-
-  function prefetchJob(jobId: string): void {
-    void prefetchJobDetail(jobId);
-    void prefetchJobEvents(jobId);
+    clearHoverPrefetch(jobId);
+    hoverPrefetchTimerRef.current[jobId] = window.setTimeout(() => {
+      delete hoverPrefetchTimerRef.current[jobId];
+      void prefetchJobDetail(jobId);
+    }, HOVER_PREFETCH_DELAY_MS);
   }
 
   function clearManualEnrichTimer(url: string): void {
@@ -763,12 +1010,12 @@ export function BoardPage() {
     clearManualEnrichTimer(url);
     void getJobDetail(jobId)
       .then((detail) => {
-        setDetailCache((current) => ({ ...current, [url]: detail }));
+        rememberDetail(detail);
         if (selectedJobId === jobId) {
           setSelectedJob(detail);
         }
 
-        if (hasReadyEnrichment(detail)) {
+        if (hasReadyEnrichment(detail) || isProcessingResolved(detail)) {
           clearManualEnrichmentPending(url);
           clearManualEnrichTimer(url);
           jobsQueryCache.clear();
@@ -797,13 +1044,6 @@ export function BoardPage() {
         );
       });
   }
-
-  useEffect(() => {
-    if (jobs.length === 0) return;
-    jobs.slice(0, 10).forEach((job) => {
-      void prefetchJobDetail(job.id);
-    });
-  }, [jobs]);
 
   const searchedJobs = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -840,13 +1080,13 @@ export function BoardPage() {
       return sorted;
     }
     if (sortOption === "posted_desc") {
-      sorted.sort((left, right) => new Date(right.posted).valueOf() - new Date(left.posted).valueOf());
+      sorted.sort((left, right) => (dateValueMs(right.posted) ?? -Infinity) - (dateValueMs(left.posted) ?? -Infinity));
       return sorted;
     }
     if (sortOption === "updated_desc") {
       sorted.sort((left, right) => {
-        const rightDate = new Date(right.updated_at ?? right.posted).valueOf();
-        const leftDate = new Date(left.updated_at ?? left.posted).valueOf();
+        const rightDate = dateValueMs(right.updated_at ?? right.posted) ?? -Infinity;
+        const leftDate = dateValueMs(left.updated_at ?? left.posted) ?? -Infinity;
         return rightDate - leftDate;
       });
       return sorted;
@@ -889,36 +1129,56 @@ export function BoardPage() {
 
   async function applyTrackingPatch(jobId: string, patch: TrackingPatchRequest): Promise<void> {
     const detail = await patchTracking(jobId, patch);
+    const nextSummary = detailToSummary(detail);
     setJobs((current) => current.map((job) => {
       if (job.id !== jobId) {
         return job;
       }
-      return {
-        ...job,
-        status: detail.tracking_status,
-        priority: detail.priority,
-        updated_at: detail.tracking_updated_at,
-        staging_entered_at: detail.staging_entered_at,
-        staging_due_at: detail.staging_due_at,
-        staging_overdue: detail.staging_overdue,
-        staging_age_hours: detail.staging_age_hours,
-      };
+      return { ...job, ...nextSummary };
     }));
 
     if (selectedJobId === jobId) {
       setSelectedJob(detail);
     }
-    setDetailCache((current) => ({ ...current, [detail.url]: detail }));
-    if (detail.tracking_status === "staging") {
-      try {
-        const rows = await getJobArtifacts(jobId);
-        setArtifactCache((current) => ({ ...current, [detail.url]: rows }));
-      } catch {
-        // Keep board flow resilient if artifact fetch fails.
-      }
-    }
+    rememberDetail(detail);
     jobsQueryCache.clear();
+  }
 
+  async function handleSaveDecision(jobId: string, recommendation: Recommendation): Promise<void> {
+    try {
+      await saveJobDecision(jobId, recommendation);
+      jobsQueryCache.clear();
+      await loadBoard({ force: true, silent: true });
+      const detail = await getJobDetail(jobId);
+      if (selectedJobId === jobId) {
+        setSelectedJob(detail);
+      }
+      rememberDetail(detail);
+      toast.success(`Recommendation set to ${recommendationLabel(recommendation)}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save decision");
+    }
+  }
+
+  async function handleRetryProcessing(jobId: string): Promise<void> {
+    try {
+      const detail = await retryJobProcessing(jobId);
+      rememberDetail(detail);
+      if (selectedJobId === jobId) {
+        setSelectedJob(detail);
+      }
+      jobsQueryCache.clear();
+      if (!hasReadyEnrichment(detail) && detail.processing.state === "processing") {
+        markManualEnrichmentPending(detail.url);
+        pollManualEnrichment(detail.id, 0, detail.url);
+      } else {
+        clearManualEnrichmentPending(detail.url);
+        clearManualEnrichTimer(detail.url);
+      }
+      toast.success(detail.processing.message || "Background processing restarted.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to retry job processing");
+    }
   }
 
   async function addSkillToProfile(skill: string): Promise<void> {
@@ -962,25 +1222,14 @@ export function BoardPage() {
       return;
     }
     const url = removedJob.url;
+    const wasEnrichmentPending = Boolean(pendingEnrichmentByUrl[url] || manualEnrichTimerRef.current[url]);
+    clearManualEnrichTimer(url);
+    clearManualEnrichmentPending(url);
 
     setJobs((current) => current.filter((job) => job.id !== jobId));
-    setDetailCache((current) => {
-      const next = { ...current };
-      delete next[url];
-      return next;
-    });
-    setEventsCache((current) => {
-      const next = { ...current };
-      delete next[url];
-      return next;
-    });
-    setArtifactCache((current) => {
-      const next = { ...current };
-      delete next[url];
-      return next;
-    });
+    forgetCachedUrl(url);
     if (selectedJobId === jobId) {
-      setSelectedJobId(null);
+      selectJob(null);
       setSelectedJob(null);
       setEvents([]);
     }
@@ -990,6 +1239,9 @@ export function BoardPage() {
         jobsQueryCache.clear();
       })
       .catch((err) => {
+        if (wasEnrichmentPending) {
+          markManualEnrichmentPending(url);
+        }
         setJobs((current) => [removedJob, ...current]);
         setError(err instanceof Error ? err.message : "Failed to delete job");
       });
@@ -1001,25 +1253,14 @@ export function BoardPage() {
       return;
     }
     const url = removedJob.url;
+    const wasEnrichmentPending = Boolean(pendingEnrichmentByUrl[url] || manualEnrichTimerRef.current[url]);
+    clearManualEnrichTimer(url);
+    clearManualEnrichmentPending(url);
 
     setJobs((current) => current.filter((job) => job.id !== jobId));
-    setDetailCache((current) => {
-      const next = { ...current };
-      delete next[url];
-      return next;
-    });
-    setEventsCache((current) => {
-      const next = { ...current };
-      delete next[url];
-      return next;
-    });
-    setArtifactCache((current) => {
-      const next = { ...current };
-      delete next[url];
-      return next;
-    });
+    forgetCachedUrl(url);
     if (selectedJobId === jobId) {
-      setSelectedJobId(null);
+      selectJob(null);
       setSelectedJob(null);
       setEvents([]);
     }
@@ -1032,12 +1273,16 @@ export function BoardPage() {
       }
       jobsQueryCache.clear();
     } catch (err) {
+      if (wasEnrichmentPending) {
+        markManualEnrichmentPending(url);
+      }
       setJobs((current) => [removedJob, ...current]);
       throw err;
     }
   }
 
   function resetManualForm(): void {
+    setManualAttemptedSubmit(false);
     setManualForm({
       url: "",
       company: "",
@@ -1058,6 +1303,7 @@ export function BoardPage() {
 
   async function submitManualJob(): Promise<void> {
     setManualError(null);
+    setManualAttemptedSubmit(true);
     const payload: ManualJobCreateRequest = {
       url: manualForm.url.trim(),
       company: manualForm.company.trim(),
@@ -1068,29 +1314,58 @@ export function BoardPage() {
       status: (manualForm.status ?? "staging") as TrackingStatus,
       description: manualForm.description.trim(),
     };
-    if (!payload.url || !payload.company || !payload.title || !payload.description) {
-      setManualError("URL, company, title, and description are required.");
+    if (manualMissingRequiredFields.length > 0) {
+      setManualError("Fill the required fields before saving.");
       return;
     }
 
     setIsManualSaving(true);
     try {
       const created = await createManualJob(payload);
-      jobsQueryCache.clear();
-      const summary = detailToSummary(created);
-      setJobs((current) => [summary, ...current.filter((item) => item.id !== summary.id)]);
-      setDetailCache((current) => ({ ...current, [created.url]: created }));
-      setEventsCache((current) => (current[created.url] ? current : { ...current, [created.url]: [] }));
-      if (!hasReadyEnrichment(created)) {
-        markManualEnrichmentPending(created.url);
-        pollManualEnrichment(created.id, 0, created.url);
-      }
-      void loadBoard({ force: true, silent: true });
-      setSelectedJobId(created.id);
-      setSelectedJob(created);
-      setEvents([]);
       setIsManualCreateOpen(false);
       resetManualForm();
+
+      if (isManualJobCreateDuplicateResponse(created)) {
+        const duplicateDetail = manualJobCreateResponseToDetail(created);
+        const existingJobId = duplicateDetail.id ?? created.duplicate_of_job_id;
+        if (!existingJobId) {
+          throw new Error("Duplicate job response did not include an existing job id.");
+        }
+        const duplicateDetailId = duplicateDetail.id || existingJobId;
+        selectJob(existingJobId);
+        rememberDetail(duplicateDetail);
+        setSelectedJob(duplicateDetail);
+        if (!hasReadyEnrichment(duplicateDetail) && duplicateDetail.processing.state === "processing") {
+          markManualEnrichmentPending(duplicateDetail.url);
+          pollManualEnrichment(duplicateDetailId, 0, duplicateDetail.url);
+        }
+        setEvents([]);
+        toast.info(
+          created.message ??
+            `Opened the existing job${created.duplicate_match_kind ? ` (${created.duplicate_match_kind} match)` : ""}.`,
+        );
+        return;
+      }
+
+      jobsQueryCache.clear();
+      const detail = manualJobCreateResponseToDetail(created);
+      const summary = detailToSummary(detail);
+      setJobs((current) => [summary, ...current.filter((item) => item.id !== summary.id)]);
+      rememberDetail(detail);
+      rememberEvents(detail.url, []);
+      selectJob(detail.id);
+      setSelectedJob(detail);
+      setEvents([]);
+      if (!hasReadyEnrichment(detail) && detail.processing.state === "processing") {
+        markManualEnrichmentPending(detail.url);
+        pollManualEnrichment(detail.id, 0, detail.url);
+      }
+      toast.success(
+        `Saved ${detail.title}. Opening the drawer now while enrichment and formatting continue in the background.`,
+      );
+      window.setTimeout(() => {
+        void loadBoard({ force: true, silent: true });
+      }, 0);
     } catch (fetchError) {
       setManualError(fetchError instanceof Error ? fetchError.message : "Failed to create manual job");
     } finally {
@@ -1125,60 +1400,6 @@ export function BoardPage() {
       setSuppressionsError(fetchError instanceof Error ? fetchError.message : "Failed to restore suppressed job");
     } finally {
       setRestoringSuppressionUrl(null);
-    }
-  }
-
-  async function ensureStarterArtifacts(jobId: string): Promise<void> {
-    const currentJob = jobs.find((job) => job.id === jobId) ?? (selectedJob?.id === jobId ? detailToSummary(selectedJob) : null);
-    const url = currentJob?.url ?? "";
-    if (!url) return;
-    const pollStartedAt = Date.now();
-    let pollTimer: number | null = null;
-    let cancelled = false;
-    const poll = async (): Promise<void> => {
-      if (cancelled) return;
-      try {
-        const status = await getStarterArtifactsStatus(jobId);
-        if (cancelled) return;
-        setArtifactStarterStatus(status);
-        if (status.running) {
-          pollTimer = window.setTimeout(() => void poll(), 450);
-        }
-      } catch {
-        pollTimer = window.setTimeout(() => void poll(), 900);
-      }
-    };
-    void poll();
-    setArtifactsGenerating(true);
-    setArtifactsLoading(true);
-    try {
-      const rows = await generateStarterArtifacts(jobId, false);
-      setArtifactCache((current) => ({ ...current, [url]: rows }));
-      setArtifactStarterStatus({
-        job_id: jobId,
-        job_url: url,
-        stage: "done",
-        progress_percent: 100,
-        running: false,
-        updated_at: new Date().toISOString(),
-      });
-    } finally {
-      cancelled = true;
-      if (pollTimer) {
-        window.clearTimeout(pollTimer);
-      }
-      if (Date.now() - pollStartedAt > 12000) {
-        setArtifactStarterStatus((current) => current ?? {
-          job_id: jobId,
-          job_url: url,
-          stage: "done",
-          progress_percent: 100,
-          running: false,
-          updated_at: new Date().toISOString(),
-        });
-      }
-      setArtifactsGenerating(false);
-      setArtifactsLoading(false);
     }
   }
 
@@ -1236,6 +1457,7 @@ export function BoardPage() {
     nextCompany: string,
     nextPostedAfter: string,
     nextPostedBefore: string,
+    nextJobId: string | null = selectedJobId,
   ): void {
     const params = new URLSearchParams();
     if (nextStatus !== "all") params.set("status", nextStatus);
@@ -1243,7 +1465,13 @@ export function BoardPage() {
     if (nextCompany) params.set("company", nextCompany);
     if (nextPostedAfter) params.set("posted_after", nextPostedAfter);
     if (nextPostedBefore) params.set("posted_before", nextPostedBefore);
+    if (nextJobId) params.set("job", nextJobId);
     setSearchParams(params, { replace: true });
+  }
+
+  function selectJob(jobId: string | null): void {
+    setSelectedJobId(jobId);
+    syncFiltersToUrl(statusFilter, atsFilter, companyFilter, postedAfterFilter, postedBeforeFilter, jobId);
   }
 
   function applyFilters(): void {
@@ -1350,24 +1578,149 @@ export function BoardPage() {
     syncFiltersToUrl(statusFilter, atsFilter, companyFilter, postedAfterFilter, "");
   }
 
-  if (loading) {
-    return (
-      <div className="board-page">
-        <div className="page-loader-shell">
-          <ThemedLoader label="Loading jobs" />
+  const showBoardSkeleton = loading && jobs.length === 0;
+  const manualCreateModal = (
+    <div
+      className="confirm-modal-layer"
+      role="presentation"
+      onClick={() => {
+        if (!isManualSaving) {
+          setIsManualCreateOpen(false);
+        }
+      }}
+    >
+      <section
+        className="confirm-modal confirm-modal--manual"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="manual-create-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="confirm-modal-head confirm-modal-head--manual">
+          <div>
+            <h4 id="manual-create-title">Add job</h4>
+          </div>
+        </header>
+        {manualDuplicateCandidate ? (
+          <div className="manual-modal-warning manual-modal-warning--duplicate">
+            <strong>Already on the board</strong>
+            <span>
+              {manualDuplicateCandidate.title} · {manualDuplicateCandidate.company} · {manualDuplicateCandidate.location} ·{" "}
+              {formatDateShort(manualDuplicateCandidate.posted, "Unknown date")} · saving will open the existing record.
+            </span>
+          </div>
+        ) : null}
+        <div className="drawer-grid">
+          <label className="full-width">
+            <span>Job URL *</span>
+            <input
+              type="url"
+              className={manualAttemptedSubmit && isManualFieldMissing("url") ? "field-invalid" : undefined}
+              aria-invalid={manualAttemptedSubmit && isManualFieldMissing("url")}
+              value={manualForm.url}
+              onChange={(event) => setManualForm((current) => ({ ...current, url: event.target.value }))}
+              placeholder="https://company.com/careers/job/123"
+            />
+          </label>
+          <label>
+            <span>Company *</span>
+            <input
+              type="text"
+              className={manualAttemptedSubmit && isManualFieldMissing("company") ? "field-invalid" : undefined}
+              aria-invalid={manualAttemptedSubmit && isManualFieldMissing("company")}
+              value={manualForm.company}
+              onChange={(event) => setManualForm((current) => ({ ...current, company: event.target.value }))}
+              placeholder="Company name"
+            />
+          </label>
+          <label>
+            <span>Title *</span>
+            <input
+              type="text"
+              className={manualAttemptedSubmit && isManualFieldMissing("title") ? "field-invalid" : undefined}
+              aria-invalid={manualAttemptedSubmit && isManualFieldMissing("title")}
+              value={manualForm.title}
+              onChange={(event) => setManualForm((current) => ({ ...current, title: event.target.value }))}
+              placeholder="Role title"
+            />
+          </label>
+          <label>
+            <span>Location</span>
+            <input
+              type="text"
+              value={manualForm.location ?? ""}
+              onChange={(event) => setManualForm((current) => ({ ...current, location: event.target.value }))}
+              placeholder="City, Country / Remote"
+            />
+          </label>
+          <label>
+            <span>Posted Date</span>
+            <input
+              type="date"
+              value={manualForm.posted ?? ""}
+              onChange={(event) => setManualForm((current) => ({ ...current, posted: event.target.value }))}
+            />
+          </label>
+          <label>
+            <span>Stage</span>
+            <ThemedSelect
+              value={(manualForm.status ?? "staging") as TrackingStatus}
+              options={MANUAL_STAGE_OPTIONS}
+              onChange={(value) => setManualForm((current) => ({ ...current, status: value as TrackingStatus }))}
+              ariaLabel="Manual job stage"
+            />
+          </label>
+          <label className="full-width">
+            <span>Description *</span>
+            <textarea
+              className={`manual-job-textarea ${manualAttemptedSubmit && isManualFieldMissing("description") ? "field-invalid" : ""}`.trim()}
+              aria-invalid={manualAttemptedSubmit && isManualFieldMissing("description")}
+              value={manualForm.description}
+              onChange={(event) => setManualForm((current) => ({ ...current, description: event.target.value }))}
+              placeholder="Paste the full job description."
+            />
+          </label>
         </div>
-      </div>
-    );
-  }
+        {manualError ? <p className="confirm-modal-error">{manualError}</p> : null}
+        <div className="confirm-modal-footer">
+          <div className="confirm-modal-actions">
+            <Button
+              type="button"
+              variant="default"
+              size="compact"
+              data-icon="↗"
+              onClick={() => setIsManualCreateOpen(false)}
+              disabled={isManualSaving}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              data-icon="✓"
+              onClick={() => void submitManualJob()}
+              disabled={isManualSaving}
+            >
+              {isManualSaving ? "Saving..." : manualDuplicateCandidate ? "Open existing" : "Save"}
+            </Button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 
   return (
-    <div className="board-page board-page-refined">
-      <section className="board-toolbar">
+    <motion.div
+      className={`board-page board-page-refined ${selectedJobId ? "board-page--drawer-open" : ""}`}
+      variants={pageRevealVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      <motion.section className="board-toolbar" variants={sectionRevealVariants}>
         <div className="board-toolbar-primary">
           <div className="board-toolbar-intro">
-            <p className="board-toolbar-kicker">Pipeline desk</p>
-            <h3 className="board-title">Job Application Pipeline</h3>
-            <p className="board-note">Review the queue, move quickly, and keep every opportunity in an explicit next state.</p>
+            <p className="board-toolbar-kicker">Board controls</p>
+            <h3 className="board-title">Search, filter, move jobs</h3>
           </div>
           <label className="board-search-panel">
             <span className="board-search-label">Quick find</span>
@@ -1566,8 +1919,8 @@ export function BoardPage() {
             </div>
           </section>
         </div>
-      </section>
-      <section className="board-focus-strip" aria-label="Board focus">
+      </motion.section>
+      <motion.section className="board-focus-strip" aria-label="Board focus" variants={sectionRevealVariants}>
         <div className="board-focus-copy">
           <p className="board-focus-kicker">Focus</p>
           <p className="board-focus-note">
@@ -1589,10 +1942,9 @@ export function BoardPage() {
             </button>
           ))}
         </div>
-      </section>
-      <ScoreRecomputeStatus />
+      </motion.section>
       {activeFilterChips.length > 0 && (
-        <section className="active-filters" aria-label="Active filters">
+        <motion.section className="active-filters" aria-label="Active filters" variants={sectionRevealVariants}>
           {activeFilterChips.map((chip) => (
             <span className="active-filter-chip" key={chip.key}>
               <strong>{chip.label}:</strong> {chip.value}
@@ -1601,10 +1953,10 @@ export function BoardPage() {
               </button>
             </span>
           ))}
-        </section>
+        </motion.section>
       )}
 
-      <section className="board-flow-strip" aria-label="Pipeline stage distribution">
+      <motion.section className="board-flow-strip" aria-label="Pipeline stage distribution" variants={sectionRevealVariants}>
         {STATUS_COLUMNS.map((column) => {
           const count = grouped.get(column.id)?.length ?? 0;
           const total = Math.max(1, filteredJobs.length);
@@ -1622,14 +1974,42 @@ export function BoardPage() {
             </article>
           );
         })}
-      </section>
+      </motion.section>
 
       {error && <div className="error-banner">{error}</div>}
-      <main className="board-layout">
+      <motion.main className="board-layout" variants={sectionRevealVariants}>
           <p className="board-note">
             Backlog only shows jobs posted in the last 3 weeks; all other stages show full history.
           </p>
-          {viewMode === "kanban" ? (
+          {showBoardSkeleton ? (
+            <section className="board-skeleton-grid" aria-hidden="true">
+              {STATUS_COLUMNS.map((column) => (
+                <article key={`skeleton-${column.id}`} className="board-skeleton-column">
+                  <header className="column-header skeleton">
+                    <div className="column-header-top">
+                      <div className="column-header-title">
+                        <span className={`column-tone tone-${column.id.replaceAll("_", "-")}`} aria-hidden="true" />
+                        <div className="column-heading">
+                          <h3>{column.label}</h3>
+                          <p>Loading queue…</p>
+                        </div>
+                      </div>
+                    </div>
+                  </header>
+                  <div className="column-items">
+                    {Array.from({ length: skeletonColumnCards(column.id) }, (_, index) => (
+                      <div key={`${column.id}-skeleton-card-${index}`} className="job-card-skeleton">
+                        <span className="skeleton-line short" />
+                        <span className="skeleton-line medium" />
+                        <span className="skeleton-line medium" />
+                        <span className="skeleton-line long" />
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </section>
+          ) : viewMode === "kanban" ? (
             <Kanban
               value={kanbanColumnsState}
               onValueChange={onKanbanValueChange}
@@ -1670,8 +2050,9 @@ export function BoardPage() {
                           <KanbanItem key={job.id} value={job.id}>
                             <JobCard
                               job={job}
-                              onSelect={setSelectedJobId}
-                              onPrefetch={prefetchJob}
+                              onSelect={selectJob}
+                              onPrefetchStart={scheduleJobPrefetch}
+                              onPrefetchCancel={clearHoverPrefetch}
                               selected={selectedJobId === job.id}
                             />
                           </KanbanItem>
@@ -1713,7 +2094,7 @@ export function BoardPage() {
             <section className="list-view">
               {filteredJobs.map((job) => (
                 <article key={job.id} className="list-row">
-                  <button type="button" className="list-row-main" onClick={() => setSelectedJobId(job.id)}>
+                  <button type="button" className="list-row-main" onClick={() => selectJob(job.id)}>
                     <h4>{job.title}</h4>
                     <p>{job.company} • {job.location || "-"}</p>
                   </button>
@@ -1723,220 +2104,203 @@ export function BoardPage() {
                       <span className={`job-sla-chip ${job.staging_overdue ? "overdue" : "due-soon"}`}>{stagingSlaLabel(job)}</span>
                     ) : null}
                     <Badge>{job.ats || "ATS"}</Badge>
-                    <Badge>Posted {job.posted || "-"}</Badge>
+                    <Badge>Posted {formatDateShort(job.posted, "-")}</Badge>
                   </div>
                 </article>
               ))}
             </section>
           )}
 
-          <DetailDrawer
-            open={Boolean(selectedJobId)}
-            loading={detailLoading}
-            job={selectedJob}
-            profile={profile}
-            events={events}
-            enrichmentPending={Boolean(selectedUrl && pendingEnrichmentByUrl[selectedUrl])}
-            artifacts={selectedUrl ? artifactCache[selectedUrl] ?? [] : []}
-            artifactsLoading={artifactsLoading}
-            artifactsGenerating={artifactsGenerating}
-            artifactStarterStage={artifactStarterStatus?.stage}
-            artifactStarterProgress={artifactStarterStatus?.progress_percent}
-            onClose={() => setSelectedJobId(null)}
-            onAddSkillToProfile={addSkillToProfile}
-            onDeleteJob={removeJob}
-            onSuppressJob={suppressJobFromBoard}
-            onGenerateArtifacts={ensureStarterArtifacts}
-            onChangeTracking={async (patch) => {
-              if (!selectedJobId) {
-                return;
-              }
-              await applyTrackingPatch(selectedJobId, patch);
-            }}
-          />
-        </main>
+          {portalRoot
+            ? createPortal(
+                <DetailDrawer
+                  open={Boolean(selectedJobId)}
+                  loading={detailLoading}
+                  job={selectedJob}
+                  summaryJob={selectedSummary}
+                  profile={profile}
+                  events={events}
+                  enrichmentPending={Boolean(selectedUrl && pendingEnrichmentByUrl[selectedUrl])}
+                  onClose={() => selectJob(null)}
+                    onAddSkillToProfile={addSkillToProfile}
+                    onDeleteJob={removeJob}
+                    onSuppressJob={suppressJobFromBoard}
+                    onRetryProcessing={handleRetryProcessing}
+                    onSaveDecision={handleSaveDecision}
+                  onChangeTracking={async (patch) => {
+                    if (!selectedJobId) {
+                      return;
+                    }
+                    await applyTrackingPatch(selectedJobId, patch);
+                  }}
+                />,
+                portalRoot,
+              )
+            : (
+                <DetailDrawer
+                  open={Boolean(selectedJobId)}
+                  loading={detailLoading}
+                  job={selectedJob}
+                  summaryJob={selectedSummary}
+                  profile={profile}
+                  events={events}
+                  enrichmentPending={Boolean(selectedUrl && pendingEnrichmentByUrl[selectedUrl])}
+                  onClose={() => selectJob(null)}
+                    onAddSkillToProfile={addSkillToProfile}
+                    onDeleteJob={removeJob}
+                    onSuppressJob={suppressJobFromBoard}
+                    onRetryProcessing={handleRetryProcessing}
+                    onSaveDecision={handleSaveDecision}
+                  onChangeTracking={async (patch) => {
+                    if (!selectedJobId) {
+                      return;
+                    }
+                    await applyTrackingPatch(selectedJobId, patch);
+                  }}
+                />
+              )}
+        </motion.main>
 
-      {isManualCreateOpen && (
-        <div
-          className="confirm-modal-layer"
-          role="presentation"
-          onClick={() => {
-            if (!isManualSaving) {
-              setIsManualCreateOpen(false);
-            }
-          }}
-        >
-          <section
-            className="confirm-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="manual-create-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="confirm-modal-head">
-              <h4 id="manual-create-title">Add Manual Job</h4>
-            </header>
-            <p className="confirm-modal-message">
-              Add a job you found yourself. It will enter the same enrichment and scoring pipeline as scraped jobs.
-            </p>
-            <div className="drawer-grid">
-              <label className="full-width">
-                <span>Job URL *</span>
-                <input
-                  type="url"
-                  value={manualForm.url}
-                  onChange={(event) => setManualForm((current) => ({ ...current, url: event.target.value }))}
-                  placeholder="https://company.com/careers/job/123"
-                />
-              </label>
-              <label>
-                <span>Company *</span>
-                <input
-                  type="text"
-                  value={manualForm.company}
-                  onChange={(event) => setManualForm((current) => ({ ...current, company: event.target.value }))}
-                  placeholder="Company name"
-                />
-              </label>
-              <label>
-                <span>Title *</span>
-                <input
-                  type="text"
-                  value={manualForm.title}
-                  onChange={(event) => setManualForm((current) => ({ ...current, title: event.target.value }))}
-                  placeholder="Role title"
-                />
-              </label>
-              <label>
-                <span>Location</span>
-                <input
-                  type="text"
-                  value={manualForm.location ?? ""}
-                  onChange={(event) => setManualForm((current) => ({ ...current, location: event.target.value }))}
-                  placeholder="City, Country / Remote"
-                />
-              </label>
-              <label>
-                <span>Posted Date</span>
-                <input
-                  type="date"
-                  value={manualForm.posted ?? ""}
-                  onChange={(event) => setManualForm((current) => ({ ...current, posted: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Stage</span>
-                <ThemedSelect
-                  value={(manualForm.status ?? "staging") as TrackingStatus}
-                  options={MANUAL_STAGE_OPTIONS}
-                  onChange={(value) => setManualForm((current) => ({ ...current, status: value as TrackingStatus }))}
-                  ariaLabel="Manual job stage"
-                />
-              </label>
-              <label className="full-width">
-                <span>Description *</span>
-                <textarea
-                  className="manual-job-textarea"
-                  value={manualForm.description}
-                  onChange={(event) => setManualForm((current) => ({ ...current, description: event.target.value }))}
-                  placeholder="Paste the full job description."
-                />
-              </label>
-            </div>
-            {manualError && <p className="confirm-modal-error">{manualError}</p>}
-            <div className="confirm-modal-actions">
-              <Button
-                type="button"
-                variant="default"
-                size="compact"
-                data-icon="↗"
-                onClick={() => setIsManualCreateOpen(false)}
-                disabled={isManualSaving}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                data-icon="✓"
-                onClick={() => void submitManualJob()}
-                disabled={isManualSaving}
-              >
-                {isManualSaving ? "Adding..." : "Add Job"}
-              </Button>
-            </div>
-          </section>
-        </div>
-      )}
+      {isManualCreateOpen && (portalRoot ? createPortal(manualCreateModal, portalRoot) : manualCreateModal)}
 
-      {isSuppressionPanelOpen && (
-        <div
-          className="confirm-modal-layer"
-          role="presentation"
-          onClick={() => {
-            if (!restoringSuppressionUrl) {
-              setIsSuppressionPanelOpen(false);
-            }
-          }}
-        >
-          <section
-            className="confirm-modal suppression-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="suppression-list-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="confirm-modal-head">
-              <h4 id="suppression-list-title">Suppressed Jobs</h4>
-            </header>
-            <p className="confirm-modal-message">
-              These jobs are hidden and blocked from future scrape ingestion. Restore any URL to allow it again.
-            </p>
-            {suppressionsError && <p className="confirm-modal-error">{suppressionsError}</p>}
-            {suppressionsLoading ? (
-              <div className="suppression-loading">
-                <ThemedLoader label="Loading suppressions" />
-              </div>
-            ) : suppressions.length === 0 ? (
-              <p className="empty-text">No suppressed jobs.</p>
-            ) : (
-              <div className="suppression-list">
-                {suppressions.map((item) => (
-                  <article key={item.job_id || item.url} className="suppression-item">
-                    <div className="suppression-copy">
-                      <p>{item.company || "Unknown company"}</p>
-                      <small>{item.reason || "No reason provided"}</small>
-                      <code>{item.url}</code>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="default"
-                      size="compact"
-                      data-icon="⟲"
-                      disabled={restoringSuppressionUrl === item.url}
-                      onClick={() => void restoreSuppressedUrl(item.job_id, item.url)}
-                    >
-                      {restoringSuppressionUrl === item.url ? "Restoring..." : "Restore"}
-                    </Button>
-                  </article>
-                ))}
-              </div>
-            )}
-            <div className="confirm-modal-actions">
-              <Button
-                type="button"
-                variant="default"
-                size="compact"
-                data-icon="↩"
-                onClick={() => setIsSuppressionPanelOpen(false)}
-                disabled={Boolean(restoringSuppressionUrl)}
+      {isSuppressionPanelOpen && (portalRoot
+        ? createPortal(
+            <div
+              className="confirm-modal-layer"
+              role="presentation"
+              onClick={() => {
+                if (!restoringSuppressionUrl) {
+                  setIsSuppressionPanelOpen(false);
+                }
+              }}
+            >
+              <section
+                className="confirm-modal suppression-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="suppression-list-title"
+                onClick={(event) => event.stopPropagation()}
               >
-                Close
-              </Button>
+                <header className="confirm-modal-head">
+                  <h4 id="suppression-list-title">Suppressed Jobs</h4>
+                </header>
+                <p className="confirm-modal-message">
+                  These jobs are hidden and blocked from future scrape ingestion. Restore any URL to allow it again.
+                </p>
+                {suppressionsError && <p className="confirm-modal-error">{suppressionsError}</p>}
+                {suppressionsLoading ? (
+                  <div className="suppression-loading">
+                    <ThemedLoader label="Loading suppressions" />
+                  </div>
+                ) : suppressions.length === 0 ? (
+                  <p className="empty-text">No suppressed jobs.</p>
+                ) : (
+                  <div className="suppression-list">
+                    {suppressions.map((item) => (
+                      <article key={item.job_id || item.url} className="suppression-item">
+                        <div className="suppression-copy">
+                          <p>{item.company || "Unknown company"}</p>
+                          <small>{item.reason || "No reason provided"}</small>
+                          <code>{item.url}</code>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="default"
+                          size="compact"
+                          data-icon="⟲"
+                          disabled={restoringSuppressionUrl === item.url}
+                          onClick={() => void restoreSuppressedUrl(item.job_id, item.url)}
+                        >
+                          {restoringSuppressionUrl === item.url ? "Restoring..." : "Restore"}
+                        </Button>
+                      </article>
+                    ))}
+                  </div>
+                )}
+                <div className="confirm-modal-actions">
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="compact"
+                    data-icon="↩"
+                    onClick={() => setIsSuppressionPanelOpen(false)}
+                    disabled={Boolean(restoringSuppressionUrl)}
+                  >
+                    Close
+                  </Button>
+                </div>
+              </section>
+            </div>,
+            portalRoot,
+          )
+        : (
+            <div
+              className="confirm-modal-layer"
+              role="presentation"
+              onClick={() => {
+                if (!restoringSuppressionUrl) {
+                  setIsSuppressionPanelOpen(false);
+                }
+              }}
+            >
+              <section
+                className="confirm-modal suppression-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="suppression-list-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <header className="confirm-modal-head">
+                  <h4 id="suppression-list-title">Suppressed Jobs</h4>
+                </header>
+                <p className="confirm-modal-message">
+                  These jobs are hidden and blocked from future scrape ingestion. Restore any URL to allow it again.
+                </p>
+                {suppressionsError && <p className="confirm-modal-error">{suppressionsError}</p>}
+                {suppressionsLoading ? (
+                  <div className="suppression-loading">
+                    <ThemedLoader label="Loading suppressions" />
+                  </div>
+                ) : suppressions.length === 0 ? (
+                  <p className="empty-text">No suppressed jobs.</p>
+                ) : (
+                  <div className="suppression-list">
+                    {suppressions.map((item) => (
+                      <article key={item.job_id || item.url} className="suppression-item">
+                        <div className="suppression-copy">
+                          <p>{item.company || "Unknown company"}</p>
+                          <small>{item.reason || "No reason provided"}</small>
+                          <code>{item.url}</code>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="default"
+                          size="compact"
+                          data-icon="⟲"
+                          disabled={restoringSuppressionUrl === item.url}
+                          onClick={() => void restoreSuppressedUrl(item.job_id, item.url)}
+                        >
+                          {restoringSuppressionUrl === item.url ? "Restoring..." : "Restore"}
+                        </Button>
+                      </article>
+                    ))}
+                  </div>
+                )}
+                <div className="confirm-modal-actions">
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="compact"
+                    data-icon="↩"
+                    onClick={() => setIsSuppressionPanelOpen(false)}
+                    disabled={Boolean(restoringSuppressionUrl)}
+                  >
+                    Close
+                  </Button>
+                </div>
+              </section>
             </div>
-          </section>
-        </div>
-      )}
-    </div>
+          ))}
+    </motion.div>
   );
 }

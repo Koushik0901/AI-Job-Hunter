@@ -1,0 +1,11 @@
+[GET] http://127.0.0.1:8000/api/jobs/4b017f96-fe65-43cc-91f4-c71788104164/artifacts => [200] OK
+[GET] http://127.0.0.1:8000/api/templates/resume => [200] OK
+[GET] http://127.0.0.1:8000/api/templates/resume/classic/validate => [200] OK
+[GET] http://127.0.0.1:8000/api/jobs/4b017f96-fe65-43cc-91f4-c71788104164/artifacts => [200] OK
+[GET] http://127.0.0.1:8000/api/templates/resume => [200] OK
+[GET] http://127.0.0.1:8000/api/templates/resume/classic/validate => [200] OK
+[GET] http://127.0.0.1:8000/api/artifacts/304cfeed-70c9-4718-8ab8-c6394e3c10c9/latex => [200] OK
+[POST] http://127.0.0.1:8000/api/jobs/4b017f96-fe65-43cc-91f4-c71788104164/cache/prewarm => [200] OK
+[GET] http://127.0.0.1:8000/api/artifacts/304cfeed-70c9-4718-8ab8-c6394e3c10c9/latex/pdf => [200] OK
+[POST] http://127.0.0.1:8000/api/artifacts/304cfeed-70c9-4718-8ab8-c6394e3c10c9/resume-latex/swarm-runs => [200] OK
+[GET] http://127.0.0.1:8000/api/artifacts/304cfeed-70c9-4718-8ab8-c6394e3c10c9/resume-latex/swarm-runs/16a2e73b-6a31-40b0-8193-80b8032947ec => [200] OK

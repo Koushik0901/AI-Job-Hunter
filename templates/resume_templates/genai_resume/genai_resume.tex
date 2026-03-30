@@ -1,0 +1,285 @@
+\documentclass[11pt,a4paper,sans]{moderncv}
+\moderncvstyle{banking}
+\moderncvcolor{black}
+\nopagenumbers{}
+\usepackage[utf8]{inputenc}
+\usepackage{ragged2e}
+\usepackage[left=1.2cm, right=1.2cm, top=1.2cm, bottom=1.2cm]{geometry}
+\usepackage{needspace}
+\usepackage{tabularx} % Add this in the preamble if not already included
+\usepackage{array}    % Improves vertical alignment
+\usepackage{xcolor}
+\definecolor{customblue}{HTML}{1A73E8} % You can change this hex code for any blue you like
+\usepackage{multicol}
+\usepackage{import}
+\usepackage{enumitem}
+\usepackage[utf8]{inputenc}
+\usepackage{amssymb}
+\name{Koushik}{Sivarama Krishnan}
+\newcommand*{\customcventry}[7][.13em]{
+\begin{tabular}{@{}l}
+{\bfseries #4} \
+{\itshape #3}
+\end{tabular}
+\hfill
+\begin{tabular}{l@{}}
+{\bfseries #5} \
+{\itshape #2}
+\end{tabular}
+\ifx&#7&%
+\else{\
+\begin{minipage}{\maincolumnwidth}%
+\small#7%
+\end{minipage}}\fi%
+\par\addvspace{#1}}
+\begin{document}
+\makecvtitle
+\vspace*{-12mm}
+% \begin{center}\textbf{ Digital Marketer and Business Analyser}\end{center}
+\begin{center}
+	\begin{tabular}{ c c c }
+		\faMobile\enspace +1 (236) 882-7140 & \enspace\faEnvelope\enspace \href{mailto:koushik.nov01@gmail.com}{koushik.nov01@gmail.com} & \enspace\faHome\enspace Edmonton, AB\\[2mm]
+		\faLinkedin\enspace \href{https://www.linkedin.com/in/koushik-sivarama-krishnan/}{\textcolor{customblue}{LinkedIn}} & \faGithub\enspace \href{https://github.com/Koushik0901}{\textcolor{customblue}{Github}} & \faGlobe\enspace \href{https://koushik0901.github.io/}{\textcolor{customblue}{Portfolio}}
+	\end{tabular}
+\end{center}
+
+
+% \section{Highlights}
+% \setlength{\itemsep}{0pt}
+% \setlength{\parskip}{0pt}
+% \begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+%     \item Master’s in Applied Data Science with strong expertise in \textbf{building production Python ML systems}, including LLM/RAG workflows, evaluation harnesses, and cloud deployments for real users.
+%     \vspace{-4pt}
+%     \item Trusted partner to data \& product teams: shipped decision-support automation by translating messy requirements into reliable services, measurable outcomes, and maintainable pipelines.
+%     \vspace{-4pt}
+%     \item Specialized in \textbf{agentic AI + RAG evaluation}: improved retrieval-based assistants via benchmarking (faithfulness/latency/bias), hardening deployments, and iterating on reliability across releases.
+%     \vspace{-4pt}
+% \end{itemize}
+
+% \vspace{-16pt}
+
+% Copy into your Highlights
+\section{Highlights}
+\setlength{\itemsep}{0pt}
+\setlength{\parskip}{0pt}
+\begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+    \item Master’s in Applied Data Science with 3+ years experience building end-to-end AI systems across \textbf{LLMs, NLP, RAG, and production ML}, including deployed internal assistants and evaluation pipelines for real-world users.
+    \vspace{-4pt}
+    \item Partnered with claims adjusters, researchers, and cross-functional teams to translate ambiguous business needs into deployable AI solutions that reduced manual effort, accelerated decision support, and improved the usefulness of AI outputs for end users.
+    \vspace{-4pt}
+    \item Specialized in \textbf{Multi-agent Workflows}, and model evaluation; building reliability-focused AI systems with regression testing, tool integration, and production deployments that improved trustworthiness, consistency, and operational readiness.
+    \vspace{-4pt}
+\end{itemize}
+\vspace{-16pt}
+
+% =================================== NLP Skills ========================================
+\section{Skills}
+\vspace{-4pt}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash\bfseries}p{6cm}@{\hspace{0cm}}X}
+Programming \& Backend & Python, JavaScript, Next.js, Bash, FastAPI,, REST APIs, PostgreSQL\\[4pt]
+LLMs, RAG \& Agents & LangChain, LangGraph, CrewAI, Retrieval Augmented Generation (RAG), embeddings, vector search, Model Context Protocol (MCP), OpenAI API, HuggingFace, Prompt/Context Engineering\\[4pt]
+MLOps \& Quality & evaluation pipelines, model benchmarking, MLflow, Weights \& Biases, DVC, GitHub Actions CI, tox-based unit tests, Grafana, Prometheus\\[4pt]
+Data / Analytics & Pandas, NumPy, PySpark, Power BI, SHAP, Topic Modeling, Data Analysis\\[4pt]
+Cloud / Infrastructure & Amazon Web Services (AWS), Google Cloud Platform (GCP), Microsoft Azure, GPU Clusters, Distributed Computing, Truefoundry\\[4pt]
+\end{tabularx}
+\vspace{-20pt}
+
+\section{Experience}
+
+\customcventry{09/2024 ‐ 08/2025}{}{Co-op Data Scientist}{}{}{
+	\vspace{4pt}
+	Insurance Corporation of British Columbia (ICBC) \hfill \textit{Vancouver, BC}
+	\vspace{2pt}
+	\begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+        \item Scoped and validated high-impact internal GenAI use cases by working with business stakeholders to identify knowledge-access bottlenecks, assess feasibility, and prioritize workflows where AI-assisted retrieval could reduce manual search effort.
+        \vspace{-4pt}
+        \item Architected and deployed ICBC’s in-house agentic GenAI assistant using \textbf{LangChain RAG}, \textbf{Milvus}, and \textbf{MCP} tools on \textbf{Azure Kubernetes Service (AKS)}, building modular retrievers, tool interfaces, and prompt-aware components to support multi-step workflows.
+        \vspace{-4pt}
+        % \item Designed an automated \textbf{LLM evaluation} and regression-testing pipeline across accuracy, faithfulness, consistency, and bias, enabling safer validation of prompt, retriever, and model changes before production release.
+        \item Designed an automated \textbf{LLM evaluation} and regression-testing pipeline across accuracy, faithfulness, consistency, and bias, enabling safer validation of prompt, retriever, and model changes before production release.
+        \vspace{-4pt}
+        \item Reduced internal knowledge retrieval time by \textbf{$\sim$60\%}, decreasing manual lookup effort for claims adjusters and improving customer experience by shortening hold times during claims support interactions.
+        \vspace{-4pt}
+    \end{itemize}
+}
+
+\vspace{6pt}
+
+\customcventry{05/2024 ‐ 02/2025}{}{Research Engine Developer}{}{}{
+	\vspace{4pt}
+	Justice Data and Design Lab\hfill{Victoria, BC}
+	\vspace{2pt}
+	\begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+        \item Tackled access-to-justice challenges for British Columbians by improving a legal aid QA assistant that helped people find relevant legal information and navigate to appropriate legal resources more efficiently.
+        \vspace{-4pt}
+        \item Redesigned the \textbf{RAG-based legal question-answering pipeline} with cleaner text preprocessing, improved chunking, and \textbf{LLM-based reranking} to increase relevant document retrieval quality and strengthen response grounding.
+        \vspace{-4pt}
+        \item \textbf{Doubled} downstream QA chatbot effectiveness by improving relevant document retrieval accuracy by \textbf{2x}, while delivering Power BI-based legal text mining insights that informed outreach and intake workflow improvements for partner organizations.
+        \vspace{-4pt}
+	\end{itemize}
+}
+
+\vspace{1pt}
+
+\customcventry{04/2023 ‐ 07/2023}{}{Founding Machine Learning Engineer}{}{}{
+	\vspace{4pt}
+	SeiSei.ai \hfill \textit{India}
+	\vspace{2pt}
+	\begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+        \item Built and deployed an end-to-end Hindi voice conversion pipeline, improving FreeVC performance by \textbf{15\%} through model benchmarking, hyperparameter tuning, and custom audio preprocessing.
+        \vspace{-4pt}
+        \item Architected an automated audio pipeline processing \textbf{5,000+ hours} of data, covering collection, preprocessing, quality checks, and batch inference to support reliable model iteration and deployment.
+        \vspace{-4pt}
+        \item Led the company’s early ML execution by recruiting and mentoring interns, coordinating stakeholder feedback loops, and deploying models through \textbf{Kubernetes} on Truefoundry with monitoring and fail-safe evaluation practices.
+        \vspace{-4pt}
+	\end{itemize}
+}
+\vspace{36pt}
+\customcventry{09/2021 – 02/2022}{}{Computer Vision Intern}{}{}{
+	\vspace{4pt}
+	Drive Analytics \hfill \textit{India}
+	\vspace{2pt}
+	\begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+         \item Supported production sports analytics workflows by helping design systems that could process large volumes of game footage reliably under strict delivery timelines for external league partners.
+        \vspace{-3pt}
+        \item Built and deployed production video analytics pipelines on \textbf{AWS} using distributed workers with \textbf{Celery} and \textbf{RabbitMQ}, processing \textbf{$\sim$10K clips/day} and returning analytics within a \textbf{2-hour} delivery window.
+        \vspace{-3pt}
+        \item Strengthened downstream trust in generated analytics by iterating on failure cases across multi-view footage, low-resolution clips, occlusions, and weather noise, reducing misleading outputs in production use.
+	\end{itemize}
+}
+
+\vspace{6pt}
+
+\customcventry{12/2020 – 06/2021}{}{Deep Learning Intern}{}{}{
+	\vspace{4pt}
+	MURF.ai \hfill{India}
+	\vspace{2pt}
+	\begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+        \item Contributed to speech AI development by building systems that improved the quality and robustness of voice synthesis and transcription workflows across diverse audio inputs.
+        \vspace{-4pt}
+        \item Developed and deployed a voice cloning application using \textbf{FastSpeech-2}, building advanced audio preprocessing pipelines with librosa and custom feature engineering for high-quality speech synthesis.
+        \vspace{-4pt}
+        \item Fine-tuned speech-to-text models in \textbf{Azure Speech Studio}, improving transcription quality through acoustic feature optimization and domain-focused preprocessing.
+	\end{itemize}
+}
+
+\section{Education}
+\customcventry{2023-2025}{{University of Victoria}}{Master of Engineering in Applied Data Science,}{Victoria, BC}{}{}{
+\vspace{2pt}
+Notable Coursework: Optimization for Machine Learning, Scaling Large Language Models on GPUs, Data Privacy
+}
+\vspace{10pt}
+
+\customcventry{2019-2023}{{Anna University}}{Bachelor of Engineering in Computer Science and Engineering,}{India}{}{}{
+\vspace{2pt}
+Notable Coursework: Artificial Intelligence, Cloud Computing, Data Structures, Data Warehousing, and Data Mining
+}
+
+\section{Projects}
+\customcventry{02/2026}{}{\href{https://github.com/Koushik0901/GenZ-AI-Therapist/tree/main}{GenZ AI Therapist\enspace\faGithub}}{}{}{
+	\vspace{4pt}
+	\begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+        \item Created a \textbf{personalized AI wellness platform} using Next.js for non-clinical support, enabling users to maintain ongoing conversations, journal experiences, and track emotional wellness signals over time.
+        \vspace{-2pt}
+        \item Engineered a \textbf{LangGraph agentic workflow} over OpenRouter to improve the safety and contextual quality of responses through \textbf{prompt-injection detection}, safety routing, sentiment and intent classification, wellness inference, resource discovery, and final response generation.
+        \vspace{-2pt}
+        \item Improved trust and continuity in the user experience through structured workflow state, privacy-aware memory controls, and authenticated persistence for conversation history and personalized context.
+\end{itemize}
+}
+\vspace{10pt}
+
+% \customcventry{11/2025}{}{\href{https://github.com/Koushik0901/Telecom-Customer-Churn}{Telecom Customer Churn \& Upsell Prediction System\enspace\faGithub}}{}{}{
+%      \vspace{2pt}
+%      \begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+%      \item Built an end-to-end churn prediction and customer upsell system on a \textbf{7,043-customer} telecom dataset, performing data preprocessing, feature engineering (\textbf{30+ features}), and statistical modeling using \textbf{Python, scikit-learn, and XGBoost} to identify high-risk customers and cross-sell opportunities.
+%      \vspace{-2pt}
+%     \item Developed multiple predictive models (Logistic Regression, Random Forest, XGBoost) with comprehensive model evaluation using precision, recall, F1-score, and AUC-ROC metrics, improving identification of high-risk churners in the top 10\% segment through probability calibration and threshold optimization.
+%     \vspace{-2pt}
+%     \item Delivered an interactive \textbf{Streamlit dashboard} showing churn risk by contract type and region, plus individual churn probability and upsell scores with \textbf{SHAP-based driver analysis}, enabling retention and revenue optimization actions.
+% \end{itemize}
+% }
+% \vspace{10pt}
+% \customcventry{06/2025}{}{\href{https://github.com/Koushik0901/Solving-Atari-Tennis-with-Deep-Reinforcement-Learning}{Solving Atari Tennis with Deep Reinforcement Learning\enspace\faGithub}}{}{}{
+% 	\vspace{2pt}
+% 	\begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+%         \item Built RL agents using DQN/PPO with custom environment wrappers, reward engineering, and transfer learning in StableBaselines3, achieving \textbf{40\%} performance improvement over baseline implementations.
+%         \vspace{-2pt}
+%         \item Implemented runtime-focused training optimizations (vectorized rollouts, checkpointing, evaluation loops) to improve iteration speed and support reproducible benchmarking across policy variants.
+%         \vspace{-2pt}
+%         \item Compared CNN feature extractors (standard vs.\ ResNet-50) for visual RL, quantifying representation impact on policy quality and training stability.
+%         % \vspace{-2pt}
+% 	\end{itemize}
+% }
+% \vspace{6pt}
+% \customcventry{04/2025}{}{\href{https://github.com/Koushik0901/Stroke-Blood-Clot-Origin-Prediction}{ClotSense -- Medical Imaging Classification System\enspace\faGithub}}{}{}{
+%     \vspace{2pt}
+%     \begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+%         \item Built a production-ready \textbf{computer vision system} to classify ischemic stroke clot origins from whole-slide digital pathology images, designing a two-stage pipeline with tissue detection and slide-level aggregation for robust prediction.
+%         \vspace{-4pt}
+%         \item Benchmarked \textbf{8+} model architectures across accuracy-speed tradeoffs, achieving \textbf{F1 = 96.3\%} and a \textbf{4\% improvement over baseline} through custom loss functions, class-imbalance handling, and ensemble techniques.
+%         \vspace{-4pt}
+%         \item Engineered an end-to-end image processing pipeline for gigapixel slide tiling, augmentation, and validation across \textbf{2,000+} annotated pathology images, and packaged reproducible inference with released weights and a Dockerized application.
+%     \end{itemize}
+% }
+% \vspace{10pt}
+% \customcventry{11/2025}{}{\href{https://github.com/Koushik0901/NYC-311-Demand-Forecasting-Optimization}{NYC 311 Service Demand Forecasting \& Optimization System\enspace\faGithub}}{}{}{
+% \vspace{2pt}
+% \begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+%     \item Designed an end-to-end ML system for \textbf{time-series demand forecasting} using NYC 311 service data, forecasting hourly service volumes across \textbf{10 categories} to inform operational planning and resource allocation.
+%     \vspace{-2pt}
+%     \item Implemented \textbf{Temporal Fusion Transformer} and Prophet models for hourly forecasting, achieving \textbf{23\% lower MAPE} than baseline via time/seasonality feature engineering and hyperparameter optimization, with attention-based analysis to explain key demand drivers.
+%     \vspace{-2pt}
+%     \item Developed a \textbf{Bayesian optimization} framework for workforce allocation, reducing simulated wait times by \textbf{34\%} and labor costs by \textbf{18\%}; delivered a Streamlit scenario dashboard to visualize trade-offs between service quality and efficiency.
+%     \vspace{-2pt}
+% \end{itemize}
+% }
+% \vspace{10pt}
+\customcventry{09/2025}{}{\href{https://github.com/Koushik0901/Captain-Cargo---AI-Delivery-Tracking-System}{AI Delivery Tracking Voice Agent (Vapi, FastAPI, Sanity)\enspace\faGithub}}{}{}{
+\vspace{4pt}
+\begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+    \item Automated delivery status support through a \textbf{voice-based AI agent} that handled caller queries end-to-end, translating spoken requests into validated backend lookups and real-time spoken updates.
+    \vspace{-2pt}
+    \item Implemented deterministic tool contracts, strict schema validation, and hallucination-safe response generation, improving reliability by restricting outputs to verified backend data and structured fallbacks.
+    \vspace{-2pt}
+    \item Added timeout controls, retries, circuit breaking, caching, structured logs, and transcript replay evaluation, strengthening performance, observability, and production readiness for real user interactions.
+\end{itemize}
+}
+% \vspace{10pt}
+% \customcventry{09/2024}{}{\href{https://github.com/Koushik0901/FLAIR-Segmentation-MLOPS}{Brain MRI FLAIR Segmentation -- End-to-End MLOps\enspace\faGithub}}{}{}{
+%     \vspace{2pt}
+%     \begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+%         \item Built a lightweight \textbf{MobileNet-v3 segmentation} system to detect FLAIR abnormalities on brain MRI, accelerating lesion burden estimation and longitudinal tracking for radiology workflows.
+%         \vspace{-4pt}
+%         \item Delivered a \textbf{production-minded MLOps stack} with DVC-tracked data and experiments, config-driven training, unit tests, GitHub Actions CI, and a Streamlit inference UI for rapid stakeholder feedback.
+%         \vspace{-4pt}
+%         \item Packaged repeatable retrain-to-deploy workflows using DVC pipelines, pinned environments, and saved model artifacts, improving reproducibility and iteration speed across experiments.
+%     \end{itemize}
+% }
+
+\section{Publications}
+\setlength{\itemsep}{0pt} % controls vertical spacing between items
+\setlength{\parskip}{0pt} % avoids extra space
+\textbf{ORCID ID:}\href{https://orcid.org/0000-0003-0525-0677}{\textcolor{customblue}{0000-0003-0525-0677}} \textbar{} \href{https://scholar.google.ca/citations?hl=en&user=lDmjJtoAAAAJ}{\textbf{Google Scholar}}
+\begin{itemize}[leftmargin=0.6cm, label={\textbullet}]
+	\item "Vision transformer based COVID-19 detection using chest X-rays"
+    \vspace{-4pt}
+	\item "SwiftSRGAN--Rethinking Super-Resolution for Efficient and Real-time Inference"
+    \vspace{-4pt}
+	\item "Benchmarking Conventional Vision Models on Neuromorphic Fall Detection and Action Recognition Dataset"
+    \vspace{-4pt}
+	\item "Efficient Super-Resolution For Chest X-rays"
+    \vspace{-4pt}
+	\item "MFAAN: Unveiling Audio Deepfakes with a Multi-Feature Authenticity Network"
+\end{itemize}
+% \vspace{-4pt}
+\textit{Peer-reviewed work in healthcare ML and computer vision, focused on efficient model design, empirical evaluation, and real-world applicability.}
+
+% \section{Reference}
+% \vspace{-4pt}
+% \begin{tabularx}{\textwidth}{X X}
+% \textbf{Kate Gower}, & \textbf{Mahsa Bataghva}, \\
+% Lab Director, Justice Data and Design Lab & Lead Data Scientist, ICBC \\
+% \href{mailto:kate@gowermodernlaw.com}{\textcolor{customblue}{kate@gowermodernlaw.com}} &
+% \href{mailto:Mahsa.BataghvaShahbaz@icbc.com}{\textcolor{customblue}{Mahsa.BataghvaShahbaz@icbc.com}} \\
+% \end{tabularx}
+\end{document}

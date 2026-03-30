@@ -10,7 +10,6 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from fetchers import normalize_hn
-from services.scrape_service import _passes_job_title_filter, passes_title_filter
 
 
 def test_normalize_hn_pipe_delimited_header_keeps_clean_title_and_location() -> None:
@@ -47,7 +46,7 @@ def test_normalize_hn_dash_delimited_header_extracts_company_role_and_context() 
     assert normalized["location"] == "Remote"
 
 
-def test_hn_generic_titles_still_surface_ai_signal_for_filtering() -> None:
+def test_hn_generic_titles_preserve_context_in_description() -> None:
     raw = {
         "objectID": "3",
         "created_at": "2026-03-11T00:00:00Z",
@@ -62,4 +61,4 @@ def test_hn_generic_titles_still_surface_ai_signal_for_filtering() -> None:
     assert normalized["company"] == "Atomic Tessellator"
     assert normalized["title"].startswith("Various")
     assert normalized["location"] == "REMOTE (UTC+12)"
-    assert _passes_job_title_filter(normalized, passes_title_filter)
+    assert "Lead Engineer, LLMs and other AI roles." in normalized["description"]

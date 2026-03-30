@@ -6,7 +6,9 @@ extension needed, works on Windows and Linux alike.
 """
 from __future__ import annotations
 
+import html
 import json
+import re
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -20,7 +22,16 @@ _ATS_TYPES = frozenset({
     "workable",
     "smartrecruiters",
     "recruitee",
+    "teamtailor",
 })
+
+_ZERO_WIDTH_CHARS_RE = re.compile(r"[\u200b\u200c\u200d\ufeff\u2060]")
+_MALFORMED_NBSP_RE = re.compile(r"&(?:(?:nsbp)|(?:nbps)|(?:bnsp)|(?:bnps))(?:;)?", re.IGNORECASE)
+_INLINE_SPACE_RE = re.compile(r"[ \t]{2,}")
+_SPACE_BEFORE_PUNCT_RE = re.compile(r"\s+([,.;:!?])")
+_OPEN_PAREN_SPACE_RE = re.compile(r"\(\s+")
+_CLOSE_PAREN_SPACE_RE = re.compile(r"\s+\)")
+_LIST_LINE_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
 
 
 # ---------------------------------------------------------------------------
@@ -358,142 +369,6 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
         "CREATE INDEX IF NOT EXISTS idx_job_match_scores_computed_at ON job_match_scores(computed_at DESC)"
     )
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS resume_profile (
-            id                    INTEGER PRIMARY KEY,
-            baseline_resume_json  TEXT NOT NULL DEFAULT '{}',
-            template_id           TEXT,
-            use_template_typography INTEGER NOT NULL DEFAULT 1,
-            document_typography_override_json TEXT NOT NULL DEFAULT '{}',
-            updated_at            TEXT NOT NULL
-        )
-    """)
-    try:
-        conn.execute("ALTER TABLE resume_profile ADD COLUMN use_template_typography INTEGER NOT NULL DEFAULT 1")
-    except Exception:
-        pass
-    try:
-        conn.execute("ALTER TABLE resume_profile ADD COLUMN document_typography_override_json TEXT NOT NULL DEFAULT '{}'")
-    except Exception:
-        pass
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS template_settings (
-            id                        INTEGER PRIMARY KEY,
-            resume_template_id        TEXT NOT NULL DEFAULT 'classic',
-            cover_letter_template_id  TEXT NOT NULL DEFAULT 'classic',
-            updated_at                TEXT NOT NULL
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS candidate_evidence_assets (
-            id                           INTEGER PRIMARY KEY,
-            evidence_context_json        TEXT NOT NULL DEFAULT '{}',
-            brag_document_markdown       TEXT NOT NULL DEFAULT '',
-            project_cards_json           TEXT NOT NULL DEFAULT '[]',
-            do_not_claim_json            TEXT NOT NULL DEFAULT '[]',
-            updated_at                   TEXT NOT NULL
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS job_artifacts (
-            id                 TEXT PRIMARY KEY,
-            job_id             TEXT NOT NULL REFERENCES jobs(id),
-            job_url            TEXT NOT NULL REFERENCES jobs(url),
-            artifact_type      TEXT NOT NULL,
-            active_version_id  TEXT,
-            created_at         TEXT NOT NULL
-        )
-    """)
-    try:
-        conn.execute("ALTER TABLE job_artifacts ADD COLUMN job_id TEXT")
-    except Exception:
-        pass
-    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_job_artifacts_job_type ON job_artifacts(job_id, artifact_type)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_job_artifacts_job_id ON job_artifacts(job_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_job_artifacts_job_url ON job_artifacts(job_url)")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS artifact_versions (
-            id                     TEXT PRIMARY KEY,
-            artifact_id            TEXT NOT NULL REFERENCES job_artifacts(id),
-            version                INTEGER NOT NULL,
-            label                  TEXT NOT NULL,
-            content_json           TEXT,
-            content_text           TEXT,
-            meta_json              TEXT NOT NULL DEFAULT '{}',
-            created_at             TEXT NOT NULL,
-            created_by             TEXT NOT NULL DEFAULT 'system',
-            supersedes_version_id  TEXT,
-            base_version_id        TEXT
-        )
-    """)
-    try:
-        conn.execute("ALTER TABLE artifact_versions ADD COLUMN content_text TEXT")
-    except Exception:
-        pass
-    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_artifact_versions_artifact_version ON artifact_versions(artifact_id, version)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_artifact_versions_artifact_created ON artifact_versions(artifact_id, created_at DESC)")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS artifact_suggestions (
-            id                        TEXT PRIMARY KEY,
-            artifact_id               TEXT NOT NULL REFERENCES job_artifacts(id),
-            base_version_id           TEXT NOT NULL REFERENCES artifact_versions(id),
-            base_hash                 TEXT,
-            target_path               TEXT,
-            patch_json                TEXT NOT NULL,
-            group_key                 TEXT,
-            summary                   TEXT,
-            state                     TEXT NOT NULL DEFAULT 'pending',
-            created_at                TEXT NOT NULL,
-            resolved_at               TEXT,
-            supersedes_suggestion_id  TEXT
-        )
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_artifact_suggestions_artifact_state ON artifact_suggestions(artifact_id, state, created_at DESC)")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS artifact_ai_runs (
-            run_id                      TEXT PRIMARY KEY,
-            artifact_id                 TEXT NOT NULL,
-            job_id                      TEXT NOT NULL REFERENCES jobs(id),
-            job_url                     TEXT NOT NULL,
-            template_id                 TEXT,
-            pipeline                    TEXT NOT NULL,
-            status                      TEXT NOT NULL,
-            current_stage               TEXT NOT NULL,
-            stage_index                 INTEGER NOT NULL DEFAULT 0,
-            cycles_target               INTEGER NOT NULL DEFAULT 2,
-            cycles_done                 INTEGER NOT NULL DEFAULT 0,
-            started_at                  TEXT NOT NULL,
-            updated_at                  TEXT NOT NULL,
-            latest_score_json           TEXT,
-            latest_rewrite_json         TEXT,
-            latest_apply_report_json    TEXT,
-            final_score_json            TEXT,
-            candidate_latex             TEXT,
-            error                       TEXT
-        )
-    """)
-    try:
-        conn.execute("ALTER TABLE artifact_ai_runs ADD COLUMN job_id TEXT")
-    except Exception:
-        pass
-    try:
-        conn.execute("ALTER TABLE artifact_ai_runs ADD COLUMN template_id TEXT")
-    except Exception:
-        pass
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_artifact_ai_runs_job_id_updated ON artifact_ai_runs(job_id, updated_at DESC)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_artifact_ai_runs_artifact_updated ON artifact_ai_runs(artifact_id, updated_at DESC)")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS artifact_ai_run_events (
-            id           INTEGER PRIMARY KEY,
-            run_id       TEXT NOT NULL,
-            seq          INTEGER NOT NULL,
-            ts           TEXT NOT NULL,
-            stage        TEXT NOT NULL,
-            message      TEXT NOT NULL,
-            data_json    TEXT NOT NULL DEFAULT '{}'
-        )
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_artifact_ai_run_events_run_seq ON artifact_ai_run_events(run_id, seq)")
-    conn.execute("""
         CREATE TABLE IF NOT EXISTS workspace_operations (
             id           TEXT PRIMARY KEY,
             kind         TEXT NOT NULL,
@@ -506,6 +381,80 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
             error        TEXT
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS job_decisions (
+            job_id                   TEXT PRIMARY KEY REFERENCES jobs(id),
+            recommendation_override  TEXT NOT NULL,
+            note                     TEXT,
+            updated_at               TEXT NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS job_actions (
+            id           INTEGER PRIMARY KEY,
+            job_id       TEXT NOT NULL REFERENCES jobs(id),
+            action_type  TEXT NOT NULL,
+            priority     TEXT NOT NULL,
+            due_at       TEXT NOT NULL,
+            reason       TEXT NOT NULL,
+            status       TEXT NOT NULL DEFAULT 'pending',
+            source       TEXT NOT NULL DEFAULT 'system',
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            created_at   TEXT NOT NULL,
+            updated_at   TEXT NOT NULL,
+            completed_at TEXT
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_job_actions_status_due ON job_actions(status, due_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_job_actions_job_type ON job_actions(job_id, action_type)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS job_processing_states (
+            job_id             TEXT PRIMARY KEY REFERENCES jobs(id),
+            state              TEXT NOT NULL DEFAULT 'ready',
+            step               TEXT NOT NULL DEFAULT 'complete',
+            message            TEXT NOT NULL DEFAULT 'Job is ready.',
+            last_processed_at  TEXT,
+            last_error         TEXT,
+            retry_count        INTEGER NOT NULL DEFAULT 0,
+            updated_at         TEXT NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS application_briefs (
+            id                INTEGER PRIMARY KEY,
+            job_id            TEXT NOT NULL UNIQUE REFERENCES jobs(id),
+            summary           TEXT NOT NULL,
+            why_apply         TEXT NOT NULL,
+            matched_skills    TEXT NOT NULL DEFAULT '[]',
+            missing_skills    TEXT NOT NULL DEFAULT '[]',
+            resume_points     TEXT NOT NULL DEFAULT '[]',
+            narrative_angle   TEXT NOT NULL,
+            created_at        TEXT NOT NULL,
+            updated_at        TEXT NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS job_outcomes (
+            id           INTEGER PRIMARY KEY,
+            job_id       TEXT NOT NULL UNIQUE REFERENCES jobs(id),
+            outcome_type TEXT NOT NULL,
+            reason_code  TEXT,
+            details_json TEXT NOT NULL DEFAULT '{}',
+            recorded_at  TEXT NOT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_job_outcomes_type_recorded ON job_outcomes(outcome_type, recorded_at DESC)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS daily_briefings (
+            brief_date             TEXT PRIMARY KEY,
+            generated_at           TEXT NOT NULL,
+            payload_json           TEXT NOT NULL DEFAULT '{}',
+            telegram_sent_at       TEXT,
+            telegram_message_hash  TEXT,
+            trigger_source         TEXT NOT NULL DEFAULT 'scheduled'
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_daily_briefings_generated ON daily_briefings(generated_at DESC)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_workspace_operations_started ON workspace_operations(started_at DESC)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_workspace_operations_kind_status ON workspace_operations(kind, status)")
     try:
@@ -570,30 +519,6 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
             UPDATE job_match_scores
             SET job_id = (
                 SELECT j.id FROM jobs j WHERE j.url = job_match_scores.url
-            )
-            WHERE job_id IS NULL OR trim(job_id) = ''
-            """
-        )
-    except Exception:
-        pass
-    try:
-        conn.execute(
-            """
-            UPDATE job_artifacts
-            SET job_id = (
-                SELECT j.id FROM jobs j WHERE j.url = job_artifacts.job_url
-            )
-            WHERE job_id IS NULL OR trim(job_id) = ''
-            """
-        )
-    except Exception:
-        pass
-    try:
-        conn.execute(
-            """
-            UPDATE artifact_ai_runs
-            SET job_id = (
-                SELECT a.job_id FROM job_artifacts a WHERE a.id = artifact_ai_runs.artifact_id
             )
             WHERE job_id IS NULL OR trim(job_id) = ''
             """
@@ -802,6 +727,61 @@ def find_company_by_url_or_slug_segment(conn: Any, slug: str, ats_url: str) -> s
     return None
 
 
+def _normalize_description_entities(text: str) -> str:
+    value = str(text or "")
+    for _ in range(3):
+        value = _MALFORMED_NBSP_RE.sub("&nbsp;", value)
+        next_value = html.unescape(value)
+        if next_value == value:
+            break
+        value = next_value
+    return value
+
+
+def _normalize_description_line(line: str) -> str:
+    value = _ZERO_WIDTH_CHARS_RE.sub("", str(line or "").replace("\t", " "))
+    value = value.replace("\xa0", " ")
+    value = _INLINE_SPACE_RE.sub(" ", value)
+    value = _SPACE_BEFORE_PUNCT_RE.sub(r"\1", value)
+    value = _OPEN_PAREN_SPACE_RE.sub("(", value)
+    value = _CLOSE_PAREN_SPACE_RE.sub(")", value)
+    return value.strip()
+
+
+def normalize_description_text(raw: Any) -> str:
+    """Normalize scraped/manual job descriptions before persistence."""
+    if raw is None:
+        return ""
+    text = _normalize_description_entities(str(raw)).replace("\r\n", "\n").replace("\r", "\n")
+    text = _ZERO_WIDTH_CHARS_RE.sub("", text)
+    text = text.replace("\xa0", " ")
+
+    blocks: list[list[str]] = []
+    current: list[str] = []
+    for line in text.split("\n"):
+        if not line.strip():
+            if current:
+                blocks.append(current)
+                current = []
+            continue
+        current.append(line)
+    if current:
+        blocks.append(current)
+
+    cleaned_blocks: list[str] = []
+    for block in blocks:
+        cleaned_lines = [_normalize_description_line(line) for line in block]
+        cleaned_lines = [line for line in cleaned_lines if line]
+        if not cleaned_lines:
+            continue
+        if len(cleaned_lines) > 1 and any(_LIST_LINE_RE.match(line) for line in block):
+            cleaned_blocks.append("\n".join(cleaned_lines))
+        else:
+            cleaned_blocks.append(" ".join(cleaned_lines))
+
+    return "\n\n".join(cleaned_blocks).strip()
+
+
 def save_jobs(
     conn: Any, jobs: list[dict[str, Any]]
 ) -> tuple[int, int, list[dict[str, Any]]]:
@@ -818,6 +798,8 @@ def save_jobs(
             continue
         if url in suppressed_urls:
             continue
+        normalized_job = dict(job)
+        normalized_job["description"] = normalize_description_text(job.get("description", ""))
         source = str(job.get("source") or "scraped").strip().lower()
         if not source:
             source = "scraped"
@@ -834,14 +816,14 @@ def save_jobs(
                     job.get("location", ""),
                     job.get("posted", ""),
                     job.get("ats", ""),
-                    job.get("description", ""),
+                    normalized_job["description"],
                     source,
                     now,
                     now,
                 ),
             )
             new_count += 1
-            new_jobs.append(job)
+            new_jobs.append(normalized_job)
         else:
             conn.execute(
                 "UPDATE jobs SET company=?, title=?, location=?, posted=?, ats=?, description=?, "
@@ -853,7 +835,7 @@ def save_jobs(
                     job.get("location", ""),
                     job.get("posted", ""),
                     job.get("ats", ""),
-                    job.get("description", ""),
+                    normalized_job["description"],
                     source,
                     now,
                     url,
@@ -865,16 +847,84 @@ def save_jobs(
     return new_count, updated_count, new_jobs
 
 
-def set_application_status(conn: Any, url: str, status: str | None) -> int:
-    """Set application_status for a job URL. Returns changed row count."""
-    normalized = (status or "").strip().lower() or None
-    valid = {"not_applied", "staging", "applied", "interviewing", "offer", "rejected"}
-    if normalized not in valid and normalized is not None:
-        raise ValueError(f"Invalid status: {status}")
-    conn.execute("UPDATE jobs SET application_status=? WHERE url=?", (normalized, url))
-    changed = conn.execute("SELECT changes()").fetchone()
+def _default_job_processing_state() -> dict[str, Any]:
+    return {
+        "state": "ready",
+        "step": "complete",
+        "message": "Job is ready.",
+        "last_processed_at": None,
+        "last_error": None,
+        "retry_count": 0,
+    }
+
+
+def _job_processing_state_from_row(row: tuple[Any, ...] | None) -> dict[str, Any]:
+    if not row:
+        return _default_job_processing_state()
+    return {
+        "state": str(row[0] or "ready"),
+        "step": str(row[1] or "complete"),
+        "message": str(row[2] or "Job is ready."),
+        "last_processed_at": str(row[3] or "") or None,
+        "last_error": str(row[4] or "") or None,
+        "retry_count": int(row[5] or 0),
+    }
+
+
+def get_job_processing_state(conn: Any, job_id: str) -> dict[str, Any]:
+    row = conn.execute(
+        """
+        SELECT state, step, message, last_processed_at, last_error, retry_count
+        FROM job_processing_states
+        WHERE job_id = ?
+        """,
+        (job_id,),
+    ).fetchone()
+    return _job_processing_state_from_row(row)
+
+
+def upsert_job_processing_state(
+    conn: Any,
+    job_id: str,
+    *,
+    state: str,
+    step: str,
+    message: str,
+    last_processed_at: str | None = None,
+    last_error: str | None = None,
+    increment_retry: bool = False,
+) -> dict[str, Any]:
+    existing = conn.execute(
+        "SELECT retry_count FROM job_processing_states WHERE job_id = ?",
+        (job_id,),
+    ).fetchone()
+    retry_count = int(existing[0] or 0) if existing else 0
+    if increment_retry:
+        retry_count += 1
+    now = _utc_now_iso()
+    conn.execute(
+        """
+        INSERT INTO job_processing_states (
+            job_id, state, step, message, last_processed_at, last_error, retry_count, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(job_id) DO UPDATE SET
+            state = excluded.state,
+            step = excluded.step,
+            message = excluded.message,
+            last_processed_at = COALESCE(excluded.last_processed_at, job_processing_states.last_processed_at),
+            last_error = excluded.last_error,
+            retry_count = excluded.retry_count,
+            updated_at = excluded.updated_at
+        """,
+        (job_id, state, step, message, last_processed_at, last_error, retry_count, now),
+    )
     conn.commit()
-    return int(changed[0]) if changed else 0
+    return get_job_processing_state(conn, job_id)
+
+
+def clear_job_processing_state(conn: Any, job_id: str) -> None:
+    conn.execute("DELETE FROM job_processing_states WHERE job_id = ?", (job_id,))
+    conn.commit()
 
 
 def load_active_suppressed_urls(conn: Any) -> set[str]:
@@ -1040,29 +1090,6 @@ def unsuppress_job_id(conn: Any, job_id: str) -> int:
         "UPDATE job_suppressions SET active = 0, updated_at = ? WHERE job_id = ? AND active = 1",
         (now, job_id),
     )
-    changed = conn.execute("SELECT changes()").fetchone()
-    conn.commit()
-    return int(changed[0]) if changed else 0
-
-
-def prune_not_applied_older_than_days(conn: Any, days: int, dry_run: bool = True) -> int:
-    """Prune jobs older than N days if not applied/interview pipeline and has parseable posted date."""
-    if days <= 0:
-        raise ValueError("days must be > 0")
-    # Keep legacy withdrawn protected for old rows while new lifecycle uses staging.
-    protected = ("staging", "applied", "interviewing", "offer", "rejected", "withdrawn")
-    placeholders = ", ".join("?" for _ in protected)
-    where = f"""
-        (application_status IS NULL OR application_status = '' OR application_status = 'not_applied')
-        AND (posted IS NOT NULL AND posted != '')
-        AND date(posted) <= date('now', ?)
-        AND (application_status IS NULL OR application_status NOT IN ({placeholders}))
-    """
-    params: tuple[Any, ...] = (f"-{days} day",) + protected
-    if dry_run:
-        row = conn.execute(f"SELECT COUNT(*) FROM jobs WHERE {where}", params).fetchone()
-        return int(row[0]) if row else 0
-    conn.execute(f"DELETE FROM jobs WHERE {where}", params)
     changed = conn.execute("SELECT changes()").fetchone()
     conn.commit()
     return int(changed[0]) if changed else 0
@@ -1452,219 +1479,6 @@ def update_workspace_operation(conn: Any, operation_id: str, patch: dict[str, An
     return get_workspace_operation(conn, operation_id)
 
 
-def get_resume_profile(conn: Any) -> dict[str, Any]:
-    row = conn.execute(
-        """
-        SELECT baseline_resume_json, template_id, use_template_typography, document_typography_override_json, updated_at
-        FROM resume_profile
-        WHERE id = 1
-        """
-    ).fetchone()
-    if not row:
-        return {
-            "baseline_resume_json": {},
-            "template_id": "classic",
-            "use_template_typography": True,
-            "document_typography_override": {},
-            "updated_at": None,
-        }
-    baseline_raw = row[0]
-    baseline: dict[str, Any] = {}
-    if isinstance(baseline_raw, str):
-        try:
-            parsed = json.loads(baseline_raw)
-            if isinstance(parsed, dict):
-                baseline = parsed
-        except json.JSONDecodeError:
-            baseline = {}
-    override: dict[str, Any] = {}
-    override_raw = row[3]
-    if isinstance(override_raw, str):
-        try:
-            parsed_override = json.loads(override_raw)
-            if isinstance(parsed_override, dict):
-                override = parsed_override
-        except json.JSONDecodeError:
-            override = {}
-    return {
-        "baseline_resume_json": baseline,
-        "template_id": str(row[1] or "classic"),
-        "use_template_typography": bool(row[2]),
-        "document_typography_override": override,
-        "updated_at": row[4],
-    }
-
-
-def upsert_resume_profile(conn: Any, profile: dict[str, Any]) -> dict[str, Any]:
-    baseline = profile.get("baseline_resume_json")
-    if not isinstance(baseline, dict):
-        baseline = {}
-    template_id = str(profile.get("template_id") or "classic").strip() or "classic"
-    use_template_typography = bool(profile.get("use_template_typography", True))
-    override_raw = profile.get("document_typography_override")
-    override = override_raw if isinstance(override_raw, dict) else {}
-    sanitized_override: dict[str, Any] = {}
-    font_family = str(override.get("fontFamily") or "").strip()
-    if font_family:
-        sanitized_override["fontFamily"] = font_family
-    if isinstance(override.get("fontSize"), (int, float)):
-        sanitized_override["fontSize"] = round(float(override["fontSize"]), 2)
-    if isinstance(override.get("lineHeight"), (int, float)):
-        sanitized_override["lineHeight"] = round(float(override["lineHeight"]), 3)
-    updated_at = _utc_now_iso()
-    conn.execute(
-        """
-        INSERT OR REPLACE INTO resume_profile
-        (id, baseline_resume_json, template_id, use_template_typography, document_typography_override_json, updated_at)
-        VALUES (1, ?, ?, ?, ?, ?)
-        """,
-        (
-            json.dumps(baseline, ensure_ascii=True),
-            template_id,
-            1 if use_template_typography else 0,
-            json.dumps(sanitized_override, ensure_ascii=True),
-            updated_at,
-        ),
-    )
-    conn.commit()
-    return get_resume_profile(conn)
-
-
-def get_template_settings(conn: Any) -> dict[str, Any]:
-    row = conn.execute(
-        """
-        SELECT resume_template_id, cover_letter_template_id, updated_at
-        FROM template_settings
-        WHERE id = 1
-        """
-    ).fetchone()
-    if not row:
-        return {
-            "resume_template_id": "classic",
-            "cover_letter_template_id": "classic",
-            "updated_at": None,
-        }
-    return {
-        "resume_template_id": str(row[0] or "classic"),
-        "cover_letter_template_id": str(row[1] or "classic"),
-        "updated_at": row[2],
-    }
-
-
-def upsert_template_settings(conn: Any, settings: dict[str, Any]) -> dict[str, Any]:
-    resume_template_id = str(settings.get("resume_template_id") or "classic").strip() or "classic"
-    cover_letter_template_id = str(settings.get("cover_letter_template_id") or "classic").strip() or "classic"
-    updated_at = _utc_now_iso()
-    conn.execute(
-        """
-        INSERT OR REPLACE INTO template_settings
-        (id, resume_template_id, cover_letter_template_id, updated_at)
-        VALUES (1, ?, ?, ?)
-        """,
-        (resume_template_id, cover_letter_template_id, updated_at),
-    )
-    conn.commit()
-    return get_template_settings(conn)
-
-
-def _parse_json_object(raw: Any) -> dict[str, Any]:
-    if isinstance(raw, dict):
-        return {str(k): v for k, v in raw.items()}
-    if not isinstance(raw, str):
-        return {}
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        return {}
-    if not isinstance(parsed, dict):
-        return {}
-    return {str(k): v for k, v in parsed.items()}
-
-
-def _parse_json_string_list(raw: Any) -> list[str]:
-    if isinstance(raw, list):
-        return [str(item).strip() for item in raw if str(item).strip()]
-    if not isinstance(raw, str):
-        return []
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(parsed, list):
-        return []
-    return [str(item).strip() for item in parsed if str(item).strip()]
-
-
-def _parse_json_object_list(raw: Any) -> list[dict[str, Any]]:
-    if isinstance(raw, list):
-        return [{str(k): v for k, v in item.items()} for item in raw if isinstance(item, dict)]
-    if not isinstance(raw, str):
-        return []
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(parsed, list):
-        return []
-    return [{str(k): v for k, v in item.items()} for item in parsed if isinstance(item, dict)]
-
-
-def get_candidate_evidence_assets(conn: Any) -> dict[str, Any]:
-    row = conn.execute(
-        """
-        SELECT evidence_context_json, brag_document_markdown, project_cards_json, do_not_claim_json, updated_at
-        FROM candidate_evidence_assets
-        WHERE id = 1
-        """
-    ).fetchone()
-    if not row:
-        return {
-            "evidence_context": {},
-            "brag_document_markdown": "",
-            "project_cards": [],
-            "do_not_claim": [],
-            "updated_at": None,
-        }
-    return {
-        "evidence_context": _parse_json_object(row[0]),
-        "brag_document_markdown": str(row[1] or ""),
-        "project_cards": _parse_json_object_list(row[2]),
-        "do_not_claim": _parse_json_string_list(row[3]),
-        "updated_at": row[4],
-    }
-
-
-def upsert_candidate_evidence_assets(conn: Any, payload: dict[str, Any]) -> dict[str, Any]:
-    evidence_context = payload.get("evidence_context")
-    if not isinstance(evidence_context, dict):
-        evidence_context = {}
-    brag_document_markdown = str(payload.get("brag_document_markdown") or "")
-    project_cards_raw = payload.get("project_cards")
-    project_cards: list[dict[str, Any]]
-    if isinstance(project_cards_raw, list):
-        project_cards = [{str(k): v for k, v in item.items()} for item in project_cards_raw if isinstance(item, dict)]
-    else:
-        project_cards = []
-    do_not_claim = _parse_json_string_list(payload.get("do_not_claim"))
-    updated_at = _utc_now_iso()
-    conn.execute(
-        """
-        INSERT OR REPLACE INTO candidate_evidence_assets
-        (id, evidence_context_json, brag_document_markdown, project_cards_json, do_not_claim_json, updated_at)
-        VALUES (1, ?, ?, ?, ?, ?)
-        """,
-        (
-            json.dumps(evidence_context, ensure_ascii=True),
-            brag_document_markdown,
-            json.dumps(project_cards, ensure_ascii=True),
-            json.dumps(do_not_claim, ensure_ascii=True),
-            updated_at,
-        ),
-    )
-    conn.commit()
-    return get_candidate_evidence_assets(conn)
-
-
 def _parse_education_array(raw: Any) -> list[dict[str, str | None]]:
     parsed: Any = raw
     if raw is None:
@@ -1687,138 +1501,3 @@ def _parse_education_array(raw: Any) -> list[dict[str, str | None]]:
             continue
         result.append({"degree": degree, "field": field or None})
     return result
-
-
-def _parse_json_object_or_none(raw: Any) -> dict[str, Any] | None:
-    if raw is None:
-        return None
-    if isinstance(raw, dict):
-        return {str(k): v for k, v in raw.items()}
-    if not isinstance(raw, str):
-        return None
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(parsed, dict):
-        return None
-    return {str(k): v for k, v in parsed.items()}
-
-
-def upsert_artifact_ai_run(conn: Any, run: dict[str, Any]) -> None:
-    conn.execute(
-        """
-        INSERT OR REPLACE INTO artifact_ai_runs
-        (
-            run_id, artifact_id, job_id, job_url, template_id, pipeline, status, current_stage, stage_index,
-            cycles_target, cycles_done, started_at, updated_at,
-            latest_score_json, latest_rewrite_json, latest_apply_report_json, final_score_json,
-            candidate_latex, error
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            str(run.get("run_id") or ""),
-            str(run.get("artifact_id") or ""),
-            str(run.get("job_id") or ""),
-            str(run.get("job_url") or ""),
-            str(run.get("template_id") or "") if run.get("template_id") else None,
-            str(run.get("pipeline") or ""),
-            str(run.get("status") or "queued"),
-            str(run.get("current_stage") or "queued"),
-            int(run.get("stage_index") or 0),
-            int(run.get("cycles_target") or 2),
-            int(run.get("cycles_done") or 0),
-            str(run.get("started_at") or _utc_now_iso()),
-            str(run.get("updated_at") or _utc_now_iso()),
-            json.dumps(run.get("latest_score"), ensure_ascii=True) if isinstance(run.get("latest_score"), dict) else None,
-            json.dumps(run.get("latest_rewrite"), ensure_ascii=True) if isinstance(run.get("latest_rewrite"), dict) else None,
-            json.dumps(run.get("latest_apply_report"), ensure_ascii=True) if isinstance(run.get("latest_apply_report"), dict) else None,
-            json.dumps(run.get("final_score"), ensure_ascii=True) if isinstance(run.get("final_score"), dict) else None,
-            str(run.get("candidate_latex") or "") if run.get("candidate_latex") is not None else None,
-            str(run.get("error") or "") if run.get("error") else None,
-        ),
-    )
-    conn.commit()
-
-
-def append_artifact_ai_run_event(conn: Any, run_id: str, event: dict[str, Any]) -> None:
-    conn.execute(
-        """
-        INSERT INTO artifact_ai_run_events (run_id, seq, ts, stage, message, data_json)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (
-            run_id,
-            int(event.get("seq") or 0),
-            str(event.get("ts") or _utc_now_iso()),
-            str(event.get("stage") or "stage"),
-            str(event.get("message") or ""),
-            json.dumps(event.get("data"), ensure_ascii=True) if isinstance(event.get("data"), dict) else "{}",
-        ),
-    )
-    conn.commit()
-
-
-def list_artifact_ai_run_events(conn: Any, run_id: str, limit: int = 400) -> list[dict[str, Any]]:
-    rows = conn.execute(
-        """
-        SELECT seq, ts, stage, message, data_json
-        FROM artifact_ai_run_events
-        WHERE run_id = ?
-        ORDER BY seq ASC
-        LIMIT ?
-        """,
-        (run_id, max(1, int(limit))),
-    ).fetchall()
-    out: list[dict[str, Any]] = []
-    for row in rows:
-        event: dict[str, Any] = {
-            "seq": int(row[0] or 0),
-            "ts": str(row[1] or ""),
-            "stage": str(row[2] or ""),
-            "message": str(row[3] or ""),
-        }
-        parsed = _parse_json_object_or_none(row[4])
-        if parsed is not None:
-            event["data"] = parsed
-        out.append(event)
-    return out
-
-
-def get_artifact_ai_run(conn: Any, run_id: str) -> dict[str, Any] | None:
-    row = conn.execute(
-        """
-        SELECT
-            run_id, artifact_id, job_id, job_url, template_id, pipeline, status, current_stage, stage_index,
-            cycles_target, cycles_done, started_at, updated_at,
-            latest_score_json, latest_rewrite_json, latest_apply_report_json, final_score_json,
-            candidate_latex, error
-        FROM artifact_ai_runs
-        WHERE run_id = ?
-        """,
-        (run_id,),
-    ).fetchone()
-    if not row:
-        return None
-    return {
-        "run_id": str(row[0] or ""),
-        "artifact_id": str(row[1] or ""),
-        "job_id": str(row[2] or ""),
-        "job_url": str(row[3] or ""),
-        "template_id": str(row[4]) if row[4] is not None else None,
-        "pipeline": str(row[5] or ""),
-        "status": str(row[6] or "queued"),
-        "current_stage": str(row[7] or "queued"),
-        "stage_index": int(row[8] or 0),
-        "cycles_target": int(row[9] or 2),
-        "cycles_done": int(row[10] or 0),
-        "started_at": str(row[11] or _utc_now_iso()),
-        "updated_at": str(row[12] or _utc_now_iso()),
-        "latest_score": _parse_json_object_or_none(row[13]),
-        "latest_rewrite": _parse_json_object_or_none(row[14]),
-        "latest_apply_report": _parse_json_object_or_none(row[15]),
-        "final_score": _parse_json_object_or_none(row[16]),
-        "candidate_latex": row[17],
-        "error": row[18],
-    }

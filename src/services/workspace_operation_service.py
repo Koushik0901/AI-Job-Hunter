@@ -17,10 +17,10 @@ from db import (
     load_enrichments_for_urls,
     load_jobs_for_jd_reformat,
     load_unenriched_jobs,
-    prune_not_applied_older_than_days,
     update_workspace_operation,
     save_jobs,
 )
+from dashboard.backend.cache import get_dashboard_cache
 from dashboard.backend import repository as dashboard_repository
 from enrich import run_description_reformat_pipeline, run_enrichment_pipeline
 from match_score import compute_match_score
@@ -107,6 +107,49 @@ def repository_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _invalidate_dashboard_views() -> None:
+    cache = get_dashboard_cache()
+    cache.startup()
+    cache.invalidate_for_workspace_refresh()
+
+
+def _refresh_daily_briefing(conn: Any, *, trigger_source: str = "scrape") -> None:
+    try:
+        dashboard_repository.refresh_daily_briefing(conn, trigger_source=trigger_source)
+    except Exception:
+        # Workspace operations should not fail because briefing refresh failed.
+        pass
+
+
+def _set_processing_state_for_jobs(
+    conn: Any,
+    jobs: list[dict[str, Any]],
+    *,
+    state: str,
+    step: str,
+    message: str,
+    last_error: str | None = None,
+    increment_retry: bool = False,
+) -> None:
+    for job in jobs:
+        job_id = str(job.get("id") or "")
+        if not job_id:
+            continue
+        try:
+            dashboard_repository.set_job_processing(
+                conn,
+                job_id,
+                state=state,
+                step=step,
+                message=message,
+                last_error=last_error,
+                increment_retry=increment_retry,
+                last_processed_at=repository_now_iso() if state == "ready" else None,
+            )
+        except Exception:
+            pass
+
+
 def _run_workspace_operation_body(conn: Any, kind: str, params: dict[str, Any], console: Console) -> dict[str, Any]:
     if kind == "scrape":
         return _run_scrape(conn, params, console)
@@ -116,17 +159,13 @@ def _run_workspace_operation_body(conn: Any, kind: str, params: dict[str, Any], 
         return _run_enrich(conn, params, console, force=True)
     if kind == "jd_reformat":
         return _run_jd_reformat(conn, params, console)
-    if kind == "prune_preview":
-        return _run_prune(conn, params, console, apply=False)
-    if kind == "prune":
-        return _run_prune(conn, params, console, apply=True)
     raise ValueError(f"Unsupported workspace operation kind: {kind}")
 
 
 def _run_scrape(conn: Any, params: dict[str, Any], console: Console) -> dict[str, Any]:
     companies = load_enabled_company_sources(conn)
     if not companies:
-        raise RuntimeError("No enabled company sources found. Add or enable sources in Workspace first.")
+        raise RuntimeError("No enabled company sources found. Add or enable company sources first.")
 
     openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
     openrouter_model = _env_or_default("ENRICHMENT_MODEL", "openai/gpt-oss-120b")
@@ -156,24 +195,52 @@ def _run_scrape(conn: Any, params: dict[str, Any], console: Console) -> dict[str
         jobs.sort(key=lambda item: int(item.get("match_score", 0) or 0), reverse=True)
 
     new_count, updated_count, new_jobs = save_jobs(conn, jobs)
-    all_urls = [str(job.get("url") or "") for job in jobs if str(job.get("url") or "").strip()]
-    if all_urls:
-        dashboard_repository.recompute_match_scores(conn, urls=all_urls)
-    enriched_new_jobs = 0
-    if new_jobs and not bool(params.get("no_enrich_llm", False)) and openrouter_api_key:
-        run_enrichment_pipeline(
+    if new_jobs:
+        _set_processing_state_for_jobs(
+            conn,
             new_jobs,
-            conn,
-            openrouter_api_key,
-            openrouter_model,
-            description_format_model,
-            console,
+            state="processing",
+            step="scrape",
+            message="Queued for enrichment and scoring.",
         )
-        enriched_new_jobs = len(new_jobs)
-        dashboard_repository.recompute_match_scores(
-            conn,
-            urls=[str(job.get("url") or "") for job in new_jobs if str(job.get("url") or "").strip()],
-        )
+    try:
+        all_urls = [str(job.get("url") or "") for job in jobs if str(job.get("url") or "").strip()]
+        if all_urls:
+            dashboard_repository.recompute_match_scores(conn, urls=all_urls)
+        enriched_new_jobs = 0
+        if new_jobs and not bool(params.get("no_enrich_llm", False)) and openrouter_api_key:
+            run_enrichment_pipeline(
+                new_jobs,
+                conn,
+                openrouter_api_key,
+                openrouter_model,
+                description_format_model,
+                console,
+            )
+            enriched_new_jobs = len(new_jobs)
+            dashboard_repository.recompute_match_scores(
+                conn,
+                urls=[str(job.get("url") or "") for job in new_jobs if str(job.get("url") or "").strip()],
+            )
+        if new_jobs:
+            _set_processing_state_for_jobs(
+                conn,
+                new_jobs,
+                state="ready",
+                step="complete",
+                message="Scrape processing complete.",
+            )
+    except Exception as error:
+        if new_jobs:
+            _set_processing_state_for_jobs(
+                conn,
+                new_jobs,
+                state="failed",
+                step="failed",
+                message="Scrape processing failed.",
+                last_error=str(error),
+            )
+        raise
     summary = {
         "jobs_found": len(jobs),
         "new_count": new_count,
@@ -185,6 +252,8 @@ def _run_scrape(conn: Any, params: dict[str, Any], console: Console) -> dict[str
     if bool(params.get("include_jobs", False)):
         summary["jobs"] = jobs
         summary["new_jobs"] = new_jobs
+    _invalidate_dashboard_views()
+    _refresh_daily_briefing(conn, trigger_source="scrape")
     return summary
 
 
@@ -196,19 +265,47 @@ def _run_enrich(conn: Any, params: dict[str, Any], console: Console, *, force: b
     description_format_model = _env_or_default("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-20b:paid")
     jobs_to_enrich = load_unenriched_jobs(conn, force=force)
     console.print(f"[bold]Enrichment queue:[/bold] {len(jobs_to_enrich)} job(s)")
-    if jobs_to_enrich:
-        run_enrichment_pipeline(
-            jobs_to_enrich,
-            conn,
-            openrouter_api_key,
-            openrouter_model,
-            description_format_model,
-            console,
-        )
-        dashboard_repository.recompute_match_scores(
-            conn,
-            urls=[str(job.get("url") or "") for job in jobs_to_enrich if str(job.get("url") or "").strip()],
-        )
+    try:
+        if jobs_to_enrich:
+            _set_processing_state_for_jobs(
+                conn,
+                jobs_to_enrich,
+                state="processing",
+                step="enrichment",
+                message="Running enrichment pipeline.",
+            )
+            run_enrichment_pipeline(
+                jobs_to_enrich,
+                conn,
+                openrouter_api_key,
+                openrouter_model,
+                description_format_model,
+                console,
+            )
+            dashboard_repository.recompute_match_scores(
+                conn,
+                urls=[str(job.get("url") or "") for job in jobs_to_enrich if str(job.get("url") or "").strip()],
+            )
+            _set_processing_state_for_jobs(
+                conn,
+                jobs_to_enrich,
+                state="ready",
+                step="complete",
+                message="Enrichment complete.",
+            )
+    except Exception as error:
+        if jobs_to_enrich:
+            _set_processing_state_for_jobs(
+                conn,
+                jobs_to_enrich,
+                state="failed",
+                step="failed",
+                message="Enrichment failed.",
+                last_error=str(error),
+            )
+        raise
+    _invalidate_dashboard_views()
+    _refresh_daily_briefing(conn, trigger_source="scrape")
     return {
         "jobs_processed": len(jobs_to_enrich),
         "force": force,
@@ -225,30 +322,45 @@ def _run_jd_reformat(conn: Any, params: dict[str, Any], console: Console) -> dic
     description_format_model = _env_or_default("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-20b:paid")
     jobs_to_process = load_jobs_for_jd_reformat(conn, missing_only=missing_only)
     console.print(f"[bold]JD reformat queue:[/bold] {len(jobs_to_process)} job(s)")
-    if jobs_to_process:
-        run_description_reformat_pipeline(
-            jobs_to_process,
-            conn,
-            openrouter_api_key,
-            description_format_model,
-            console,
-        )
+    try:
+        if jobs_to_process:
+            _set_processing_state_for_jobs(
+                conn,
+                jobs_to_process,
+                state="processing",
+                step="jd_reformat",
+                message="Running description reformat pipeline.",
+            )
+            run_description_reformat_pipeline(
+                jobs_to_process,
+                conn,
+                openrouter_api_key,
+                description_format_model,
+                console,
+            )
+            _set_processing_state_for_jobs(
+                conn,
+                jobs_to_process,
+                state="ready",
+                step="complete",
+                message="Description reformat complete.",
+            )
+    except Exception as error:
+        if jobs_to_process:
+            _set_processing_state_for_jobs(
+                conn,
+                jobs_to_process,
+                state="failed",
+                step="failed",
+                message="Description reformat failed.",
+                last_error=str(error),
+            )
+        raise
+    _invalidate_dashboard_views()
+    _refresh_daily_briefing(conn, trigger_source="scrape")
     return {
         "jobs_processed": len(jobs_to_process),
         "missing_only": missing_only,
         "message": "JD reformat completed.",
-        "finished_at": repository_now_iso(),
-    }
-
-
-def _run_prune(conn: Any, params: dict[str, Any], console: Console, *, apply: bool) -> dict[str, Any]:
-    days = max(1, int(params.get("days", 28) or 28))
-    affected = prune_not_applied_older_than_days(conn, days, dry_run=not apply)
-    console.print(f"[bold]{'Deleted' if apply else 'Would delete'}[/bold] {affected} job(s) older than {days} days")
-    return {
-        "days": days,
-        "affected": affected,
-        "applied": apply,
-        "message": f"{'Prune completed' if apply else 'Prune preview completed'} for jobs older than {days} days.",
         "finished_at": repository_now_iso(),
     }

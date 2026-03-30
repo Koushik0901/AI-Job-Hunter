@@ -11,24 +11,24 @@ export const AlertDialogPortal = AlertDialogPrimitive.Portal;
 export const AlertDialogAction = AlertDialogPrimitive.Action;
 export const AlertDialogCancel = AlertDialogPrimitive.Cancel;
 
-export function AlertDialogOverlay({
-  className,
-  ...props
-}: AlertDialogPrimitive.AlertDialogOverlayProps): JSX.Element {
-  return <AlertDialogPrimitive.Overlay className={joinClasses("ui-alert-dialog-overlay", className)} {...props} />;
-}
+export const AlertDialogOverlay = React.forwardRef<
+  React.ElementRef<typeof AlertDialogPrimitive.Overlay>,
+  AlertDialogPrimitive.AlertDialogOverlayProps
+>(function AlertDialogOverlay({ className, ...props }, ref): JSX.Element {
+  return <AlertDialogPrimitive.Overlay ref={ref} className={joinClasses("ui-alert-dialog-overlay", className)} {...props} />;
+});
 
-export function AlertDialogContent({
-  className,
-  ...props
-}: AlertDialogPrimitive.AlertDialogContentProps): JSX.Element {
+export const AlertDialogContent = React.forwardRef<
+  React.ElementRef<typeof AlertDialogPrimitive.Content>,
+  AlertDialogPrimitive.AlertDialogContentProps
+>(function AlertDialogContent({ className, ...props }, ref): JSX.Element {
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
-      <AlertDialogPrimitive.Content className={joinClasses("ui-alert-dialog-content", className)} {...props} />
+      <AlertDialogPrimitive.Content ref={ref} className={joinClasses("ui-alert-dialog-content", className)} {...props} />
     </AlertDialogPortal>
   );
-}
+});
 
 export function AlertDialogHeader({
   className,
@@ -57,4 +57,3 @@ export function AlertDialogDescription({
 }: AlertDialogPrimitive.AlertDialogDescriptionProps): JSX.Element {
   return <AlertDialogPrimitive.Description className={joinClasses("ui-alert-dialog-description", className)} {...props} />;
 }
-

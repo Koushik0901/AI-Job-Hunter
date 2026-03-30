@@ -15,6 +15,7 @@ ATS_URL_TEMPLATES: dict[str, str] = {
     "workable": "https://apply.workable.com/api/v3/accounts/{slug}/jobs",
     "smartrecruiters": "https://api.smartrecruiters.com/v1/companies/{slug}/postings",
     "recruitee": "https://{slug}.recruitee.com/api/offers",
+    "teamtailor": "https://{slug}.teamtailor.com/jobs",
 }
 
 _CORPORATE_SUFFIXES = {
@@ -33,6 +34,21 @@ _CORPORATE_SUFFIXES = {
 }
 
 _LOW_SIGNAL_ZERO_JOB_ATS = frozenset({"ashby", "workable", "smartrecruiters"})
+_BLOCKED_SOURCE_MARKERS = frozenset({"hiring.cafe", "hiring cafe"})
+
+
+def _blocked_source_reason(*values: str) -> str | None:
+    for value in values:
+        lowered = str(value or "").strip().lower()
+        if not lowered:
+            continue
+        if any(marker in lowered for marker in _BLOCKED_SOURCE_MARKERS):
+            return "blocked_source"
+    return None
+
+
+def _path_parts(path: str) -> list[str]:
+    return [part for part in path.split("/") if part]
 
 
 def candidate_slugs(name: str) -> list[str]:
@@ -71,32 +87,38 @@ def extract_slug_from_careers_url(value: str) -> tuple[str, str] | None:
 
     parsed = urlparse(raw)
     host = (parsed.netloc or "").lower()
-    parts = [part for part in parsed.path.split("/") if part]
+    if _blocked_source_reason(host):
+        return None
+    parts = _path_parts(parsed.path)
 
     if "apply.workable.com" in host and parts:
-        slug = parts[0].strip().lower()
-        if slug and slug not in {"api", "jobs"}:
+        slug = parts[0].strip()
+        if slug and slug.lower() not in {"api", "jobs"}:
             return ("workable", slug)
     if host.endswith(".recruitee.com"):
         slug = host.split(".")[0].strip().lower()
         if slug:
             return ("recruitee", slug)
     if "greenhouse.io" in host and parts:
-        slug = parts[0].strip().lower()
-        if slug and slug not in {"v1", "boards", "job-boards", "boards-api"}:
+        slug = parts[0].strip()
+        if slug and slug.lower() not in {"v1", "boards", "job-boards", "boards-api"}:
             return ("greenhouse", slug)
     if host.endswith("jobs.lever.co") and parts:
-        slug = parts[0].strip().lower()
+        slug = parts[0].strip()
         if slug:
             return ("lever", slug)
     if host.endswith("jobs.ashbyhq.com") and parts:
-        slug = parts[0].strip().lower()
+        slug = parts[0].strip()
         if slug:
             return ("ashby", slug)
     if host.endswith("apply.smartrecruiters.com") and parts:
-        slug = parts[0].strip().lower()
+        slug = parts[0].strip()
         if slug:
             return ("smartrecruiters", slug)
+    if host.endswith(".teamtailor.com"):
+        slug = host.split(".")[0].strip().lower()
+        if slug:
+            return ("teamtailor", slug)
     return None
 
 
@@ -111,10 +133,31 @@ def classify_probe_hit(hit: dict[str, Any]) -> str:
 
 
 def probe_company_sources(query: str, extra_slugs: list[str] | None = None) -> dict[str, Any]:
+    blocked_reason = _blocked_source_reason(query)
+    if blocked_reason:
+        return {
+            "query": query,
+            "company_name": "Hiring Cafe",
+            "slugs": ["hiring-cafe"],
+            "matches": [],
+            "zero_job_matches": [
+                {
+                    "name": "Hiring Cafe",
+                    "slug": "hiring-cafe",
+                    "ats_type": "blocked",
+                    "ats_url": "https://hiring.cafe",
+                    "jobs": 0,
+                    "low_signal": True,
+                    "suppressed_reason": blocked_reason,
+                }
+            ],
+            "inferred": {"ats_type": "blocked", "slug": "hiring-cafe"},
+        }
+
     inferred = extract_slug_from_careers_url(query)
     company_name = query
     url_templates = dict(ATS_URL_TEMPLATES)
-    supplied_slugs = [str(value).strip().lower() for value in (extra_slugs or []) if str(value).strip()]
+    supplied_slugs = [str(value).strip() for value in (extra_slugs or []) if str(value).strip()]
     if inferred:
         inferred_ats, inferred_slug = inferred
         if inferred_slug not in supplied_slugs:
@@ -169,10 +212,13 @@ def annotate_existing_company_sources(conn: Any, entries: list[dict[str, Any]]) 
 def save_company_source(conn: Any, entry: dict[str, Any]) -> dict[str, Any]:
     name = str(entry.get("name") or "").strip()
     ats_type = str(entry.get("ats_type") or "").strip().lower()
-    slug = str(entry.get("slug") or "").strip().lower()
+    slug = str(entry.get("slug") or "").strip()
     if not name or not ats_type or not slug:
         raise ValueError("name, ats_type, and slug are required")
     ats_url = str(entry.get("ats_url") or ATS_URL_TEMPLATES[ats_type].format(slug=slug)).strip()
+    blocked_reason = _blocked_source_reason(name, slug, ats_url)
+    if blocked_reason:
+        raise ValueError("Hiring Cafe is blocked and cannot be added as a company source")
     source = str(entry.get("source") or "manual").strip() or "manual"
     enabled = bool(entry.get("enabled", True))
     upsert_company_source(

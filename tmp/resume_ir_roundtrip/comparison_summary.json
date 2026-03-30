@@ -1,0 +1,85 @@
+{
+  "compile": {
+    "original_compile": {
+      "tex_path": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\tmp\\resume_ir_roundtrip\\original_source_copy.tex",
+      "target_pdf_path": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\tmp\\resume_ir_roundtrip\\original.pdf",
+      "generated_pdf": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\tmp\\resume_ir_roundtrip\\original_source_copy.pdf",
+      "log_path": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\tmp\\resume_ir_roundtrip\\original_source_copy.log",
+      "success": true,
+      "returncode": 0,
+      "stdout_tail": "Initial Win CP for (console input, console output, system): (CP437, CP65001, CP1252)\nI changed them all to CP1252\nRc files read:\n  NONE\nLatexmk: Nothing to do for 'original_source_copy.tex'.\n\n",
+      "stderr_tail": "Reverting Windows console CPs to (in,out) = (437,65001)\n"
+    },
+    "reconstructed_compile": {
+      "tex_path": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\tmp\\resume_ir_roundtrip\\reconstructed_resume.tex",
+      "target_pdf_path": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\tmp\\resume_ir_roundtrip\\reconstructed.pdf",
+      "generated_pdf": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\tmp\\resume_ir_roundtrip\\reconstructed_resume.pdf",
+      "log_path": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\tmp\\resume_ir_roundtrip\\reconstructed_resume.log",
+      "success": true,
+      "returncode": 0,
+      "stdout_tail": "Initial Win CP for (console input, console output, system): (CP437, CP65001, CP1252)\nI changed them all to CP1252\nRc files read:\n  NONE\nLatexmk: Nothing to do for 'reconstructed_resume.tex'.\n\n",
+      "stderr_tail": "Reverting Windows console CPs to (in,out) = (437,65001)\n"
+    }
+  },
+  "pdfs_ready": true,
+  "page_count_match": true,
+  "page_size_match": true,
+  "pages": [
+    {
+      "page": 1,
+      "image_size": [
+        1654,
+        2339
+      ],
+      "identical_pixels": 3868706,
+      "differing_pixels": 0,
+      "visually_identical": true,
+      "diff_bbox": null,
+      "original_png": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\tmp\\resume_ir_roundtrip\\page-001-original.png",
+      "reconstructed_png": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\tmp\\resume_ir_roundtrip\\page-001-reconstructed.png",
+      "diff_png": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\tmp\\resume_ir_roundtrip\\page-001-diff.png"
+    },
+    {
+      "page": 2,
+      "image_size": [
+        1654,
+        2339
+      ],
+      "identical_pixels": 3868706,
+      "differing_pixels": 0,
+      "visually_identical": true,
+      "diff_bbox": null,
+      "original_png": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\tmp\\resume_ir_roundtrip\\page-002-original.png",
+      "reconstructed_png": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\tmp\\resume_ir_roundtrip\\page-002-reconstructed.png",
+      "diff_png": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\tmp\\resume_ir_roundtrip\\page-002-diff.png"
+    }
+  ],
+  "original_page_count": 2,
+  "reconstructed_page_count": 2,
+  "page_sizes": [
+    {
+      "page": 1,
+      "original_size": [
+        595.276,
+        841.89
+      ],
+      "reconstructed_size": [
+        595.276,
+        841.89
+      ],
+      "size_match": true
+    },
+    {
+      "page": 2,
+      "original_size": [
+        595.276,
+        841.89
+      ],
+      "reconstructed_size": [
+        595.276,
+        841.89
+      ],
+      "size_match": true
+    }
+  ]
+}

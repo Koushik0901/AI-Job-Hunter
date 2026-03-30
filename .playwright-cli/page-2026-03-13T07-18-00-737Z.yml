@@ -1,0 +1,79 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - button "Toggle navigation" [ref=e4] [cursor=pointer]
+      - complementary [ref=e9]:
+        - navigation "Primary navigation" [ref=e10]:
+          - link "Board" [ref=e11] [cursor=pointer]:
+            - /url: /
+            - img [ref=e13]
+            - text: Board
+          - link "Artifacts" [ref=e17] [cursor=pointer]:
+            - /url: /artifacts
+            - img [ref=e19]
+            - text: Artifacts
+          - link "Analytics" [ref=e22] [cursor=pointer]:
+            - /url: /analytics
+            - img [ref=e24]
+            - text: Analytics
+          - link "Workspace" [ref=e29] [cursor=pointer]:
+            - /url: /workspace
+            - img [ref=e31]
+            - text: Workspace
+          - link "Evidence Vault" [ref=e34] [cursor=pointer]:
+            - /url: /evidence-vault
+            - img [ref=e36]
+            - text: Evidence Vault
+          - link "Profile" [ref=e39] [cursor=pointer]:
+            - /url: /profile
+            - img [ref=e41]
+            - text: Profile
+      - generic [ref=e63]:
+        - generic [ref=e64]:
+          - generic [ref=e65]:
+            - button "Back ↗" [ref=e66] [cursor=pointer]
+            - heading "Cover Letter (LaTeX)" [level=1] [ref=e67]
+            - paragraph [ref=e68]: Manual save + manual recompile workflow
+          - generic [ref=e69]:
+            - button "View JD ↗" [ref=e70] [cursor=pointer]
+            - combobox [ref=e71] [cursor=pointer]:
+              - generic: classic
+              - img [ref=e72]
+            - button "Download PDF !" [ref=e74] [cursor=pointer]
+            - button "AI Rewrite ↗" [ref=e75] [cursor=pointer]
+            - button "Save Draft +" [ref=e76] [cursor=pointer]
+            - button "Recompile ✓" [ref=e77] [cursor=pointer]
+        - generic [ref=e78]:
+          - generic [ref=e79]: Saved
+          - generic [ref=e80]: "Compile: ok"
+        - status [ref=e81]:
+          - paragraph [ref=e82]: "Missing recommended section tag: recipient"
+          - paragraph [ref=e83]: "Missing recommended section tag: opening"
+          - paragraph [ref=e84]: "Missing recommended section tag: body"
+          - paragraph [ref=e85]: "Missing recommended section tag: closing"
+        - generic [ref=e86]:
+          - generic [ref=e87]:
+            - heading "LaTeX Source" [level=3] [ref=e89]
+            - code [ref=e93]:
+              - generic [ref=e94]:
+                - textbox "Editor content"
+                - generic [ref=e115]: "1"
+                - generic [ref=e120]: \
+          - generic [ref=e97]:
+            - heading "Compiled PDF Preview" [level=3] [ref=e99]
+            - generic [ref=e100]:
+              - generic "Cover Letter PDF preview" [ref=e101]:
+                - generic [ref=e102]:
+                  - paragraph [ref=e103]: This browser could not render the inline PDF preview.
+                  - paragraph [ref=e104]:
+                    - text: Use
+                    - strong [ref=e105]: Download PDF
+                    - text: to inspect the latest compiled file.
+              - group [ref=e106]:
+                - generic "Compile diagnostics" [ref=e107]
+        - complementary [ref=e108]:
+          - generic [ref=e109]: Select a job card to inspect details.
+    - region "Notifications alt+T"
+  - generic [ref=e110]:
+    - alert
+    - alert

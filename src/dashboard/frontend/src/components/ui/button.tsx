@@ -14,14 +14,33 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   asChild?: boolean;
 }
 
-export function Button({
-  className,
-  variant = "default",
-  size = "default",
-  asChild = false,
-  ...props
-}: ButtonProps): JSX.Element {
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  {
+    className,
+    variant = "default",
+    size = "default",
+    asChild = false,
+    type,
+    ...props
+  },
+  ref,
+): JSX.Element {
   const Comp = asChild ? Slot : "button";
   const base = variant === "primary" ? "primary-btn" : "ghost-btn";
-  return <Comp className={joinClasses(base, size === "compact" ? "compact" : undefined, variant === "danger" ? "danger" : undefined, variant === "success" ? "success" : undefined, variant === "warn" ? "warn" : undefined, className)} {...props} />;
-}
+  const resolvedType = asChild ? undefined : (type ?? "button");
+  return (
+    <Comp
+      ref={ref}
+      className={joinClasses(
+        base,
+        size === "compact" ? "compact" : undefined,
+        variant === "danger" ? "danger" : undefined,
+        variant === "success" ? "success" : undefined,
+        variant === "warn" ? "warn" : undefined,
+        className,
+      )}
+      type={resolvedType}
+      {...props}
+    />
+  );
+});

@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from html import unescape
 from typing import Any
+from urllib.parse import urljoin, urlparse
 
 import requests
 
@@ -178,6 +179,155 @@ def fetch_recruitee(company_slug: str) -> list[dict[str, Any]]:
     if last_error is not None:
         raise last_error
     return []
+
+
+def _extract_teamtailor_job_urls(base_url: str, html_text: str) -> list[str]:
+    seen: set[str] = set()
+    urls: list[str] = []
+    for match in re.finditer(r'href=["\']([^"\']*/jobs/\d+(?:-[^"\']+)?)["\']', html_text, re.I):
+        href = str(match.group(1) or "").strip()
+        if not href:
+            continue
+        absolute = urljoin(base_url, href)
+        parsed = urlparse(absolute)
+        if parsed.scheme not in {"http", "https"}:
+            continue
+        if "/jobs/" not in parsed.path:
+            continue
+        cleaned = absolute.split("#", 1)[0]
+        cleaned = cleaned.split("?", 1)[0]
+        if cleaned in seen:
+            continue
+        seen.add(cleaned)
+        urls.append(cleaned)
+    return urls
+
+
+def _extract_teamtailor_job_posting(html_text: str) -> dict[str, Any]:
+    def _job_posting_candidate(value: Any) -> dict[str, Any] | None:
+        if not isinstance(value, dict):
+            return None
+        raw_type = value.get("@type")
+        if isinstance(raw_type, str) and raw_type.strip().lower() == "jobposting":
+            return value
+        if isinstance(raw_type, list):
+            for item in raw_type:
+                if str(item or "").strip().lower() == "jobposting":
+                    return value
+        graph = value.get("@graph")
+        if isinstance(graph, list):
+            for item in graph:
+                candidate = _job_posting_candidate(item)
+                if candidate:
+                    return candidate
+        return None
+
+    for match in re.finditer(
+        r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+        html_text,
+        re.I | re.S,
+    ):
+        raw = str(match.group(1) or "").strip()
+        if not raw:
+            continue
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        candidates: list[Any]
+        if isinstance(parsed, list):
+            candidates = parsed
+        else:
+            candidates = [parsed]
+        for item in candidates:
+            candidate = _job_posting_candidate(item)
+            if candidate:
+                return candidate
+    return {}
+
+
+def _extract_teamtailor_meta_fields(html_text: str) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    for label_raw, value_raw in re.findall(
+        r"<dt[^>]*>(.*?)</dt>\s*<dd[^>]*>(.*?)</dd>",
+        html_text,
+        re.I | re.S,
+    ):
+        label = strip_html(label_raw).strip().lower()
+        value = strip_html(value_raw).strip()
+        if label and value and label not in fields:
+            fields[label] = value
+    return fields
+
+
+def _teamtailor_location_from_job_posting(job_posting: dict[str, Any]) -> str:
+    raw_locations = job_posting.get("jobLocation")
+    if not raw_locations:
+        return ""
+    places = raw_locations if isinstance(raw_locations, list) else [raw_locations]
+    seen: set[str] = set()
+    locations: list[str] = []
+    for place in places:
+        if not isinstance(place, dict):
+            continue
+        address = place.get("address") or {}
+        if not isinstance(address, dict):
+            continue
+        parts = [
+            str(address.get("addressLocality") or "").strip(),
+            str(address.get("addressRegion") or "").strip(),
+            str(address.get("addressCountry") or "").strip(),
+        ]
+        location = ", ".join(part for part in parts if part)
+        if location and location not in seen:
+            seen.add(location)
+            locations.append(location)
+    return " | ".join(locations)
+
+
+@retry_with_backoff(max_attempts=3)
+def _fetch_teamtailor_job_detail(job_url: str) -> dict[str, Any]:
+    resp = requests.get(job_url, timeout=30)
+    resp.raise_for_status()
+    job_posting = _extract_teamtailor_job_posting(resp.text)
+    fields = _extract_teamtailor_meta_fields(resp.text)
+    location = fields.get("location") or fields.get("locations") or _teamtailor_location_from_job_posting(job_posting)
+    remote_status = fields.get("remote status") or fields.get("remote")
+    if remote_status:
+        remote_lower = remote_status.lower()
+        if location:
+            if remote_lower not in location.lower():
+                location = f"{location} ({remote_status})"
+        else:
+            location = remote_status
+    return {
+        **job_posting,
+        "url": job_posting.get("url") or job_url,
+        "location": location,
+        "employmentType": job_posting.get("employmentType") or fields.get("employment type") or "",
+    }
+
+
+@retry_with_backoff(max_attempts=3)
+def fetch_teamtailor(company_slug: str) -> list[dict[str, Any]]:
+    list_url = f"https://{company_slug}.teamtailor.com/jobs"
+    resp = requests.get(list_url, timeout=30)
+    resp.raise_for_status()
+    job_urls = _extract_teamtailor_job_urls(list_url, resp.text)
+    if not job_urls:
+        return []
+
+    detail_by_url: dict[str, dict[str, Any]] = {}
+    with ThreadPoolExecutor(max_workers=min(8, len(job_urls))) as executor:
+        future_map = {executor.submit(_fetch_teamtailor_job_detail, job_url): job_url for job_url in job_urls}
+        for future in as_completed(future_map):
+            job_url = future_map[future]
+            try:
+                detail_by_url[job_url] = future.result()
+            except requests.RequestException as exc:
+                logger.warning("Failed to fetch Teamtailor job detail for %s: %s", job_url, exc)
+
+    return [detail_by_url[job_url] for job_url in job_urls if job_url in detail_by_url]
 
 
 # ---------------------------------------------------------------------------
@@ -478,6 +628,19 @@ def normalize_recruitee(raw: dict[str, Any], company: str) -> dict[str, Any]:
         "description": strip_html(str(description)) if description else "",
         "_company_slug": slug,
         "_offer_id": offer_id,
+    }
+
+
+def normalize_teamtailor(raw: dict[str, Any], company: str) -> dict[str, Any]:
+    description = raw.get("description") or ""
+    return {
+        "company": company,
+        "title": raw.get("title", ""),
+        "location": str(raw.get("location") or ""),
+        "url": str(raw.get("url") or ""),
+        "posted": _normalize_datetime(raw.get("datePosted")),
+        "ats": "teamtailor",
+        "description": strip_html(str(description)) if description else "",
     }
 
 

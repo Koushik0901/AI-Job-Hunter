@@ -26,6 +26,8 @@ def slug_to_ats_url(slug: str, ats_type: str) -> str:
         return f"https://api.smartrecruiters.com/v1/companies/{slug}/postings"
     if ats_type == "recruitee":
         return f"https://{slug}.recruitee.com/api/offers"
+    if ats_type == "teamtailor":
+        return f"https://{slug}.teamtailor.com/jobs"
     raise ValueError(f"Unknown ats_type: {ats_type}")
 
 
@@ -59,6 +61,13 @@ def parse_companies_from_html_table(text: str) -> list[tuple[str, str, str]]:
             if key not in seen_entries:
                 seen_entries.add(key)
                 results.append((company_name, "recruitee", slug))
+        tt_m = re.search(r"https?://([A-Za-z0-9-]+)\.teamtailor\.com(?:/[^\"' <]*)?", row)
+        if tt_m:
+            slug = tt_m.group(1)
+            key = ("teamtailor", slug.lower())
+            if key not in seen_entries:
+                seen_entries.add(key)
+                results.append((company_name, "teamtailor", slug))
     return results
 
 
@@ -111,6 +120,13 @@ def parse_companies_from_simplify(text: str) -> list[tuple[str, str, str]]:
             if key not in seen_entries:
                 seen_entries.add(key)
                 results.append((company_name, "recruitee", slug))
+        tt_m = re.search(r"https?://([A-Za-z0-9-]+)\.teamtailor\.com(?:/[^\"' <]*)?", row)
+        if tt_m:
+            slug = tt_m.group(1)
+            key = ("teamtailor", slug.lower())
+            if key not in seen_entries:
+                seen_entries.add(key)
+                results.append((company_name, "teamtailor", slug))
     return results
 
 
@@ -120,7 +136,8 @@ def parse_companies_from_markdown(text: str) -> list[tuple[str, str, str]]:
     gh_pat = re.compile(r"([^\n]*boards\.greenhouse\.io/([A-Za-z0-9_-]+)[^\n]*)")
     lv_pat = re.compile(r"([^\n]*jobs\.lever\.co/([A-Za-z0-9_-]+)[^\n]*)")
     rq_pat = re.compile(r"([^\n]*https?://([A-Za-z0-9-]+)\.recruitee\.com(?:/[^\s\)]*)?[^\n]*)")
-    for pat, ats_type in ((gh_pat, "greenhouse"), (lv_pat, "lever"), (rq_pat, "recruitee")):
+    tt_pat = re.compile(r"([^\n]*https?://([A-Za-z0-9-]+)\.teamtailor\.com(?:/[^\s\)]*)?[^\n]*)")
+    for pat, ats_type in ((gh_pat, "greenhouse"), (lv_pat, "lever"), (rq_pat, "recruitee"), (tt_pat, "teamtailor")):
         for m in pat.finditer(text):
             ctx, slug = m.group(1), m.group(2)
             key = (ats_type, slug.lower())

@@ -12,16 +12,17 @@ from fetchers import (
     enrich_descriptions,
     fetch_ashby,
     fetch_greenhouse,
-    fetch_hn_jobs,
     fetch_lever,
     fetch_recruitee,
     fetch_smartrecruiters,
+    fetch_teamtailor,
     fetch_workable,
     normalize_ashby,
     normalize_greenhouse,
     normalize_lever,
     normalize_recruitee,
     normalize_smartrecruiters,
+    normalize_teamtailor,
     normalize_workable,
 )
 
@@ -90,6 +91,7 @@ FETCHERS = {
     "workable": (fetch_workable, normalize_workable),
     "smartrecruiters": (fetch_smartrecruiters, normalize_smartrecruiters),
     "recruitee": (fetch_recruitee, normalize_recruitee),
+    "teamtailor": (fetch_teamtailor, normalize_teamtailor),
 }
 
 
@@ -141,15 +143,7 @@ def passes_location_filter(location: str) -> bool:
 
 def _passes_job_title_filter(job: dict[str, Any], title_ok) -> bool:
     title = str(job.get("title", "") or "")
-    if title_ok(title):
-        return True
-    if str(job.get("ats", "") or "") == "hn_hiring":
-        description = str(job.get("description", "") or "").lower()
-        title_lower = title.lower()
-        if any(kw in title_lower for kw in TITLE_EXCLUDE):
-            return False
-        return any(kw in description for kw in TITLE_INCLUDE)
-    return False
+    return title_ok(title)
 
 
 def extract_slug(ats_url: str, ats_type: str) -> str:
@@ -170,6 +164,10 @@ def extract_slug(ats_url: str, ats_type: str) -> str:
     if ats == "recruitee":
         host = urlparse(ats_url).hostname or ""
         if host.endswith(".recruitee.com"):
+            return host.split(".")[0]
+    if ats == "teamtailor":
+        host = urlparse(ats_url).hostname or ""
+        if host.endswith(".teamtailor.com"):
             return host.split(".")[0]
     return parts[-1]
 
@@ -243,25 +241,6 @@ def scrape_all(
             if apply_location_filter and not passes_location_filter(job["location"]):
                 continue
             results.append(job)
-
-    try:
-        hn_jobs = fetch_hn_jobs()
-        hn_added = 0
-        for job in hn_jobs:
-            if not _passes_job_title_filter(job, title_ok):
-                continue
-            if apply_location_filter and not passes_location_filter(job["location"]):
-                continue
-            url = job.get("url", "")
-            if url and url in seen_urls:
-                continue
-            if url:
-                seen_urls.add(url)
-            results.append(job)
-            hn_added += 1
-        console.print(f"  [green]HN Who is Hiring: {hn_added} jobs added[/green]")
-    except Exception as e:
-        console.print(f"  [yellow]HN fetch failed (skipping): {e}[/yellow]")
 
     results.sort(key=lambda j: j.get("posted") or "", reverse=True)
 

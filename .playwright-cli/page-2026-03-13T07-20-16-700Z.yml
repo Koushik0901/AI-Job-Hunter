@@ -1,0 +1,385 @@
+- generic:
+  - generic:
+    - generic:
+      - button
+      - complementary:
+        - navigation:
+          - link:
+            - /url: /
+            - generic:
+              - img
+            - text: Board
+          - link:
+            - /url: /artifacts
+            - generic:
+              - img
+            - text: Artifacts
+          - link:
+            - /url: /analytics
+            - generic:
+              - img
+            - text: Analytics
+          - link:
+            - /url: /workspace
+            - generic:
+              - img
+            - text: Workspace
+          - link:
+            - /url: /evidence-vault
+            - generic:
+              - img
+            - text: Evidence Vault
+          - link:
+            - /url: /profile
+            - generic:
+              - img
+            - text: Profile
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - button: Back ↗
+                - heading [level=1]: Cover Letter (LaTeX)
+                - paragraph: Manual save + manual recompile workflow
+              - generic:
+                - button: View JD ↗
+                - combobox:
+                  - generic: classic
+                  - img
+                - button: Download PDF !
+                - button: AI Rewrite ↗
+                - button: Save Draft +
+                - button: Recompile ✓
+            - generic:
+              - generic: Saved
+              - generic: "Compile: ok"
+            - status:
+              - paragraph: "Missing recommended section tag: recipient"
+              - paragraph: "Missing recommended section tag: opening"
+              - paragraph: "Missing recommended section tag: body"
+              - paragraph: "Missing recommended section tag: closing"
+            - generic:
+              - generic:
+                - generic:
+                  - heading [level=3]: LaTeX Source
+                - generic:
+                  - generic:
+                    - generic:
+                      - code:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "1"
+                              - generic:
+                                - generic: "2"
+                              - generic:
+                                - generic: "3"
+                              - generic:
+                                - generic: "4"
+                              - generic:
+                                - generic: "5"
+                              - generic:
+                                - generic: "6"
+                              - generic:
+                                - generic: "7"
+                              - generic:
+                                - generic: "8"
+                              - generic:
+                                - generic: "9"
+                              - generic:
+                                - generic: "10"
+                              - generic:
+                                - generic: "11"
+                              - generic:
+                                - generic: "12"
+                              - generic:
+                                - generic: "13"
+                              - generic:
+                                - generic: "14"
+                              - generic:
+                                - generic: 
+                                - generic: "15"
+                              - generic:
+                                - generic: "16"
+                              - generic:
+                                - generic: "17"
+                              - generic:
+                                - generic: "18"
+                              - generic:
+                                - generic: "19"
+                              - generic:
+                                - generic: 
+                                - generic: "20"
+                              - generic:
+                                - generic: "21"
+                              - generic:
+                                - generic: "22"
+                              - generic:
+                                - generic: "23"
+                              - generic:
+                                - generic: "24"
+                              - generic:
+                                - generic: "25"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "\\documentclass[12pt,a4paper,sans]{moderncv} % Changed to 12pt"
+                              - generic:
+                                - generic: "\\moderncvstyle{banking}"
+                              - generic:
+                                - generic: "\\moderncvcolor{black}"
+                              - generic:
+                                - generic: "\\nopagenumbers{}"
+                              - generic:
+                                - generic: "\\usepackage[sfdefault]{roboto}"
+                              - generic:
+                                - generic: "\\usepackage[hidelinks]{hyperref}"
+                              - generic:
+                                - generic: "\\usepackage{fontawesome5}"
+                              - generic:
+                                - generic: "\\usepackage[utf8]{inputenc}"
+                              - generic:
+                                - generic: "\\usepackage{ragged2e}"
+                              - generic:
+                                - generic: \usepackage[left=1.2cm, right=1.2cm, top=1.2cm, bottom=1.2cm]
+                              - generic:
+                                - generic: "{geometry}"
+                              - generic:
+                                - generic: "\\usepackage{xcolor}"
+                              - generic:
+                                - generic: "\\definecolor{customblue}{HTML}{1A73E8} % You can change this"
+                              - generic:
+                                - generic: hex code for any blue you like
+                              - generic:
+                                - generic: "\\name{\\fontsize{22}{16}\\selectfont Koushik}{\\fontsize{22}{16}"
+                              - generic:
+                                - generic: "\\selectfont Sivarama Krishnan}"
+                              - generic:
+                                - generic: "\\newcommand*{\\customcventry}[7][.13em]{"
+                              - generic:
+                                - generic: "\\begin{tabular}{@{}l}"
+                              - generic:
+                                - generic: "{\\bfseries #4} \\\\"
+                              - generic:
+                                - generic: "{\\itshape #3}"
+                              - generic:
+                                - generic: "\\end{tabular}"
+                              - generic:
+                                - generic: \hfill
+                              - generic:
+                                - generic: "\\begin{tabular}{l@{}}"
+                              - generic:
+                                - generic: "{\\bfseries #5} \\\\"
+                              - generic:
+                                - generic: "{\\itshape #2}"
+                              - generic:
+                                - generic: "\\end{tabular}"
+                              - generic:
+                                - generic: \ifx&#7&%
+                              - generic:
+                                - generic: "\\else{\\"
+              - generic:
+                - generic:
+                  - heading [level=3]: Compiled PDF Preview
+                - generic:
+                  - generic:
+                    - generic:
+                      - paragraph: This browser could not render the inline PDF preview.
+                      - paragraph:
+                        - text: Use
+                        - strong: Download PDF
+                        - text: to inspect the latest compiled file.
+                  - group:
+                    - generic: Compile diagnostics
+            - complementary:
+              - generic: Select a job card to inspect details.
+    - region "Notifications alt+T"
+  - dialog "Cover Letter AI Rewrite" [ref=e266]:
+    - generic [ref=e267]:
+      - heading "Cover Letter AI Rewrite" [level=2] [ref=e268]
+      - paragraph [ref=e269]: Review the live tailoring run, then confirm the generated draft only after the preview and score changes look correct.
+    - generic [ref=e270]:
+      - generic [ref=e271]:
+        - generic [ref=e272]: Running
+        - generic [ref=e273]: Final Scoring
+        - generic [ref=e396]: Score 81/100
+        - generic [ref=e397]: Delta +0
+      - progressbar [ref=e274]
+      - generic [ref=e276]:
+        - generic [ref=e277]:
+          - generic [ref=e278]:
+            - heading "AI Timeline" [level=3] [ref=e279]
+            - generic [ref=e280]:
+              - button "All +" [active] [ref=e281] [cursor=pointer]
+              - button "Evidence Only ↗" [ref=e282] [cursor=pointer]
+          - generic [ref=e283]:
+            - article [ref=e284]:
+              - generic [ref=e285]:
+                - paragraph [ref=e286]: Queued
+                - generic [ref=e287]: "#1"
+              - paragraph [ref=e288]: AI rewrite queued.
+            - article [ref=e316]:
+              - generic [ref=e317]:
+                - paragraph [ref=e318]: Jd Decompose
+                - generic [ref=e319]: "#2"
+              - paragraph [ref=e320]: Decomposing job description for cover letter
+              - generic [ref=e321]:
+                - generic [ref=e322]: "role_title_hint: AI Automation Engineer"
+                - generic [ref=e323]: "top_outcomes: 5"
+                - generic [ref=e324]: "fit_signals: 5"
+                - generic [ref=e325]: "company_signals: 5"
+            - article [ref=e326]:
+              - generic [ref=e327]:
+                - paragraph [ref=e328]: Evidence Mine
+                - generic [ref=e329]: "#3"
+              - paragraph [ref=e330]: Mining grounded evidence for cover letter
+              - generic [ref=e331]:
+                - article [ref=e332]:
+                  - generic [ref=e333]:
+                    - strong [ref=e334]: brag:4
+                    - button "Copy ID ↗" [ref=e335] [cursor=pointer]
+                    - generic [ref=e336]: brag_document · paragraph_4
+                    - generic [ref=e337]: score 31.00
+                  - paragraph [ref=e338]: "- Built and deployed an in-house agentic AI assistant for insurance claims adjusters using FastAPI, LangChain, Milvus, MCP servers, and Azure Kubernetes Service. - Reduced knowledge retrieval time by 60%, supported 100+"
+                - article [ref=e339]:
+                  - generic [ref=e340]:
+                    - strong [ref=e341]: project:1
+                    - button "Copy ID ↗" [ref=e342] [cursor=pointer]
+                    - generic [ref=e343]: project_card · ICBC In-House Agentic AI Assistant for Claims Adjusters
+                    - generic [ref=e344]: score 22.00
+                  - paragraph [ref=e345]: "title: ICBC In-House Agentic AI Assistant for Claims Adjusters role: Co-op Data Scientist summary: Built and deployed an enterprise RAG-based AI assistant for insurance claims adjusters to reduce time spent searching pol"
+                - article [ref=e346]:
+                  - generic [ref=e347]:
+                    - strong [ref=e348]: brag:16
+                    - button "Copy ID ↗" [ref=e349] [cursor=pointer]
+                    - generic [ref=e350]: brag_document · paragraph_16
+                    - generic [ref=e351]: score 20.00
+                  - paragraph [ref=e352]: "- User-centered discovery before architecture: repeatedly starts by observing workflows and asking domain experts how work actually gets done. - Grounded and trustworthy AI: values citations, evaluation, confidence signa"
+                - article [ref=e353]:
+                  - generic [ref=e354]:
+                    - strong [ref=e355]: brag:2
+                    - button "Copy ID ↗" [ref=e356] [cursor=pointer]
+                    - generic [ref=e357]: brag_document · paragraph_2
+                    - generic [ref=e358]: score 20.00
+                  - paragraph [ref=e359]: Koushik Sivarama Krishnan is a machine learning engineer / applied AI engineer with 3+ years of experience building production ML, computer vision, speech, and retrieval-augmented AI systems. His strongest pattern across
+            - article [ref=e398]:
+              - generic [ref=e399]:
+                - paragraph [ref=e400]: Narrative Plan
+                - generic [ref=e401]: "#4"
+              - paragraph [ref=e402]: Planning cover-letter narrative
+            - article [ref=e403]:
+              - generic [ref=e404]:
+                - paragraph [ref=e405]: Initial Scoring
+                - generic [ref=e406]: "#5"
+              - paragraph [ref=e407]: Scoring baseline cover letter
+            - article [ref=e408]:
+              - generic [ref=e409]:
+                - paragraph [ref=e410]: Plan Cycle 1
+                - generic [ref=e411]: "#6"
+              - paragraph [ref=e412]: Planning cover letter edits for cycle 1
+              - generic [ref=e413]:
+                - generic [ref=e414]: "Planned fixes: 0"
+                - generic [ref=e415]: "Deferred: 3"
+            - article [ref=e416]:
+              - generic [ref=e417]:
+                - paragraph [ref=e418]: Rewrite Cycle 1
+                - generic [ref=e419]: "#7"
+              - paragraph [ref=e420]: Rewriting cover letter for cycle 1
+            - article [ref=e421]:
+              - generic [ref=e422]:
+                - paragraph [ref=e423]: Tone Guard
+                - generic [ref=e424]: "#8"
+              - paragraph [ref=e425]: Running tone guard checks
+              - generic [ref=e426]:
+                - generic [ref=e427]: "Triggered: yes"
+                - generic [ref=e428]: "Signals: 0"
+            - article [ref=e429]:
+              - generic [ref=e430]:
+                - paragraph [ref=e431]: Move Verification
+                - generic [ref=e432]: "#9"
+              - paragraph [ref=e433]: Verifying cover letter legal moves
+            - article [ref=e434]:
+              - generic [ref=e435]:
+                - paragraph [ref=e436]: Apply Cycle 1
+                - generic [ref=e437]: "#10"
+              - paragraph [ref=e438]: Applying rewrite moves for cycle 1
+            - article [ref=e439]:
+              - generic [ref=e440]:
+                - paragraph [ref=e441]: Controller
+                - generic [ref=e442]: "#11"
+              - paragraph [ref=e443]: "Cycle 1: force continue (non-negotiable or tone guard)"
+              - generic [ref=e444]:
+                - generic [ref=e445]: "Triggered: yes"
+                - generic [ref=e446]: "Signals: 0"
+            - article [ref=e447]:
+              - generic [ref=e448]:
+                - paragraph [ref=e449]: Final Scoring
+                - generic [ref=e450]: "#12"
+              - paragraph [ref=e451]: Running final cover letter scoring pass
+        - generic [ref=e289]:
+          - article [ref=e290]:
+            - heading "Retrieved Evidence" [level=4] [ref=e291]
+            - generic [ref=e360]:
+              - generic [ref=e361]: "Algorithm: hybrid_v1"
+              - generic [ref=e362]: "lexical: lexical_overlap_v1"
+              - generic [ref=e363]: "qdrant: qdrant_error"
+            - list [ref=e364]:
+              - listitem [ref=e365]:
+                - generic [ref=e366]:
+                  - strong [ref=e367]: brag:4
+                  - button "Copy ↗" [ref=e368] [cursor=pointer]
+                - generic [ref=e369]: brag_document · paragraph_4
+                - generic [ref=e370]: "- Built and deployed an in-house agentic AI assistant for insurance claims adjusters using FastAPI, LangChain, Milvus, MCP servers, and Azure Kubernetes Service. - Reduced knowledg"
+              - listitem [ref=e371]:
+                - generic [ref=e372]:
+                  - strong [ref=e373]: project:1
+                  - button "Copy ↗" [ref=e374] [cursor=pointer]
+                - generic [ref=e375]: project_card · ICBC In-House Agentic AI Assistant for Claims Adjusters
+                - generic [ref=e376]: "title: ICBC In-House Agentic AI Assistant for Claims Adjusters role: Co-op Data Scientist summary: Built and deployed an enterprise RAG-based AI assistant for insurance claims adju"
+              - listitem [ref=e377]:
+                - generic [ref=e378]:
+                  - strong [ref=e379]: brag:16
+                  - button "Copy ↗" [ref=e380] [cursor=pointer]
+                - generic [ref=e381]: brag_document · paragraph_16
+                - generic [ref=e382]: "- User-centered discovery before architecture: repeatedly starts by observing workflows and asking domain experts how work actually gets done. - Grounded and trustworthy AI: values"
+              - listitem [ref=e383]:
+                - generic [ref=e384]:
+                  - strong [ref=e385]: brag:2
+                  - button "Copy ↗" [ref=e386] [cursor=pointer]
+                - generic [ref=e387]: brag_document · paragraph_2
+                - generic [ref=e388]: Koushik Sivarama Krishnan is a machine learning engineer / applied AI engineer with 3+ years of experience building production ML, computer vision, speech, and retrieval-augmented
+              - listitem [ref=e389]:
+                - generic [ref=e390]:
+                  - strong [ref=e391]: project:5
+                  - button "Copy ↗" [ref=e392] [cursor=pointer]
+                - generic [ref=e393]: project_card · Drive Analytics MLB / MiLB Video Analytics Pipeline
+                - generic [ref=e394]: "title: Drive Analytics MLB / MiLB Video Analytics Pipeline role: Computer Vision Intern summary: Built production computer vision systems for baseball analytics where outputs had t"
+          - article [ref=e293]:
+            - heading "Target Spec" [level=4] [ref=e294]
+            - generic [ref=e395]: "{ \"role_title_hint\": \"AI Automation Engineer\", \"top_outcomes\": [ \"Design and build internal AI‑driven tools that improve software development and operations workflows\", \"Translate operational needs into well‑structured, maintainable full‑stack applications and services\", \"Implement reliable AI workflows with prompting, business logic, validation, retries, and fallbacks\", \"Integrate AI solutions with existing systems, databases, and internal services\", \"Maintain and evolve the tools through observability and error handling\" ], \"fit_signals\": [ \"Proven experience building applications with LLM APIs (e.g., OpenAI, Gemini, Anthropic)\", \"Full‑stack web development skills (HTML, CSS, JavaScript, React, Node.js)\", \"SQL database design and querying experience\", \"Proficiency with Git and collaborative development workflows\", \"Strong communication and ability to work both independently and in teams\" ], \"company_signals\": [ \"On‑site role based in Calgary, AB\", \"Collaborative and energetic workplace culture\", \"Comprehensive health, dental, and wellness benefits\", \"Company contribution to Retirement Savings Plan\", \"Opportunities for internal growth through assessments and training\" ], \"tone_signals\": [ \"Hands‑on, practical focus\", \"AI‑first development mindset\", \"Emphasis on clear communication\", \"Encouragement of independent problem‑solving\", \"Collaborative tone\" ], \"risk_signals\": [ \"Requirement to work on‑site in Calgary may limit remote candidates\", \"Must have proven experience with LLM API integration\", \"Expectations for full‑stack delivery including backend services, APIs, and UI\", \"Responsibility for reliable AI workflow with validation, retries, and fallbacks\", \"Need to integrate solutions with existing internal systems and databases\" ] }"
+          - article [ref=e296]:
+            - heading "Narrative Plan" [level=4] [ref=e297]
+            - generic [ref=e452]: "{ \"opening_angle\": \"AI‑first engineer who builds trustworthy, production‑ready LLM tools that streamline internal workflows\", \"proof_story_1\": { \"label\": \"Built trusted RAG assistant for ICBC claims adjusters\", \"goal\": \"Showcases end‑to‑end design and delivery of a full‑stack, LLM‑powered tool that reduced retrieval time by 60%, integrated FastAPI, LangChain, and Azure services, and emphasized transparent citations and confidence signals—directly matching the role’s AI‑driven tooling and full‑stack expectations\", \"supporting_citations\": [ \"brag:4\", \"project:1\", \"brag:16\" ] }, \"proof_story_2\": { \"label\": \"Handled production deployment crisis with rollback and monitoring\", \"goal\": \"Demonstrates implementation of reliable AI workflows with robust validation, retries, fallbacks, and observability (rollback plan, health checks, staged rollout) ensuring 99.2% uptime, aligning with the position’s reliability and error‑handling requirements\", \"supporting_citations\": [ \"brag:4\", \"brag:16\" ] }, \"why_company_angle\": \"Based in Edmonton, I’m within a short commute to Calgary for on‑site work, and my collaborative, mentorship‑focused style aligns with the team’s energetic culture and emphasis on clear communication and independent problem‑solving\", \"closing_intent\": \"I’m excited to discuss how my experience building production AI tools can accelerate your internal workflows and contribute to the Calgary team’s success\", \"tone_guardrails\": [ \"hands‑on\", \"clear communication\", \"focus on impact\", \"concise\", \"professional\", \"team‑oriented\" ] }"
+          - article [ref=e299]:
+            - heading "Edit Plan" [level=4] [ref=e300]
+            - generic [ref=e453]: "{ \"selected_fixes\": [], \"deferred_fix_ids\": [ \"FP1\", \"FP2\", \"FP3\" ], \"edit_budget_summary\": { \"max_fixes_this_cycle\": 0, \"max_ops_this_cycle\": 0, \"max_changed_lines\": 0 }, \"planner_notes\": [ \"All three planned fixes require company-specific or front-end evidence not present in the selected evidence pack.\", \"Cannot attach required citations; therefore all fixes are deferred.\" ] }"
+          - article [ref=e302]:
+            - heading "Latest Score" [level=4] [ref=e303]
+            - generic [ref=e454]: "{ \"Total_Score\": 81, \"Breakdown\": { \"Personalization_Intent\": 15, \"Narrative_Fit\": 22, \"Evidence_Credibility\": 18, \"Tone_Clarity_Human\": 17, \"Structure_Skimmability\": 9 }, \"Cover_Letter_Success_Map\": { \"Top_Role_Outcomes\": [ \"Design and deliver AI‑first internal tools that integrate LLM APIs\", \"Implement reliable AI workflows with validation, retries, fallbacks and observability\", \"Full‑stack delivery (backend services, APIs, UI) and integration with existing systems\" ], \"Fit_Signals_To_Demonstrate\": [ \"Motivation for the specific company and on‑site collaboration\", \"Concrete experience building production LLM‑driven assistants with reliability features\", \"User‑centered discovery, ownership, and clear communication style\" ], \"Company_Signals_From_JD\": [ \"Collaborative and energetic workplace culture\", \"On‑site requirement in Calgary\", \"Emphasis on learning new tools and taking on challenges\" ], \"Potential_Risks_To_Address\": [ \"Current residence in Edmonton – relocation needed\", \"Limited explicit front‑end (React/HTML/CSS) experience\", \"LLM experience focused on OpenAI/LangChain, not Gemini/Anthropic\" ] }, \"Evidence\": { \"Why_Company_Evidence\": [], \"Why_Role_Evidence\": [ \"The focus on AI‑first, end‑to‑end tool development aligns perfectly with my recent work delivering production LLM‑driven assistants\", \"I’m eager to bring that hands‑on mindset to a collaborative, on‑site team\" ], \"Proof_Examples_Evidence\": [ \"At the Insurance Corporation of British Columbia I started by shadowing claims adjusters to see how searching policy manuals slowed live calls. I then designed and shipped an agentic AI assistant using FastAPI, LangChain, Milvus and Azure Kubernetes Service. The system cut knowledge‑retrieval time by 60%, served over 100 adjusters with 500+ daily queries, and maintained about 99.2% uptime thanks to built‑in retry logic, circuit‑breaker patterns, and a continuous evaluation harness covering accuracy, faithfulness, latency and bias. Transparent source citations and confidence signals turned early skepticism into steady adoption.\", \"Earlier, as a Computer Vision Intern at Drive Analytics, I built a production video‑analytics pipeline for baseball that processed roughly 10,000 clips per day within a two‑hour turnaround. Using AWS, Docker, Celery and RabbitMQ I integrated detection, tracking and event‑timing logic, and added health checks, structured logging and automated rollback procedures to guarantee reliable outputs despite variable camera angles and lighting.\" ], \"Tone_Voice_Evidence\": [ \"I’m excited to apply for the AI Automation Engineer role in Calgary.\", \"I look forward to discussing how my track record of turning AI concepts into trustworthy, observable tools can accelerate your internal automation roadmap.\" ] }, \"Critical_Feedback\": [ \"Add a concrete reference to the company (name, product, or mission) to prove genuine interest.\", \"Mention any front‑end experience or a clear plan to acquire React/HTML/CSS skills, since the JD expects full‑stack capability.\", \"Replace generic template phrases (e.g., “I’m excited to apply…”, “I look forward to discussing…”) with more specific, role‑focused language.\" ], \"Fluff_Detected\": [ \"\\\"I’m excited to apply for the AI Automation Engineer role in Calgary.\\\"\", \"\\\"I look forward to discussing how my track record of turning AI concepts into trustworthy, observable tools can accelerate your internal automation roadmap.\\\"\" ], \"Generic_Template_Signals\": [ \"\\\"I’m excited to apply for the AI Automation Engineer role in Calgary.\\\"\", \"\\\"I look forward to discussing how my track record...\\\"\" ], \"Resume_Rehash_Sections\": [], \"Missing_Elements\": [ \"No explicit mention of the company's name or specific product/mission.\", \"No demonstration of front‑end (React/HTML/CSS) experience or learning plan.\", \"No direct tie to the energetic culture beyond a vague “collaborative, on‑site team” phrase.\" ], \"High_Leverage_Sections_To_Edit\": [ { \"section_hint\": \"Opening paragraph line 1\", \"why\": \"Lacks company‑specific personalization; appears generic.\", \"goal\": \"Insert the company's name and a concrete reason why their AI automation vision excites you.\" }, { \"section_hint\": \"Closing paragraph\", \"why\": \"Uses a generic call‑to‑action; misses chance to reaffirm fit with culture and on‑site requirement.\", \"goal\": \"Add a brief statement about contributing to the collaborative, energetic culture and confirming relocation readiness.\" } ], \"Fix_Plan\": [ { \"fix_id\": \"FP1\", \"priority\": 1, \"expected_score_gain\": 6, \"category\": \"Personalization_Intent\", \"location_hint\": \"Opening paragraph, first sentence\", \"problem\": \"No company name or specific product mentioned; generic opening.\", \"required_evidence\": \"Exact company name and a concrete reason (e.g., “I’m impressed by XYZ’s AI‑driven internal tooling platform that …”)\", \"rewrite_goal\": \"Replace generic opening with: \\\"I’m excited to apply for the AI Automation Engineer role at [Company Name] because your commitment to building AI‑first internal tools that streamline software development resonates with my experience delivering production LLM assistants for ICBC.\\\"\" }, { \"fix_id\": \"FP2\", \"priority\": 2, \"expected_score_gain\": 4, \"category\": \"Narrative_Fit\", \"location_hint\": \"Closing paragraph\", \"problem\": \"Does not address front‑end skill gap or learning plan.\", \"required_evidence\": \"A brief statement showing awareness of required React/HTML/CSS skills and a plan to acquire or apply them.\", \"rewrite_goal\": \"Add: \\\"While my recent work has focused on backend services, I have already begun upskilling in React and modern JavaScript frameworks to ensure I can deliver full‑stack solutions that meet your UI requirements.\\\"\" }, { \"fix_id\": \"FP3\", \"priority\": 3, \"expected_score_gain\": 3, \"category\": \"Tone_Clarity_Human\", \"location_hint\": \"Opening and closing sentences\", \"problem\": \"Contains generic template language that reduces human voice.\", \"required_evidence\": \"More specific, personal phrasing that ties back to the role.\", \"rewrite_goal\": \"Replace \\\"I’m excited to apply…\\\" with a sentence that references a recent company news or product, and replace \\\"I look forward to discussing…\\\" with \\\"I would welcome the opportunity to discuss how my experience building reliable AI‑first tools can directly support your automation roadmap.\\\"\" } ], \"Non_Negotiables\": [ \"The letter must name the target company and reference a specific aspect of its mission or product.\", \"It must address the full‑stack requirement by mentioning front‑end experience or a concrete learning plan.\", \"All quantitative claims must remain exactly as grounded in the evidence (e.g., 60% retrieval‑time reduction, 99.2% uptime).\" ] }"
+          - article [ref=e305]:
+            - heading "Latest AI Rewrite" [level=4] [ref=e306]
+            - generic [ref=e455]: "{ \"applied_fix_ids\": [], \"skipped_fix_ids\": [ { \"fix_id\": \"FP1\", \"why\": \"Would require inserting a specific company name and mission detail that are not present in the provided evidence.\" }, { \"fix_id\": \"FP2\", \"why\": \"Would need concrete front‑end (React/HTML/CSS) experience or a verifiable learning plan not supported by the available evidence.\" }, { \"fix_id\": \"FP3\", \"why\": \"Would replace generic template language with specific phrasing referencing company news or product, which lacks citation in the evidence.\" } ], \"moves\": [] }"
+          - article [ref=e308]:
+            - heading "Tone Guard" [level=4] [ref=e309]
+            - generic [ref=e456]: "{ \"triggered\": true, \"issues\": [ \"too_many_long_sentences\", \"comma_density_high\" ], \"metrics\": { \"sentence_count\": 12, \"avg_sentence_words\": 22.67, \"long_sentence_count\": 3, \"comma_density\": 7.35, \"skills_list_pattern_count\": 0, \"cliches_found\": [] } }"
+          - article [ref=e311]:
+            - heading "Latest Apply Report" [level=4] [ref=e312]
+            - generic [ref=e457]:
+              - generic [ref=e458]: "Applied moves: 0"
+              - generic [ref=e459]: "Failed moves: 0"
+              - generic [ref=e460]: "Policy failures: 0"
+            - paragraph [ref=e461]: "Doc hash: 24482727 -> 24482727"
+            - generic [ref=e462]: "{ \"applied\": [], \"failed\": [], \"no_op\": [], \"applied_moves\": [], \"failed_moves\": [], \"warnings\": [], \"doc_version_hash_before\": \"244827273df172d89f5100dd0dbb2851a83f4d89ed977a488f693479cd1372b3\", \"doc_version_hash_after\": \"244827273df172d89f5100dd0dbb2851a83f4d89ed977a488f693479cd1372b3\", \"updated_latex\": \"\\\\documentclass[12pt,a4paper,sans]{moderncv} % Changed to 12pt\\n\\\\moderncvstyle{banking}\\n\\\\moderncvcolor{black}\\n\\\\nopagenumbers{}\\n\\\\usepackage[sfdefault]{roboto}\\n\\\\usepackage[hidelinks]{hyperref}\\n\\\\usepackage{fontawesome5}\\n\\\\usepackage[utf8]{inputenc}\\n\\\\usepackage{ragged2e}\\n\\\\usepackage[left=1.2cm, right=1.2cm, top=1.2cm, bottom=1.2cm]{geometry}\\n\\\\usepackage{xcolor}\\n\\\\definecolor{customblue}{HTML}{1A73E8} % You can change this hex code for any blue you like\\n\\\\name{\\\\fontsize{22}{16}\\\\selectfont Koushik}{\\\\fontsize{22}{16}\\\\selectfont Sivarama Krishnan}\\n\\\\newcommand*{\\\\customcventry}[7][.13em]{\\n\\\\begin{tabular}{@{}l}\\n{\\\\bfseries #4} \\\\\\\\\\n{\\\\itshape #3}\\n\\\\end{tabular}\\n\\\\hfill\\n\\\\begin{tabular}{l@{}}\\n{\\\\bfseries #5} \\\\\\\\\\n{\\\\itshape #2}\\n\\\\end{tabular}\\n\\\\ifx&#7&%\\n\\\\else{\\\\\\n\\\\begin{minipage}{\\\\maincolumnwidth}%\\n\\\\small#7%\\n\\\\end{minipage}}\\\\fi%\\n\\\\par\\\\addvspace{#1}}\\n\\\\begin{document}\\n\\\\makecvtitle\\n\\\\vspace*{-14mm}\\n\\n\\\\begin{center}\\n\\t\\\\begin{tabular}{ c c c }\\n\\t\\t\\\\faMobile\\\\enspace +1 (236) 882-7140 & \\\\enspace\\\\faEnvelope\\\\enspace \\\\href{mailto:koushik.nov01@gmail.com}{koushik.nov01@gmail.com} & \\\\enspace\\\\faHome\\\\enspace Edmonton, AB \\\\\\\\[2mm]\\n\\t\\t\\\\vspace*{-2mm}\\n\\t\\t\\\\faLinkedin\\\\enspace \\\\href{https://www.linkedin.com/in/koushik-sivarama-krishnan/}{\\\\textcolor{customblue}{LinkedIn}} &\\n\\t\\t\\\\faGithub\\\\enspace \\\\href{https://github.com/Koushik0901}{\\\\textcolor{customblue}{Github}} & \\\\faGlobe\\\\enspace \\\\href{https://koushik0901.github.io/}{\\\\textcolor{customblue}{Portfolio}}\\n\\t\\\\end{tabular}\\n\\\\end{center}\\n\\\\hrulefill\\n\\\\bigskip\\n\\n\\\\today \\\\par \\\\vspace{6pt}\\n\\n\\\\justifying\\n\\n%<CL_START>\\nI’m excited to apply for the AI Automation Engineer role in Calgary. The focus on AI‑first, end‑to‑end tool development aligns perfectly with my recent work delivering production LLM‑driven assistants, and I’m eager to bring that hands‑on mindset to a collaborative, on‑site team.\\n\\nAt the Insurance Corporation of British Columbia I started by shadowing claims adjusters to see how searching policy manuals slowed live calls. I then designed and shipped an agentic AI assistant using FastAPI, LangChain, Milvus and Azure Kubernetes Service. The system cut knowledge‑retrieval time by 60\\\\%, served over 100 adjusters with 500+ daily queries, and maintained about 99.2\\\\% uptime thanks to built‑in retry logic, circuit‑breaker patterns, and a continuous evaluation harness covering accuracy, faithfulness, latency and bias. Transparent source citations and confidence signals turned early skepticism into steady adoption.\\n\\nEarlier, as a Computer Vision Intern at Drive Analytics, I built a production video‑analytics pipeline for baseball that processed roughly 10,000 clips per day within a two‑hour turnaround. Using AWS, Docker, Celery and RabbitMQ I integrated detection, tracking and event‑timing logic, and added health checks, structured logging and automated rollback procedures to guarantee reliable outputs despite variable camera angles and lighting. This experience reinforced my ability to deliver full‑stack services that meet strict latency and robustness requirements.\\n\\nI look forward to discussing how my track record of turning AI concepts into trustworthy, observable tools can accelerate your internal automation roadmap. I am ready to relocate to Calgary for on‑site collaboration and contribute to the energetic culture you describe. Thank you for your consideration.\\n%<CL_END>\\n\\n\\\\end{document}\\n\" }"
+    - button "Stop Rewrite ✕" [ref=e315] [cursor=pointer]

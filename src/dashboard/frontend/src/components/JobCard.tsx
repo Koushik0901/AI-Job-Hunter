@@ -1,20 +1,14 @@
 import { motion } from "framer-motion";
+import { formatDateShort } from "../dateUtils";
 import type { JobSummary } from "../types";
 
 interface JobCardProps {
   job: JobSummary;
   onSelect: (jobId: string) => void;
-  onPrefetch?: (jobId: string) => void;
+  onPrefetchStart?: (jobId: string) => void;
+  onPrefetchCancel?: (jobId: string) => void;
   selected?: boolean;
   preview?: boolean;
-}
-
-function formatDate(value: string): string {
-  if (!value) return "Unknown";
-  const date = new Date(value);
-  return Number.isNaN(date.valueOf())
-    ? value
-    : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function stagingTimeline(job: JobSummary): { tone: "overdue" | "due-soon"; detail: string } | null {
@@ -51,19 +45,21 @@ function matchLabel(job: JobSummary): string {
   return `Match ${job.match_score}${job.match_band ? ` • ${titleCaseLabel(job.match_band)}` : ""}`;
 }
 
-export function JobCard({ job, onSelect, onPrefetch, selected = false, preview = false }: JobCardProps) {
+export function JobCard({ job, onSelect, onPrefetchStart, onPrefetchCancel, selected = false, preview = false }: JobCardProps) {
   const timeline = stagingTimeline(job);
   const stageClass = (job.status ?? "not_applied").replaceAll("_", "-");
   const priorityLabel = titleCaseLabel(job.priority ?? "medium");
-  const postedLabel = formatDate(job.posted);
+  const postedLabel = formatDateShort(job.posted);
   const timelineToneClass = timeline ? `has-${timeline.tone}` : "";
   return (
     <motion.div
       className={`job-card stage-${stageClass} ${timelineToneClass} ${selected ? "selected" : ""} ${preview ? "preview" : ""}`}
       whileHover={preview ? undefined : { y: -4 }}
       whileTap={preview ? undefined : { scale: 0.992 }}
-      onMouseEnter={() => onPrefetch?.(job.id)}
-      onFocus={() => onPrefetch?.(job.id)}
+      onMouseEnter={() => onPrefetchStart?.(job.id)}
+      onMouseLeave={() => onPrefetchCancel?.(job.id)}
+      onFocus={() => onPrefetchStart?.(job.id)}
+      onBlur={() => onPrefetchCancel?.(job.id)}
     >
       <button type="button" className="job-card-btn" onClick={() => onSelect(job.id)}>
         <div className="job-card-topline">

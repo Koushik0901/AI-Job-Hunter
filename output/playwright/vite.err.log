@@ -1,0 +1,8 @@
+[2m11:03:38 pm[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31merror while updating dependencies:
+Error: ENOENT: no such file or directory, open 'E:\Workspace\Agentic Job Assistant\ai-job-hunter\src\dashboard\frontend\node_modules\@monaco-editor\react\dist\index.mjs'
+    at async open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1243:14)
+    at async extractExportsData (file:///E:/Workspace/Agentic%20Job%20Assistant/ai-job-hunter/src/dashboard/frontend/node_modules/vite/dist/node/chunks/config.js:32270:23)
+    at async file:///E:/Workspace/Agentic%20Job%20Assistant/ai-job-hunter/src/dashboard/frontend/node_modules/vite/dist/node/chunks/config.js:32077:23
+    at async Promise.all (index 8)
+    at async prepareEsbuildOptimizerRun (file:///E:/Workspace/Agentic%20Job%20Assistant/ai-job-hunter/src/dashboard/frontend/node_modules/vite/dist/node/chunks/config.js:32075:2)[39m

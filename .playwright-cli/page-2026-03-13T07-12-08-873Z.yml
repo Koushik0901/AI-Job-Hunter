@@ -1,0 +1,6 @@
+- generic [ref=e2]:
+  - status "Loading page" [ref=e3]:
+    - generic [ref=e4]:
+      - img "Hamster running in a wheel" [ref=e5]
+      - paragraph [ref=e19]: Loading page
+  - region "Notifications alt+T"

@@ -1,0 +1,71 @@
+Junior Applied Data Scientist
+Jerry.ai
+Toronto, Ontario; Austin, Texas; Boston, Massachusetts; Chicago, Illinois; Los Angeles, California; New York, New York; Palo Alto, California
+Job Description
+Why Jerry.ai
+Join a profitable pre‑IPO startup with capital, traction, and runway ($240M funded | 60X revenue growth in 5 years | $2T market size)
+Work closely with brilliant leaders and teammates from companies like Amazon, Better, LinkedIn, McKinsey, BCG, Bain
+Disrupt a massive market and take us to a $10B business in the next few years
+Our growth is driven by forward‑thinking technology: Jerry.ai is getting mentioned in many conversations about our use of GenAI, such as this Forbes article
+Be immersed in a talent‑dense environment and greatly accelerate your career growth
+Impact millions of users experience with car maintenance and auto insurance
+About the opportunity
+We are looking for a detail‑obsessed Applied Data Scientist to join our growing team. The ideal candidate is passionate about the foundational layer of all data analysis: ensuring our data is clean, accurate, and reliable. You are a detective at heart, driven by a deep curiosity to understand complex data systems, and someone who finds immense satisfaction in transforming messy, ambiguous datasets into pristine assets that drive critical business decisions.
+
+This role is perfect for a scientist who wants to own the entire journey: from taking raw application data to generating clean inputs, to building models and delivering tangible value in real‑world applications. You will be a central point of contact, communicating with engineers, product managers, and business analysts to ensure data integrity from collection to analysis.
+
+How you will make an impact
+Model Ownership: Participate in the full modeling lifecycle, from statistical analysis and experimentation to building, validating, and iterating on machine learning models that address critical business challenges.
+Data Quality: Own the data foundation by preparing, cleaning and transforming raw, complex data into high‑quality features for modeling. Proactively identify and handle missing values, outliers, and inconsistencies.
+Problem Investigation: Investigate data discrepancies (tracking bugs, ETL errors, definitional issues) and design automated frameworks to ensure data accuracy.
+Cross‑Functional Collaboration: Act as a strategic liaison, collaborating with Data Engineering and product teams to drive the data strategy and definition of our centralized feature store, ensuring it becomes the “single source of truth” for all ML models.
+Documentation: Create and maintain clear, authoritative documentation for data sources, cleaning processes, and variable definitions.
+Who You Are
+Obsessed with Details: You have an exceptional eye for detail and a low tolerance for errors. You believe that accuracy and precision are non‑negotiable.
+A Strategic Thinker: You can see the bigger picture and are passionate about building robust systems and processes that will stand the test of time.
+Proactive & Persistent: You don’t wait for problems to find you. You actively seek out data quality issues and are persistent in seeing an investigation through to its resolution.
+Curious & Adaptive: You are inherently curious and possess a strong desire to understand how things work. You’re comfortable with ambiguity and skilled at breaking down complex problems.
+Requirements
+Education: Bachelor’s degree (PhD preferred) in a quantitative field (Statistics, Physics, Mathematics, etc.)
+Programming: Strong proficiency in Python (Pandas/NumPy) and SQL for complex querying and data manipulation
+Data Quality: Hands‑on experience with data cleaning techniques and data validation frameworks
+Tooling: Familiarity with data visualization tools to help identify and communicate data issues
+While we appreciate your interest and application, only applicants under consideration will be contacted.
+
+Jerry.ai is proud to be an Equal Employment Opportunity employer. We prohibit discrimination based on race, religion, color, national origin, sex, pregnancy, reproductive health decisions or related medical conditions, sexual orientation, gender identity, gender expression, age, veteran status, disability, genetic information, or other characteristics protected by applicable local, state or federal laws.
+
+Jerry.ai is committed to providing reasonable accommodations for individuals with disabilities in our job application process. If you need assistance or an accommodation due to a disability, please contact us at recruiting@jerry.ai
+
+The successful candidate’s starting pay will fall within the pay range listed on this job posting, determined based on job‑related factors including, but not limited to, skills, experience, qualifications, work location, and market conditions. Ranges are market‑dependent and may be modified in the future. In addition to base salary, the compensation may include opportunities for equity grants.
+
+We offer a comprehensive benefits package to regular employees, including health, dental, and vision coverage, paid time off, paid parental leave, 401(K) plan with employer matching, and wellness benefits, among others. Equity opportunities may also be part of your total rewards package. Part‑time, contract, or freelance roles may not be eligible for certain benefits.
+
+About Jerry.ai
+Jerry.ai is America’s first and only super app to radically simplify car ownership. We are redefining how people manage owning a car, one of their most expensive and time‑consuming assets.
+
+Backed by artificial intelligence and machine learning, Jerry.ai simplifies and automates owning and maintaining a car while providing personalized services for all car owners' needs. We spend every day innovating and improving our AI‑powered app to provide the best possible experience for our customers. From car insurance and financing to maintenance and safety, Jerry.ai does it all.
+
+We are the #1 rated and most downloaded app in our category with a 4.7‑star rating in the App Store. We have more than 5 million customers — and we’re just getting started.
+
+Jerry.ai was founded in 2017 by serial entrepreneurs and has raised more than $240 million in financing.
+
+Join our team and work with passionate, curious and egoless people who love solving real‑world problems. Help us build a revolutionary product that’s disrupting a massive market.
+
+Location
+Toronto, Ontario; Austin, Texas; Boston, Massachusetts; Chicago, Illinois; Los Angeles, California; New York, New York; Palo Alto, California
+
+Employment Type
+Full time
+
+Location Type
+Remote
+
+Department
+Engineering
+
+Compensation
+Salary Range	Equity
+$80K – $120K	Offers Equity
+The successful candidate’s starting compensation will fall within the pay range listed, determined by job‑related factors including, but not limited to, skills, experience, qualifications, work location, and market conditions. Ranges are market‑dependent and may be modified in the future. In addition to base salary, the compensation may also include stock options.
+
+We offer a comprehensive benefits package to full‑time employees, including health, dental, and vision coverage, paid time off, paid parental leave, 401(K) (in the U.S.) or RRSP (in Canada) plan with employer matching, and wellness benefits, among others. Equity opportunities may also be part of your total rewards package. Part‑time, consulting, or freelance roles may not be eligible for certain benefits.

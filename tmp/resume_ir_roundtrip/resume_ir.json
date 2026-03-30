@@ -1,0 +1,799 @@
+{
+  "document_meta": {
+    "source_path": "E:\\Workspace\\Agentic Job Assistant\\ai-job-hunter\\templates\\resume_templates\\data_science_resume.tex",
+    "preamble": "\\documentclass[11pt,a4paper,sans]{moderncv}\n\\moderncvstyle{banking}\n\\moderncvcolor{black}\n\\nopagenumbers{}\n\\usepackage[utf8]{inputenc}\n\\usepackage{ragged2e}\n\\usepackage[left=1.2cm, right=1.2cm, top=1.2cm, bottom=1.2cm]{geometry}\n\\usepackage{needspace}\n\\usepackage{tabularx} % Add this in the preamble if not already included\n\\usepackage{array}    % Improves vertical alignment\n\\usepackage{xcolor}\n\\definecolor{customblue}{HTML}{1A73E8} % You can change this hex code for any blue you like\n\\usepackage{multicol}\n\\usepackage{import}\n\\usepackage{enumitem}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amssymb}\n\\name{Koushik}{Sivarama Krishnan}\n\\newcommand*{\\customcventry}[7][.13em]{\n\\begin{tabular}{@{}l}\n{\\bfseries #4} \\\n{\\itshape #3}\n\\end{tabular}\n\\hfill\n\\begin{tabular}{l@{}}\n{\\bfseries #5} \\\n{\\itshape #2}\n\\end{tabular}\n\\ifx&#7&%\n\\else{\\\n\\begin{minipage}{\\maincolumnwidth}%\n\\small#7%\n\\end{minipage}}\\fi%\n\\par\\addvspace{#1}}",
+    "postamble": "",
+    "parser_warnings": [],
+    "original_text": "\\documentclass[11pt,a4paper,sans]{moderncv}\n\\moderncvstyle{banking}\n\\moderncvcolor{black}\n\\nopagenumbers{}\n\\usepackage[utf8]{inputenc}\n\\usepackage{ragged2e}\n\\usepackage[left=1.2cm, right=1.2cm, top=1.2cm, bottom=1.2cm]{geometry}\n\\usepackage{needspace}\n\\usepackage{tabularx} % Add this in the preamble if not already included\n\\usepackage{array}    % Improves vertical alignment\n\\usepackage{xcolor}\n\\definecolor{customblue}{HTML}{1A73E8} % You can change this hex code for any blue you like\n\\usepackage{multicol}\n\\usepackage{import}\n\\usepackage{enumitem}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amssymb}\n\\name{Koushik}{Sivarama Krishnan}\n\\newcommand*{\\customcventry}[7][.13em]{\n\\begin{tabular}{@{}l}\n{\\bfseries #4} \\\n{\\itshape #3}\n\\end{tabular}\n\\hfill\n\\begin{tabular}{l@{}}\n{\\bfseries #5} \\\n{\\itshape #2}\n\\end{tabular}\n\\ifx&#7&%\n\\else{\\\n\\begin{minipage}{\\maincolumnwidth}%\n\\small#7%\n\\end{minipage}}\\fi%\n\\par\\addvspace{#1}}\n\\begin{document}\n\\makecvtitle\n\\vspace*{-10mm}\n\n\\begin{center}\n\t\\begin{tabular}{ c c c }\n\t\t\\faMobile\\enspace +1 (236) 882-7140 & \\enspace\\faEnvelope\\enspace \\href{mailto:koushik.nov01@gmail.com}{koushik.nov01@gmail.com} & \\enspace\\faHome\\enspace Edmonton, AB \\\\[2mm]\n\t\t\\faLinkedin\\enspace \\href{https://www.linkedin.com/in/koushik-sivarama-krishnan/}{\\textcolor{customblue}{LinkedIn}} & \\faGithub\\enspace \\href{https://github.com/Koushik0901}{\\textcolor{customblue}{Github}} & \\faGlobe\\enspace \\href{https://koushik0901.github.io/}{\\textcolor{customblue}{Portfolio}}\n\t\\end{tabular}\n\\end{center}\n\n\n\\section{Highlights}\n\\setlength{\\itemsep}{0pt}\n\\setlength{\\parskip}{0pt}\n\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n    \\item Master’s in Applied Data Science with \\textbf{3+ years} of experience using \\textbf{Python}, \\textbf{SQL}, and statistical modeling to clean complex data, build reliable features, and support production analytics and machine learning workflows.\n    \\vspace{-4pt}\n    \\item Partnered with engineers, researchers, and business stakeholders to investigate ambiguous data issues, define trustworthy metrics, and turn messy operational data into decision-ready dashboards, APIs, and reproducible analysis pipelines.\n    \\vspace{-4pt}\n    \\item Specialized in \\textbf{data quality}, validation, and experimentation; built automated evaluation and monitoring frameworks that improved model reliability, reduced debugging time by \\textbf{40\\%}, and increased trust in production decision support systems.\n    \\vspace{-4pt}\n\\end{itemize}\n\n\\vspace{-16pt}\n\n\\section{Skills}\n\\vspace{-4pt}\n\\begin{tabularx}{\\textwidth}{>{\\raggedright\\arraybackslash\\bfseries}p{5.5cm}@{\\hspace{0cm}}X}\nProgramming & \\textbf{Python}, \\textbf{SQL}, Pandas, NumPy \\\\[4pt]\nData Quality & data cleaning, data validation frameworks, missing value handling, outlier detection, inconsistency checks, feature engineering \\\\[4pt]\nStatistical Analysis \\& ML & statistical analysis, experimentation, hypothesis testing, A/B testing, causal inference, Logistic Regression, Random Forest, XGBoost, CatBoost, SHAP \\\\[4pt]\nData Visualization & Power BI, Matplotlib, Seaborn, stakeholder-ready dashboards, KPI reporting \\\\[4pt]\nData Engineering & PostgreSQL, ETL/ELT, PySpark, Dagster, data pipelines, event logging, telemetry \\\\[4pt]\nCollaboration \\& Documentation & cross-functional collaboration, metric definition, authoritative documentation, reproducible workflows, self-serve reporting \\\\[4pt]\n\n\\end{tabularx}\n\\vspace{-16pt}\n\n\\section{Experience}\n\n\\customcventry{09/2024 ‐ 08/2025}{}{Co-op Data Scientist}{}{}{\n\t\\vspace{4pt}\n\tInsurance Corporation of British Columbia (ICBC) \\hfill \\textit{Vancouver, BC}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n            \\item Built an Agentic AI system of claims knowledge retrieval by deploying an \\textbf{AKS-hosted RAG assistant} built with \\textbf{FastAPI and LangChain} that serves \\textbf{500+ queries/day} for \\textbf{100+ claims adjusters}, cutting manual search time by \\textbf{60\\%}.\n            \\vspace{-4pt}\n            \\item Increased reliability of ML workflows by building an automated evaluation pipeline in Python with \\textbf{PostgreSQL}-backed logging that tracked accuracy, faithfulness, and latency across \\textbf{3} production releases, reducing model debugging time by \\textbf{40\\%}.\n            \\vspace{-4pt}\n            \\item Delivered a \\textbf{CatBoost-based risk-scoring API} (Flask + PostgreSQL) that prioritizes \\textbf{1{,}200+ cases/month}, improving triage efficiency by \\textbf{15\\%} through explainable decision support embedded into case management workflows.\n            \\vspace{-4pt}\n        \\end{itemize}\n}\n\n\\vspace{6pt}\n\n\\customcventry{05/2024 ‐ 02/2025}{}{Research Engine Developer}{}{}{\n\t\\vspace{4pt}\n\tJustice Data and Design Lab\\hfill{Victoria, BC}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n        \\item Doubled downstream QA chatbot effectiveness by redesigning a \\textbf{RAG-based legal question-answering pipeline} that improved relevant document retrieval accuracy by \\textbf{2x}, integrating \\textbf{LLM-based reranking} and cleaner text preprocessing for more reliable decision support.\n        \\vspace{-4pt}\n        \\item Operationalized data analytics automations by building end-to-end Python/SQL pipelines for \\textbf{multiple MITACS-backed studies}, enabling projects to be re-run in \\textbf{one command} with versioned data cleaning, transformations, and metrics.\n        \\vspace{-4pt}\n        \\item Surfaced high-impact process improvement opportunities by running large-scale text mining and topic modeling over \\textbf{Reddit and legal education datasets}, delivering interactive \\textbf{Power BI} dashboards that highlighted \\textbf{top emerging issue clusters} and informed outreach and intake workflows.\n        \\vspace{-4pt}\n\t\\end{itemize}\n}\n\n\\vspace{6pt}\n\n\\customcventry{04/2023 ‐ 07/2023}{}{Founding Machine Learning Engineer}{}{}{\n\t\\vspace{4pt}\n\tSeiSei.ai \\hfill \\textit{India}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n        \\item Built and validated an end-to-end Hindi voice pipeline that improved FreeVC performance by \\textbf{15\\%} through benchmarking, preprocessing, and data quality checks across noisy audio inputs.\n        \\vspace{-4pt}\n        \\item Automated collection, preprocessing, quality checks, and batch inference for \\textbf{5,000+ hours} of audio data, creating cleaner training inputs and more reliable model iteration for deployment.\n        \\vspace{-4pt}\n        \\item Coordinated stakeholder feedback and deployment through Kubernetes on Truefoundry, translating ambiguous product requirements into monitored ML workflows with fail-safe evaluation practices.\n        \\vspace{-4pt}\n\t\\end{itemize}\n}\n\n\\customcventry{09/2021 – 02/2022}{}{Computer Vision Intern}{}{}{\n\t\\vspace{4pt}\n\tDrive Analytics \\hfill \\textit{India}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n\t\t\\item Built and deployed production video analytics pipelines on AWS using Celery and RabbitMQ, processing \\textbf{\\~10K clips/day} and returning outputs within a \\textbf{2-hour} delivery window for external partners.\n        \\vspace{-4pt}\n        \\item Investigated data quality failures across multi-view footage, low-resolution clips, occlusions, and weather noise, improving output trustworthiness by reducing misleading analytics in real production workflows.\n        \\vspace{-4pt}\n        \\item Evaluated and iterated on computer vision approaches against real-world failure cases, helping ensure analytics were reliable enough for downstream coaching and analyst use under strict turnaround requirements.\n        \\vspace{-4pt}\n\t\\end{itemize}\n}\n\n\\vspace{6pt}\n\n\\customcventry{12/2020 – 06/2021}{}{Deep Learning Intern}{}{}{\n\t\\vspace{4pt}\n\tMURF.ai \\hfill{India}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n        \\item Delivered a \\textbf{FastSpeech-2} voice cloning system by building an end-to-end audio data pipeline (preprocessing with \\textbf{librosa}, feature engineering, training/inference workflow), enabling reproducible generation and faster iteration on voice quality.\n        \\vspace{-4pt}\n        \\item Reduced domain-specific speech recognition errors by fine-tuning STT models in \\textbf{Azure Speech Studio}, improving WER through targeted data augmentation and acoustic feature optimization for noisy/real-world audio.\n\t\\end{itemize}\n}\n\n\\section{Education}\n\\customcventry{2023-2025}{{University of Victoria}}{Master of Engineering in Applied Data Science,}{Victoria, BC}{}{}{\n\\vspace{2pt}\nNotable Coursework: Optimization for Machine Learning, Scaling Large Language Models on GPUs, Data Privacy\n}\n\\vspace{10pt}\n\n\\customcventry{2019-2023}{{Anna University}}{Bachelor of Engineering in Computer Science and Engineering,}{India}{}{}{\n\\vspace{2pt}\nNotable Coursework: Artificial Intelligence, Cloud Computing, Data Structures, Data Warehousing, and Data Mining\n}\n\n\\section{Projects}\n\n\\customcventry{11/2025}{}{\\href{https://github.com/Koushik0901/Telecom-Customer-Churn}{Telecom Customer Churn \\& Upsell Prediction System\\enspace\\faGithub}}{}{}{\n     \\vspace{2pt}\n     \\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n     \\item Built an end-to-end churn prediction and customer upsell system on a \\textbf{7,043-customer} telecom dataset, performing data preprocessing, feature engineering (\\textbf{30+ features}), and statistical modeling using \\textbf{Python, Scikit-learn, and XGBoost} to identify high-risk customers and cross-sell opportunities.\n    \\vspace{-2pt}\n    \\item Developed multiple predictive models (Logistic Regression, Random Forest, XGBoost) with comprehensive model evaluation using precision, recall, F1-score, and AUC-ROC metrics, achieving improved identification of high-risk churners in the top 10\\% segment through probability calibration and threshold optimization.\n    \\vspace{-2pt}\n    \\item Delivered an interactive \\textbf{Streamlit dashboard} displaying portfolio-level churn risk by contract type and region, plus individual customer churn probability and upsell scores with \\textbf{SHAP-based driver analysis}, providing actionable insights for retention and revenue optimization strategies.\n\\end{itemize}\n}\n\\vspace{6pt}\n\n\\customcventry{11/2025}{}{\\href{https://github.com/Koushik0901/NYC-311-Demand-Forecasting-Optimization}{NYC 311 Service Demand Forecasting \\& Optimization System\\enspace\\faGithub}}{}{}{\n\\vspace{2pt}\n\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n    \\item Designed end-to-end machine learning system for \\textbf{multi-dimensional demand forecasting} using NYC 311 service data, applying time-series analysis and predictive modeling to forecast service volumes across 10 categories, directly applicable to banking operations such as call center staffing and credit demand prediction.\n    \\vspace{-2pt}\n    \\item Implemented \\textbf{Temporal Fusion Transformer} and Prophet models for hourly demand forecasting, achieving 23\\% lower MAPE than baseline through feature engineering (time-of-day, seasonality, service mix), model validation, and hyperparameter optimization, with attention mechanisms revealing key demand drivers for business interpretation.\n    \\vspace{-2pt}\n    \\item Developed \\textbf{Bayesian optimization framework} for workforce allocation, reducing simulated wait times by 34\\% and labor costs by 18\\%; delivered interactive Streamlit dashboard for real-time scenario analysis and Pareto-optimal trade-off visualization between service quality and operational efficiency.\n\\end{itemize}\n}\n\n\\vspace{10pt}\n\n\\section{Publications}\n\\setlength{\\itemsep}{0pt} % controls vertical spacing between items\n\\setlength{\\parskip}{0pt} % avoids extra space\n\\textbf{ORCID ID:}\\href{https://orcid.org/0000-0003-0525-0677}{\\textcolor{customblue}{0000-0003-0525-0677}} \\textbar{} \\href{https://scholar.google.ca/citations?hl=en&user=lDmjJtoAAAAJ}{\\textbf{Google Scholar}}\n\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n\t\\item \"Vision transformer based COVID-19 detection using chest X-rays\"\n    \\vspace{-4pt}\n\t\\item \"SwiftSRGAN--Rethinking Super-Resolution for Efficient and Real-time Inference\"\n    \\vspace{-4pt}\n\t\\item \"Benchmarking Conventional Vision Models on Neuromorphic Fall Detection and Action Recognition Dataset\"\n    \\vspace{-4pt}\n\t\\item \"Efficient Super-Resolution For Chest X-rays\"\n    \\vspace{-4pt}\n\t\\item \"MFAAN: Unveiling Audio Deepfakes with a Multi-Feature Authenticity Network\"\n\\end{itemize}\n\\end{document}",
+    "original_section_ids": [
+      "section-d2a9d9ca",
+      "section-dd5b2258",
+      "section-1ee05f16",
+      "section-959a7a81",
+      "section-aeb3db31",
+      "section-6bbcb153"
+    ]
+  },
+  "header": {
+    "name": "Koushik Sivarama Krishnan",
+    "emails": [
+      "koushik.nov01@gmail.com"
+    ],
+    "phone_numbers": [
+      "+1 (236) 882-7140"
+    ],
+    "location": "Edmonton, AB",
+    "links": [
+      {
+        "label": "koushik.nov01@gmail.com",
+        "url": "mailto:koushik.nov01@gmail.com"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/koushik-sivarama-krishnan/"
+      },
+      {
+        "label": "Github",
+        "url": "https://github.com/Koushik0901"
+      },
+      {
+        "label": "Portfolio",
+        "url": "https://koushik0901.github.io/"
+      }
+    ],
+    "raw_header_block": "\\makecvtitle\n\\vspace*{-10mm}\n\n\\begin{center}\n\t\\begin{tabular}{ c c c }\n\t\t\\faMobile\\enspace +1 (236) 882-7140 & \\enspace\\faEnvelope\\enspace \\href{mailto:koushik.nov01@gmail.com}{koushik.nov01@gmail.com} & \\enspace\\faHome\\enspace Edmonton, AB \\\\[2mm]\n\t\t\\faLinkedin\\enspace \\href{https://www.linkedin.com/in/koushik-sivarama-krishnan/}{\\textcolor{customblue}{LinkedIn}} & \\faGithub\\enspace \\href{https://github.com/Koushik0901}{\\textcolor{customblue}{Github}} & \\faGlobe\\enspace \\href{https://koushik0901.github.io/}{\\textcolor{customblue}{Portfolio}}\n\t\\end{tabular}\n\\end{center}"
+  },
+  "sections": [
+    {
+      "id": "section-d2a9d9ca",
+      "kind": "highlights",
+      "title": "Highlights",
+      "order": 0,
+      "provenance": "active",
+      "raw_source": "\\section{Highlights}\n\\setlength{\\itemsep}{0pt}\n\\setlength{\\parskip}{0pt}\n\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n    \\item Master’s in Applied Data Science with \\textbf{3+ years} of experience using \\textbf{Python}, \\textbf{SQL}, and statistical modeling to clean complex data, build reliable features, and support production analytics and machine learning workflows.\n    \\vspace{-4pt}\n    \\item Partnered with engineers, researchers, and business stakeholders to investigate ambiguous data issues, define trustworthy metrics, and turn messy operational data into decision-ready dashboards, APIs, and reproducible analysis pipelines.\n    \\vspace{-4pt}\n    \\item Specialized in \\textbf{data quality}, validation, and experimentation; built automated evaluation and monitoring frameworks that improved model reliability, reduced debugging time by \\textbf{40\\%}, and increased trust in production decision support systems.\n    \\vspace{-4pt}\n\\end{itemize}\n\n\\vspace{-16pt}",
+      "description": null,
+      "bullets": [
+        {
+          "id": "highlights-bullet-206e4345",
+          "text": {
+            "value": "Master’s in Applied Data Science with \\textbf{3+ years} of experience using \\textbf{Python}, \\textbf{SQL}, and statistical modeling to clean complex data, build reliable features, and support production analytics and machine learning workflows.",
+            "mode": "trusted_latex"
+          },
+          "raw_text": "Master’s in Applied Data Science with \\textbf{3+ years} of experience using \\textbf{Python}, \\textbf{SQL}, and statistical modeling to clean complex data, build reliable features, and support production analytics and machine learning workflows."
+        },
+        {
+          "id": "highlights-bullet-fe6cffe3",
+          "text": {
+            "value": "Partnered with engineers, researchers, and business stakeholders to investigate ambiguous data issues, define trustworthy metrics, and turn messy operational data into decision-ready dashboards, APIs, and reproducible analysis pipelines.",
+            "mode": "trusted_latex"
+          },
+          "raw_text": "Partnered with engineers, researchers, and business stakeholders to investigate ambiguous data issues, define trustworthy metrics, and turn messy operational data into decision-ready dashboards, APIs, and reproducible analysis pipelines."
+        },
+        {
+          "id": "highlights-bullet-79e1f44e",
+          "text": {
+            "value": "Specialized in \\textbf{data quality}, validation, and experimentation; built automated evaluation and monitoring frameworks that improved model reliability, reduced debugging time by \\textbf{40\\%}, and increased trust in production decision support systems.",
+            "mode": "trusted_latex"
+          },
+          "raw_text": "Specialized in \\textbf{data quality}, validation, and experimentation; built automated evaluation and monitoring frameworks that improved model reliability, reduced debugging time by \\textbf{40\\%}, and increased trust in production decision support systems."
+        }
+      ],
+      "entries": [],
+      "skills_categories": [],
+      "render_mode": "source_preserved",
+      "warnings": []
+    },
+    {
+      "id": "section-dd5b2258",
+      "kind": "skills",
+      "title": "Skills",
+      "order": 1,
+      "provenance": "active",
+      "raw_source": "\\section{Skills}\n\\vspace{-4pt}\n\\begin{tabularx}{\\textwidth}{>{\\raggedright\\arraybackslash\\bfseries}p{5.5cm}@{\\hspace{0cm}}X}\nProgramming & \\textbf{Python}, \\textbf{SQL}, Pandas, NumPy \\\\[4pt]\nData Quality & data cleaning, data validation frameworks, missing value handling, outlier detection, inconsistency checks, feature engineering \\\\[4pt]\nStatistical Analysis \\& ML & statistical analysis, experimentation, hypothesis testing, A/B testing, causal inference, Logistic Regression, Random Forest, XGBoost, CatBoost, SHAP \\\\[4pt]\nData Visualization & Power BI, Matplotlib, Seaborn, stakeholder-ready dashboards, KPI reporting \\\\[4pt]\nData Engineering & PostgreSQL, ETL/ELT, PySpark, Dagster, data pipelines, event logging, telemetry \\\\[4pt]\nCollaboration \\& Documentation & cross-functional collaboration, metric definition, authoritative documentation, reproducible workflows, self-serve reporting \\\\[4pt]\n\n\\end{tabularx}\n\\vspace{-16pt}",
+      "description": null,
+      "bullets": [],
+      "entries": [],
+      "skills_categories": [
+        {
+          "id": "skills-fa403321",
+          "name": {
+            "value": "Programming",
+            "mode": "trusted_latex"
+          },
+          "items": [
+            {
+              "value": "\\textbf{Python}",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "\\textbf{SQL}",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "Pandas",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "NumPy",
+              "mode": "trusted_latex"
+            }
+          ],
+          "raw_source": "Programming & \\textbf{Python}, \\textbf{SQL}, Pandas, NumPy"
+        },
+        {
+          "id": "skills-422690ef",
+          "name": {
+            "value": "Data Quality",
+            "mode": "trusted_latex"
+          },
+          "items": [
+            {
+              "value": "data cleaning",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "data validation frameworks",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "missing value handling",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "outlier detection",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "inconsistency checks",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "feature engineering",
+              "mode": "trusted_latex"
+            }
+          ],
+          "raw_source": "Data Quality & data cleaning, data validation frameworks, missing value handling, outlier detection, inconsistency checks, feature engineering"
+        },
+        {
+          "id": "skills-18f8cfae",
+          "name": {
+            "value": "Statistical Analysis \\& ML",
+            "mode": "trusted_latex"
+          },
+          "items": [
+            {
+              "value": "statistical analysis",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "experimentation",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "hypothesis testing",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "A/B testing",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "causal inference",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "Logistic Regression",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "Random Forest",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "XGBoost",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "CatBoost",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "SHAP",
+              "mode": "trusted_latex"
+            }
+          ],
+          "raw_source": "Statistical Analysis \\& ML & statistical analysis, experimentation, hypothesis testing, A/B testing, causal inference, Logistic Regression, Random Forest, XGBoost, CatBoost, SHAP"
+        },
+        {
+          "id": "skills-ffadfce2",
+          "name": {
+            "value": "Data Visualization",
+            "mode": "trusted_latex"
+          },
+          "items": [
+            {
+              "value": "Power BI",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "Matplotlib",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "Seaborn",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "stakeholder-ready dashboards",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "KPI reporting",
+              "mode": "trusted_latex"
+            }
+          ],
+          "raw_source": "Data Visualization & Power BI, Matplotlib, Seaborn, stakeholder-ready dashboards, KPI reporting"
+        },
+        {
+          "id": "skills-6f32176c",
+          "name": {
+            "value": "Data Engineering",
+            "mode": "trusted_latex"
+          },
+          "items": [
+            {
+              "value": "PostgreSQL",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "ETL/ELT",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "PySpark",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "Dagster",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "data pipelines",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "event logging",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "telemetry",
+              "mode": "trusted_latex"
+            }
+          ],
+          "raw_source": "Data Engineering & PostgreSQL, ETL/ELT, PySpark, Dagster, data pipelines, event logging, telemetry"
+        },
+        {
+          "id": "skills-6ec84e9c",
+          "name": {
+            "value": "Collaboration \\& Documentation",
+            "mode": "trusted_latex"
+          },
+          "items": [
+            {
+              "value": "cross-functional collaboration",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "metric definition",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "authoritative documentation",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "reproducible workflows",
+              "mode": "trusted_latex"
+            },
+            {
+              "value": "self-serve reporting",
+              "mode": "trusted_latex"
+            }
+          ],
+          "raw_source": "Collaboration \\& Documentation & cross-functional collaboration, metric definition, authoritative documentation, reproducible workflows, self-serve reporting"
+        }
+      ],
+      "render_mode": "source_preserved",
+      "warnings": []
+    },
+    {
+      "id": "section-1ee05f16",
+      "kind": "experience",
+      "title": "Experience",
+      "order": 2,
+      "provenance": "active",
+      "raw_source": "\\section{Experience}\n\n\\customcventry{09/2024 ‐ 08/2025}{}{Co-op Data Scientist}{}{}{\n\t\\vspace{4pt}\n\tInsurance Corporation of British Columbia (ICBC) \\hfill \\textit{Vancouver, BC}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n            \\item Built an Agentic AI system of claims knowledge retrieval by deploying an \\textbf{AKS-hosted RAG assistant} built with \\textbf{FastAPI and LangChain} that serves \\textbf{500+ queries/day} for \\textbf{100+ claims adjusters}, cutting manual search time by \\textbf{60\\%}.\n            \\vspace{-4pt}\n            \\item Increased reliability of ML workflows by building an automated evaluation pipeline in Python with \\textbf{PostgreSQL}-backed logging that tracked accuracy, faithfulness, and latency across \\textbf{3} production releases, reducing model debugging time by \\textbf{40\\%}.\n            \\vspace{-4pt}\n            \\item Delivered a \\textbf{CatBoost-based risk-scoring API} (Flask + PostgreSQL) that prioritizes \\textbf{1{,}200+ cases/month}, improving triage efficiency by \\textbf{15\\%} through explainable decision support embedded into case management workflows.\n            \\vspace{-4pt}\n        \\end{itemize}\n}\n\n\\vspace{6pt}\n\n\\customcventry{05/2024 ‐ 02/2025}{}{Research Engine Developer}{}{}{\n\t\\vspace{4pt}\n\tJustice Data and Design Lab\\hfill{Victoria, BC}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n        \\item Doubled downstream QA chatbot effectiveness by redesigning a \\textbf{RAG-based legal question-answering pipeline} that improved relevant document retrieval accuracy by \\textbf{2x}, integrating \\textbf{LLM-based reranking} and cleaner text preprocessing for more reliable decision support.\n        \\vspace{-4pt}\n        \\item Operationalized data analytics automations by building end-to-end Python/SQL pipelines for \\textbf{multiple MITACS-backed studies}, enabling projects to be re-run in \\textbf{one command} with versioned data cleaning, transformations, and metrics.\n        \\vspace{-4pt}\n        \\item Surfaced high-impact process improvement opportunities by running large-scale text mining and topic modeling over \\textbf{Reddit and legal education datasets}, delivering interactive \\textbf{Power BI} dashboards that highlighted \\textbf{top emerging issue clusters} and informed outreach and intake workflows.\n        \\vspace{-4pt}\n\t\\end{itemize}\n}\n\n\\vspace{6pt}\n\n\\customcventry{04/2023 ‐ 07/2023}{}{Founding Machine Learning Engineer}{}{}{\n\t\\vspace{4pt}\n\tSeiSei.ai \\hfill \\textit{India}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n        \\item Built and validated an end-to-end Hindi voice pipeline that improved FreeVC performance by \\textbf{15\\%} through benchmarking, preprocessing, and data quality checks across noisy audio inputs.\n        \\vspace{-4pt}\n        \\item Automated collection, preprocessing, quality checks, and batch inference for \\textbf{5,000+ hours} of audio data, creating cleaner training inputs and more reliable model iteration for deployment.\n        \\vspace{-4pt}\n        \\item Coordinated stakeholder feedback and deployment through Kubernetes on Truefoundry, translating ambiguous product requirements into monitored ML workflows with fail-safe evaluation practices.\n        \\vspace{-4pt}\n\t\\end{itemize}\n}\n\n\\customcventry{09/2021 – 02/2022}{}{Computer Vision Intern}{}{}{\n\t\\vspace{4pt}\n\tDrive Analytics \\hfill \\textit{India}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n\t\t\\item Built and deployed production video analytics pipelines on AWS using Celery and RabbitMQ, processing \\textbf{\\~10K clips/day} and returning outputs within a \\textbf{2-hour} delivery window for external partners.\n        \\vspace{-4pt}\n        \\item Investigated data quality failures across multi-view footage, low-resolution clips, occlusions, and weather noise, improving output trustworthiness by reducing misleading analytics in real production workflows.\n        \\vspace{-4pt}\n        \\item Evaluated and iterated on computer vision approaches against real-world failure cases, helping ensure analytics were reliable enough for downstream coaching and analyst use under strict turnaround requirements.\n        \\vspace{-4pt}\n\t\\end{itemize}\n}\n\n\\vspace{6pt}\n\n\\customcventry{12/2020 – 06/2021}{}{Deep Learning Intern}{}{}{\n\t\\vspace{4pt}\n\tMURF.ai \\hfill{India}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n        \\item Delivered a \\textbf{FastSpeech-2} voice cloning system by building an end-to-end audio data pipeline (preprocessing with \\textbf{librosa}, feature engineering, training/inference workflow), enabling reproducible generation and faster iteration on voice quality.\n        \\vspace{-4pt}\n        \\item Reduced domain-specific speech recognition errors by fine-tuning STT models in \\textbf{Azure Speech Studio}, improving WER through targeted data augmentation and acoustic feature optimization for noisy/real-world audio.\n\t\\end{itemize}\n}",
+      "description": null,
+      "bullets": [],
+      "entries": [
+        {
+          "id": "experience-57f22f59",
+          "title": {
+            "value": "Co-op Data Scientist",
+            "mode": "trusted_latex"
+          },
+          "organization": {
+            "value": "Insurance Corporation of British Columbia (ICBC)",
+            "mode": "trusted_latex"
+          },
+          "location": {
+            "value": "Vancouver, BC",
+            "mode": "trusted_latex"
+          },
+          "date_range": {
+            "value": "09/2024 ‐ 08/2025",
+            "mode": "trusted_latex"
+          },
+          "bullets": [
+            {
+              "id": "bullet-eb57f329",
+              "text": {
+                "value": "Built an Agentic AI system of claims knowledge retrieval by deploying an \\textbf{AKS-hosted RAG assistant} built with \\textbf{FastAPI and LangChain} that serves \\textbf{500+ queries/day} for \\textbf{100+ claims adjusters}, cutting manual search time by \\textbf{60\\%}.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Built an Agentic AI system of claims knowledge retrieval by deploying an \\textbf{AKS-hosted RAG assistant} built with \\textbf{FastAPI and LangChain} that serves \\textbf{500+ queries/day} for \\textbf{100+ claims adjusters}, cutting manual search time by \\textbf{60\\%}."
+            },
+            {
+              "id": "bullet-72cd0578",
+              "text": {
+                "value": "Increased reliability of ML workflows by building an automated evaluation pipeline in Python with \\textbf{PostgreSQL}-backed logging that tracked accuracy, faithfulness, and latency across \\textbf{3} production releases, reducing model debugging time by \\textbf{40\\%}.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Increased reliability of ML workflows by building an automated evaluation pipeline in Python with \\textbf{PostgreSQL}-backed logging that tracked accuracy, faithfulness, and latency across \\textbf{3} production releases, reducing model debugging time by \\textbf{40\\%}."
+            },
+            {
+              "id": "bullet-80e110b4",
+              "text": {
+                "value": "Delivered a \\textbf{CatBoost-based risk-scoring API} (Flask + PostgreSQL) that prioritizes \\textbf{1{,}200+ cases/month}, improving triage efficiency by \\textbf{15\\%} through explainable decision support embedded into case management workflows.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Delivered a \\textbf{CatBoost-based risk-scoring API} (Flask + PostgreSQL) that prioritizes \\textbf{1{,}200+ cases/month}, improving triage efficiency by \\textbf{15\\%} through explainable decision support embedded into case management workflows."
+            }
+          ],
+          "description": null,
+          "hyperlink": null,
+          "raw_source": "\\customcventry{09/2024 ‐ 08/2025}{}{Co-op Data Scientist}{}{}{\n\t\\vspace{4pt}\n\tInsurance Corporation of British Columbia (ICBC) \\hfill \\textit{Vancouver, BC}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n            \\item Built an Agentic AI system of claims knowledge retrieval by deploying an \\textbf{AKS-hosted RAG assistant} built with \\textbf{FastAPI and LangChain} that serves \\textbf{500+ queries/day} for \\textbf{100+ claims adjusters}, cutting manual search time by \\textbf{60\\%}.\n            \\vspace{-4pt}\n            \\item Increased reliability of ML workflows by building an automated evaluation pipeline in Python with \\textbf{PostgreSQL}-backed logging that tracked accuracy, faithfulness, and latency across \\textbf{3} production releases, reducing model debugging time by \\textbf{40\\%}.\n            \\vspace{-4pt}\n            \\item Delivered a \\textbf{CatBoost-based risk-scoring API} (Flask + PostgreSQL) that prioritizes \\textbf{1{,}200+ cases/month}, improving triage efficiency by \\textbf{15\\%} through explainable decision support embedded into case management workflows.\n            \\vspace{-4pt}\n        \\end{itemize}\n}\n\n",
+          "render_mode": "source_preserved",
+          "warnings": []
+        },
+        {
+          "id": "experience-f36966a2",
+          "title": {
+            "value": "Research Engine Developer",
+            "mode": "trusted_latex"
+          },
+          "organization": {
+            "value": "Justice Data and Design Lab",
+            "mode": "trusted_latex"
+          },
+          "location": {
+            "value": "Victoria, BC",
+            "mode": "trusted_latex"
+          },
+          "date_range": {
+            "value": "05/2024 ‐ 02/2025",
+            "mode": "trusted_latex"
+          },
+          "bullets": [
+            {
+              "id": "bullet-0810405f",
+              "text": {
+                "value": "Doubled downstream QA chatbot effectiveness by redesigning a \\textbf{RAG-based legal question-answering pipeline} that improved relevant document retrieval accuracy by \\textbf{2x}, integrating \\textbf{LLM-based reranking} and cleaner text preprocessing for more reliable decision support.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Doubled downstream QA chatbot effectiveness by redesigning a \\textbf{RAG-based legal question-answering pipeline} that improved relevant document retrieval accuracy by \\textbf{2x}, integrating \\textbf{LLM-based reranking} and cleaner text preprocessing for more reliable decision support."
+            },
+            {
+              "id": "bullet-a55f41af",
+              "text": {
+                "value": "Operationalized data analytics automations by building end-to-end Python/SQL pipelines for \\textbf{multiple MITACS-backed studies}, enabling projects to be re-run in \\textbf{one command} with versioned data cleaning, transformations, and metrics.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Operationalized data analytics automations by building end-to-end Python/SQL pipelines for \\textbf{multiple MITACS-backed studies}, enabling projects to be re-run in \\textbf{one command} with versioned data cleaning, transformations, and metrics."
+            },
+            {
+              "id": "bullet-fce867ea",
+              "text": {
+                "value": "Surfaced high-impact process improvement opportunities by running large-scale text mining and topic modeling over \\textbf{Reddit and legal education datasets}, delivering interactive \\textbf{Power BI} dashboards that highlighted \\textbf{top emerging issue clusters} and informed outreach and intake workflows.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Surfaced high-impact process improvement opportunities by running large-scale text mining and topic modeling over \\textbf{Reddit and legal education datasets}, delivering interactive \\textbf{Power BI} dashboards that highlighted \\textbf{top emerging issue clusters} and informed outreach and intake workflows."
+            }
+          ],
+          "description": null,
+          "hyperlink": null,
+          "raw_source": "\\customcventry{05/2024 ‐ 02/2025}{}{Research Engine Developer}{}{}{\n\t\\vspace{4pt}\n\tJustice Data and Design Lab\\hfill{Victoria, BC}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n        \\item Doubled downstream QA chatbot effectiveness by redesigning a \\textbf{RAG-based legal question-answering pipeline} that improved relevant document retrieval accuracy by \\textbf{2x}, integrating \\textbf{LLM-based reranking} and cleaner text preprocessing for more reliable decision support.\n        \\vspace{-4pt}\n        \\item Operationalized data analytics automations by building end-to-end Python/SQL pipelines for \\textbf{multiple MITACS-backed studies}, enabling projects to be re-run in \\textbf{one command} with versioned data cleaning, transformations, and metrics.\n        \\vspace{-4pt}\n        \\item Surfaced high-impact process improvement opportunities by running large-scale text mining and topic modeling over \\textbf{Reddit and legal education datasets}, delivering interactive \\textbf{Power BI} dashboards that highlighted \\textbf{top emerging issue clusters} and informed outreach and intake workflows.\n        \\vspace{-4pt}\n\t\\end{itemize}\n}\n\n",
+          "render_mode": "source_preserved",
+          "warnings": []
+        },
+        {
+          "id": "experience-314d2336",
+          "title": {
+            "value": "Founding Machine Learning Engineer",
+            "mode": "trusted_latex"
+          },
+          "organization": {
+            "value": "SeiSei.ai",
+            "mode": "trusted_latex"
+          },
+          "location": {
+            "value": "India",
+            "mode": "trusted_latex"
+          },
+          "date_range": {
+            "value": "04/2023 ‐ 07/2023",
+            "mode": "trusted_latex"
+          },
+          "bullets": [
+            {
+              "id": "bullet-56039365",
+              "text": {
+                "value": "Built and validated an end-to-end Hindi voice pipeline that improved FreeVC performance by \\textbf{15\\%} through benchmarking, preprocessing, and data quality checks across noisy audio inputs.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Built and validated an end-to-end Hindi voice pipeline that improved FreeVC performance by \\textbf{15\\%} through benchmarking, preprocessing, and data quality checks across noisy audio inputs."
+            },
+            {
+              "id": "bullet-fa03666a",
+              "text": {
+                "value": "Automated collection, preprocessing, quality checks, and batch inference for \\textbf{5,000+ hours} of audio data, creating cleaner training inputs and more reliable model iteration for deployment.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Automated collection, preprocessing, quality checks, and batch inference for \\textbf{5,000+ hours} of audio data, creating cleaner training inputs and more reliable model iteration for deployment."
+            },
+            {
+              "id": "bullet-e61bd988",
+              "text": {
+                "value": "Coordinated stakeholder feedback and deployment through Kubernetes on Truefoundry, translating ambiguous product requirements into monitored ML workflows with fail-safe evaluation practices.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Coordinated stakeholder feedback and deployment through Kubernetes on Truefoundry, translating ambiguous product requirements into monitored ML workflows with fail-safe evaluation practices."
+            }
+          ],
+          "description": null,
+          "hyperlink": null,
+          "raw_source": "\\customcventry{04/2023 ‐ 07/2023}{}{Founding Machine Learning Engineer}{}{}{\n\t\\vspace{4pt}\n\tSeiSei.ai \\hfill \\textit{India}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n        \\item Built and validated an end-to-end Hindi voice pipeline that improved FreeVC performance by \\textbf{15\\%} through benchmarking, preprocessing, and data quality checks across noisy audio inputs.\n        \\vspace{-4pt}\n        \\item Automated collection, preprocessing, quality checks, and batch inference for \\textbf{5,000+ hours} of audio data, creating cleaner training inputs and more reliable model iteration for deployment.\n        \\vspace{-4pt}\n        \\item Coordinated stakeholder feedback and deployment through Kubernetes on Truefoundry, translating ambiguous product requirements into monitored ML workflows with fail-safe evaluation practices.\n        \\vspace{-4pt}\n\t\\end{itemize}\n}\n\n",
+          "render_mode": "source_preserved",
+          "warnings": []
+        },
+        {
+          "id": "experience-63e6a5f2",
+          "title": {
+            "value": "Computer Vision Intern",
+            "mode": "trusted_latex"
+          },
+          "organization": {
+            "value": "Drive Analytics",
+            "mode": "trusted_latex"
+          },
+          "location": {
+            "value": "India",
+            "mode": "trusted_latex"
+          },
+          "date_range": {
+            "value": "09/2021 – 02/2022",
+            "mode": "trusted_latex"
+          },
+          "bullets": [
+            {
+              "id": "bullet-fef7496d",
+              "text": {
+                "value": "Built and deployed production video analytics pipelines on AWS using Celery and RabbitMQ, processing \\textbf{\\~10K clips/day} and returning outputs within a \\textbf{2-hour} delivery window for external partners.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Built and deployed production video analytics pipelines on AWS using Celery and RabbitMQ, processing \\textbf{\\~10K clips/day} and returning outputs within a \\textbf{2-hour} delivery window for external partners."
+            },
+            {
+              "id": "bullet-c9781e73",
+              "text": {
+                "value": "Investigated data quality failures across multi-view footage, low-resolution clips, occlusions, and weather noise, improving output trustworthiness by reducing misleading analytics in real production workflows.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Investigated data quality failures across multi-view footage, low-resolution clips, occlusions, and weather noise, improving output trustworthiness by reducing misleading analytics in real production workflows."
+            },
+            {
+              "id": "bullet-0bf8d758",
+              "text": {
+                "value": "Evaluated and iterated on computer vision approaches against real-world failure cases, helping ensure analytics were reliable enough for downstream coaching and analyst use under strict turnaround requirements.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Evaluated and iterated on computer vision approaches against real-world failure cases, helping ensure analytics were reliable enough for downstream coaching and analyst use under strict turnaround requirements."
+            }
+          ],
+          "description": null,
+          "hyperlink": null,
+          "raw_source": "\\customcventry{09/2021 – 02/2022}{}{Computer Vision Intern}{}{}{\n\t\\vspace{4pt}\n\tDrive Analytics \\hfill \\textit{India}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n\t\t\\item Built and deployed production video analytics pipelines on AWS using Celery and RabbitMQ, processing \\textbf{\\~10K clips/day} and returning outputs within a \\textbf{2-hour} delivery window for external partners.\n        \\vspace{-4pt}\n        \\item Investigated data quality failures across multi-view footage, low-resolution clips, occlusions, and weather noise, improving output trustworthiness by reducing misleading analytics in real production workflows.\n        \\vspace{-4pt}\n        \\item Evaluated and iterated on computer vision approaches against real-world failure cases, helping ensure analytics were reliable enough for downstream coaching and analyst use under strict turnaround requirements.\n        \\vspace{-4pt}\n\t\\end{itemize}\n}\n\n",
+          "render_mode": "source_preserved",
+          "warnings": []
+        },
+        {
+          "id": "experience-8f29fedf",
+          "title": {
+            "value": "Deep Learning Intern",
+            "mode": "trusted_latex"
+          },
+          "organization": {
+            "value": "MURF.ai",
+            "mode": "trusted_latex"
+          },
+          "location": {
+            "value": "India",
+            "mode": "trusted_latex"
+          },
+          "date_range": {
+            "value": "12/2020 – 06/2021",
+            "mode": "trusted_latex"
+          },
+          "bullets": [
+            {
+              "id": "bullet-5df4317e",
+              "text": {
+                "value": "Delivered a \\textbf{FastSpeech-2} voice cloning system by building an end-to-end audio data pipeline (preprocessing with \\textbf{librosa}, feature engineering, training/inference workflow), enabling reproducible generation and faster iteration on voice quality.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Delivered a \\textbf{FastSpeech-2} voice cloning system by building an end-to-end audio data pipeline (preprocessing with \\textbf{librosa}, feature engineering, training/inference workflow), enabling reproducible generation and faster iteration on voice quality."
+            },
+            {
+              "id": "bullet-9cefdf6d",
+              "text": {
+                "value": "Reduced domain-specific speech recognition errors by fine-tuning STT models in \\textbf{Azure Speech Studio}, improving WER through targeted data augmentation and acoustic feature optimization for noisy/real-world audio.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Reduced domain-specific speech recognition errors by fine-tuning STT models in \\textbf{Azure Speech Studio}, improving WER through targeted data augmentation and acoustic feature optimization for noisy/real-world audio."
+            }
+          ],
+          "description": null,
+          "hyperlink": null,
+          "raw_source": "\\customcventry{12/2020 – 06/2021}{}{Deep Learning Intern}{}{}{\n\t\\vspace{4pt}\n\tMURF.ai \\hfill{India}\n\t\\vspace{2pt}\n\t\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n        \\item Delivered a \\textbf{FastSpeech-2} voice cloning system by building an end-to-end audio data pipeline (preprocessing with \\textbf{librosa}, feature engineering, training/inference workflow), enabling reproducible generation and faster iteration on voice quality.\n        \\vspace{-4pt}\n        \\item Reduced domain-specific speech recognition errors by fine-tuning STT models in \\textbf{Azure Speech Studio}, improving WER through targeted data augmentation and acoustic feature optimization for noisy/real-world audio.\n\t\\end{itemize}\n}",
+          "render_mode": "source_preserved",
+          "warnings": []
+        }
+      ],
+      "skills_categories": [],
+      "render_mode": "source_preserved",
+      "warnings": []
+    },
+    {
+      "id": "section-959a7a81",
+      "kind": "education",
+      "title": "Education",
+      "order": 3,
+      "provenance": "active",
+      "raw_source": "\\section{Education}\n\\customcventry{2023-2025}{{University of Victoria}}{Master of Engineering in Applied Data Science,}{Victoria, BC}{}{}{\n\\vspace{2pt}\nNotable Coursework: Optimization for Machine Learning, Scaling Large Language Models on GPUs, Data Privacy\n}\n\\vspace{10pt}\n\n\\customcventry{2019-2023}{{Anna University}}{Bachelor of Engineering in Computer Science and Engineering,}{India}{}{}{\n\\vspace{2pt}\nNotable Coursework: Artificial Intelligence, Cloud Computing, Data Structures, Data Warehousing, and Data Mining\n}",
+      "description": null,
+      "bullets": [],
+      "entries": [
+        {
+          "id": "education-ffcdf173",
+          "title": {
+            "value": "Master of Engineering in Applied Data Science,",
+            "mode": "trusted_latex"
+          },
+          "organization": {
+            "value": "University of Victoria",
+            "mode": "trusted_latex"
+          },
+          "location": {
+            "value": "Victoria, BC",
+            "mode": "trusted_latex"
+          },
+          "date_range": {
+            "value": "2023-2025",
+            "mode": "trusted_latex"
+          },
+          "bullets": [],
+          "description": {
+            "value": "Notable Coursework: Optimization for Machine Learning, Scaling Large Language Models on GPUs, Data Privacy",
+            "mode": "trusted_latex"
+          },
+          "hyperlink": null,
+          "raw_source": "\\customcventry{2023-2025}{{University of Victoria}}{Master of Engineering in Applied Data Science,}{Victoria, BC}{}{}{\n\\vspace{2pt}\nNotable Coursework: Optimization for Machine Learning, Scaling Large Language Models on GPUs, Data Privacy\n}\n",
+          "render_mode": "source_preserved",
+          "warnings": []
+        },
+        {
+          "id": "education-2d9a9206",
+          "title": {
+            "value": "Bachelor of Engineering in Computer Science and Engineering,",
+            "mode": "trusted_latex"
+          },
+          "organization": {
+            "value": "Anna University",
+            "mode": "trusted_latex"
+          },
+          "location": {
+            "value": "India",
+            "mode": "trusted_latex"
+          },
+          "date_range": {
+            "value": "2019-2023",
+            "mode": "trusted_latex"
+          },
+          "bullets": [],
+          "description": {
+            "value": "Notable Coursework: Artificial Intelligence, Cloud Computing, Data Structures, Data Warehousing, and Data Mining",
+            "mode": "trusted_latex"
+          },
+          "hyperlink": null,
+          "raw_source": "\\customcventry{2019-2023}{{Anna University}}{Bachelor of Engineering in Computer Science and Engineering,}{India}{}{}{\n\\vspace{2pt}\nNotable Coursework: Artificial Intelligence, Cloud Computing, Data Structures, Data Warehousing, and Data Mining\n}",
+          "render_mode": "source_preserved",
+          "warnings": []
+        }
+      ],
+      "skills_categories": [],
+      "render_mode": "source_preserved",
+      "warnings": []
+    },
+    {
+      "id": "section-aeb3db31",
+      "kind": "projects",
+      "title": "Projects",
+      "order": 4,
+      "provenance": "active",
+      "raw_source": "\\section{Projects}\n\n\\customcventry{11/2025}{}{\\href{https://github.com/Koushik0901/Telecom-Customer-Churn}{Telecom Customer Churn \\& Upsell Prediction System\\enspace\\faGithub}}{}{}{\n     \\vspace{2pt}\n     \\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n     \\item Built an end-to-end churn prediction and customer upsell system on a \\textbf{7,043-customer} telecom dataset, performing data preprocessing, feature engineering (\\textbf{30+ features}), and statistical modeling using \\textbf{Python, Scikit-learn, and XGBoost} to identify high-risk customers and cross-sell opportunities.\n    \\vspace{-2pt}\n    \\item Developed multiple predictive models (Logistic Regression, Random Forest, XGBoost) with comprehensive model evaluation using precision, recall, F1-score, and AUC-ROC metrics, achieving improved identification of high-risk churners in the top 10\\% segment through probability calibration and threshold optimization.\n    \\vspace{-2pt}\n    \\item Delivered an interactive \\textbf{Streamlit dashboard} displaying portfolio-level churn risk by contract type and region, plus individual customer churn probability and upsell scores with \\textbf{SHAP-based driver analysis}, providing actionable insights for retention and revenue optimization strategies.\n\\end{itemize}\n}\n\\vspace{6pt}\n\n\\customcventry{11/2025}{}{\\href{https://github.com/Koushik0901/NYC-311-Demand-Forecasting-Optimization}{NYC 311 Service Demand Forecasting \\& Optimization System\\enspace\\faGithub}}{}{}{\n\\vspace{2pt}\n\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n    \\item Designed end-to-end machine learning system for \\textbf{multi-dimensional demand forecasting} using NYC 311 service data, applying time-series analysis and predictive modeling to forecast service volumes across 10 categories, directly applicable to banking operations such as call center staffing and credit demand prediction.\n    \\vspace{-2pt}\n    \\item Implemented \\textbf{Temporal Fusion Transformer} and Prophet models for hourly demand forecasting, achieving 23\\% lower MAPE than baseline through feature engineering (time-of-day, seasonality, service mix), model validation, and hyperparameter optimization, with attention mechanisms revealing key demand drivers for business interpretation.\n    \\vspace{-2pt}\n    \\item Developed \\textbf{Bayesian optimization framework} for workforce allocation, reducing simulated wait times by 34\\% and labor costs by 18\\%; delivered interactive Streamlit dashboard for real-time scenario analysis and Pareto-optimal trade-off visualization between service quality and operational efficiency.\n\\end{itemize}\n}\n\n\\vspace{10pt}",
+      "description": null,
+      "bullets": [],
+      "entries": [
+        {
+          "id": "projects-eaab18d8",
+          "title": {
+            "value": "Telecom Customer Churn \\& Upsell Prediction System\\enspace\\faGithub",
+            "mode": "trusted_latex"
+          },
+          "organization": null,
+          "location": null,
+          "date_range": {
+            "value": "11/2025",
+            "mode": "trusted_latex"
+          },
+          "bullets": [
+            {
+              "id": "bullet-5b90b79c",
+              "text": {
+                "value": "Built an end-to-end churn prediction and customer upsell system on a \\textbf{7,043-customer} telecom dataset, performing data preprocessing, feature engineering (\\textbf{30+ features}), and statistical modeling using \\textbf{Python, Scikit-learn, and XGBoost} to identify high-risk customers and cross-sell opportunities.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Built an end-to-end churn prediction and customer upsell system on a \\textbf{7,043-customer} telecom dataset, performing data preprocessing, feature engineering (\\textbf{30+ features}), and statistical modeling using \\textbf{Python, Scikit-learn, and XGBoost} to identify high-risk customers and cross-sell opportunities."
+            },
+            {
+              "id": "bullet-787d5bb6",
+              "text": {
+                "value": "Developed multiple predictive models (Logistic Regression, Random Forest, XGBoost) with comprehensive model evaluation using precision, recall, F1-score, and AUC-ROC metrics, achieving improved identification of high-risk churners in the top 10\\% segment through probability calibration and threshold optimization.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Developed multiple predictive models (Logistic Regression, Random Forest, XGBoost) with comprehensive model evaluation using precision, recall, F1-score, and AUC-ROC metrics, achieving improved identification of high-risk churners in the top 10\\% segment through probability calibration and threshold optimization."
+            },
+            {
+              "id": "bullet-ef69e4f4",
+              "text": {
+                "value": "Delivered an interactive \\textbf{Streamlit dashboard} displaying portfolio-level churn risk by contract type and region, plus individual customer churn probability and upsell scores with \\textbf{SHAP-based driver analysis}, providing actionable insights for retention and revenue optimization strategies.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Delivered an interactive \\textbf{Streamlit dashboard} displaying portfolio-level churn risk by contract type and region, plus individual customer churn probability and upsell scores with \\textbf{SHAP-based driver analysis}, providing actionable insights for retention and revenue optimization strategies."
+            }
+          ],
+          "description": null,
+          "hyperlink": "https://github.com/Koushik0901/Telecom-Customer-Churn",
+          "raw_source": "\\customcventry{11/2025}{}{\\href{https://github.com/Koushik0901/Telecom-Customer-Churn}{Telecom Customer Churn \\& Upsell Prediction System\\enspace\\faGithub}}{}{}{\n     \\vspace{2pt}\n     \\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n     \\item Built an end-to-end churn prediction and customer upsell system on a \\textbf{7,043-customer} telecom dataset, performing data preprocessing, feature engineering (\\textbf{30+ features}), and statistical modeling using \\textbf{Python, Scikit-learn, and XGBoost} to identify high-risk customers and cross-sell opportunities.\n    \\vspace{-2pt}\n    \\item Developed multiple predictive models (Logistic Regression, Random Forest, XGBoost) with comprehensive model evaluation using precision, recall, F1-score, and AUC-ROC metrics, achieving improved identification of high-risk churners in the top 10\\% segment through probability calibration and threshold optimization.\n    \\vspace{-2pt}\n    \\item Delivered an interactive \\textbf{Streamlit dashboard} displaying portfolio-level churn risk by contract type and region, plus individual customer churn probability and upsell scores with \\textbf{SHAP-based driver analysis}, providing actionable insights for retention and revenue optimization strategies.\n\\end{itemize}\n}\n",
+          "render_mode": "source_preserved",
+          "warnings": []
+        },
+        {
+          "id": "projects-c4e653a1",
+          "title": {
+            "value": "NYC 311 Service Demand Forecasting \\& Optimization System\\enspace\\faGithub",
+            "mode": "trusted_latex"
+          },
+          "organization": null,
+          "location": null,
+          "date_range": {
+            "value": "11/2025",
+            "mode": "trusted_latex"
+          },
+          "bullets": [
+            {
+              "id": "bullet-546a7bcc",
+              "text": {
+                "value": "Designed end-to-end machine learning system for \\textbf{multi-dimensional demand forecasting} using NYC 311 service data, applying time-series analysis and predictive modeling to forecast service volumes across 10 categories, directly applicable to banking operations such as call center staffing and credit demand prediction.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Designed end-to-end machine learning system for \\textbf{multi-dimensional demand forecasting} using NYC 311 service data, applying time-series analysis and predictive modeling to forecast service volumes across 10 categories, directly applicable to banking operations such as call center staffing and credit demand prediction."
+            },
+            {
+              "id": "bullet-a6675f9d",
+              "text": {
+                "value": "Implemented \\textbf{Temporal Fusion Transformer} and Prophet models for hourly demand forecasting, achieving 23\\% lower MAPE than baseline through feature engineering (time-of-day, seasonality, service mix), model validation, and hyperparameter optimization, with attention mechanisms revealing key demand drivers for business interpretation.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Implemented \\textbf{Temporal Fusion Transformer} and Prophet models for hourly demand forecasting, achieving 23\\% lower MAPE than baseline through feature engineering (time-of-day, seasonality, service mix), model validation, and hyperparameter optimization, with attention mechanisms revealing key demand drivers for business interpretation."
+            },
+            {
+              "id": "bullet-b87de1cc",
+              "text": {
+                "value": "Developed \\textbf{Bayesian optimization framework} for workforce allocation, reducing simulated wait times by 34\\% and labor costs by 18\\%; delivered interactive Streamlit dashboard for real-time scenario analysis and Pareto-optimal trade-off visualization between service quality and operational efficiency.",
+                "mode": "trusted_latex"
+              },
+              "raw_text": "Developed \\textbf{Bayesian optimization framework} for workforce allocation, reducing simulated wait times by 34\\% and labor costs by 18\\%; delivered interactive Streamlit dashboard for real-time scenario analysis and Pareto-optimal trade-off visualization between service quality and operational efficiency."
+            }
+          ],
+          "description": null,
+          "hyperlink": "https://github.com/Koushik0901/NYC-311-Demand-Forecasting-Optimization",
+          "raw_source": "\\customcventry{11/2025}{}{\\href{https://github.com/Koushik0901/NYC-311-Demand-Forecasting-Optimization}{NYC 311 Service Demand Forecasting \\& Optimization System\\enspace\\faGithub}}{}{}{\n\\vspace{2pt}\n\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n    \\item Designed end-to-end machine learning system for \\textbf{multi-dimensional demand forecasting} using NYC 311 service data, applying time-series analysis and predictive modeling to forecast service volumes across 10 categories, directly applicable to banking operations such as call center staffing and credit demand prediction.\n    \\vspace{-2pt}\n    \\item Implemented \\textbf{Temporal Fusion Transformer} and Prophet models for hourly demand forecasting, achieving 23\\% lower MAPE than baseline through feature engineering (time-of-day, seasonality, service mix), model validation, and hyperparameter optimization, with attention mechanisms revealing key demand drivers for business interpretation.\n    \\vspace{-2pt}\n    \\item Developed \\textbf{Bayesian optimization framework} for workforce allocation, reducing simulated wait times by 34\\% and labor costs by 18\\%; delivered interactive Streamlit dashboard for real-time scenario analysis and Pareto-optimal trade-off visualization between service quality and operational efficiency.\n\\end{itemize}\n}\n\n",
+          "render_mode": "source_preserved",
+          "warnings": []
+        }
+      ],
+      "skills_categories": [],
+      "render_mode": "source_preserved",
+      "warnings": []
+    },
+    {
+      "id": "section-6bbcb153",
+      "kind": "publications",
+      "title": "Publications",
+      "order": 5,
+      "provenance": "active",
+      "raw_source": "\\section{Publications}\n\\setlength{\\itemsep}{0pt} % controls vertical spacing between items\n\\setlength{\\parskip}{0pt} % avoids extra space\n\\textbf{ORCID ID:}\\href{https://orcid.org/0000-0003-0525-0677}{\\textcolor{customblue}{0000-0003-0525-0677}} \\textbar{} \\href{https://scholar.google.ca/citations?hl=en&user=lDmjJtoAAAAJ}{\\textbf{Google Scholar}}\n\\begin{itemize}[leftmargin=0.6cm, label={\\textbullet}]\n\t\\item \"Vision transformer based COVID-19 detection using chest X-rays\"\n    \\vspace{-4pt}\n\t\\item \"SwiftSRGAN--Rethinking Super-Resolution for Efficient and Real-time Inference\"\n    \\vspace{-4pt}\n\t\\item \"Benchmarking Conventional Vision Models on Neuromorphic Fall Detection and Action Recognition Dataset\"\n    \\vspace{-4pt}\n\t\\item \"Efficient Super-Resolution For Chest X-rays\"\n    \\vspace{-4pt}\n\t\\item \"MFAAN: Unveiling Audio Deepfakes with a Multi-Feature Authenticity Network\"\n\\end{itemize}",
+      "description": {
+        "value": "\\setlength{\\itemsep}{0pt} % controls vertical spacing between items\n\\setlength{\\parskip}{0pt} % avoids extra space\n\\textbf{ORCID ID:}\\href{https://orcid.org/0000-0003-0525-0677}{\\textcolor{customblue}{0000-0003-0525-0677}} \\textbar{} \\href{https://scholar.google.ca/citations?hl=en&user=lDmjJtoAAAAJ}{\\textbf{Google Scholar}}",
+        "mode": "trusted_latex"
+      },
+      "bullets": [
+        {
+          "id": "publications-bullet-95b7ac3a",
+          "text": {
+            "value": "\"Vision transformer based COVID-19 detection using chest X-rays\"",
+            "mode": "trusted_latex"
+          },
+          "raw_text": "\"Vision transformer based COVID-19 detection using chest X-rays\""
+        },
+        {
+          "id": "publications-bullet-f11b6640",
+          "text": {
+            "value": "\"SwiftSRGAN--Rethinking Super-Resolution for Efficient and Real-time Inference\"",
+            "mode": "trusted_latex"
+          },
+          "raw_text": "\"SwiftSRGAN--Rethinking Super-Resolution for Efficient and Real-time Inference\""
+        },
+        {
+          "id": "publications-bullet-4b2e643f",
+          "text": {
+            "value": "\"Benchmarking Conventional Vision Models on Neuromorphic Fall Detection and Action Recognition Dataset\"",
+            "mode": "trusted_latex"
+          },
+          "raw_text": "\"Benchmarking Conventional Vision Models on Neuromorphic Fall Detection and Action Recognition Dataset\""
+        },
+        {
+          "id": "publications-bullet-1e41548c",
+          "text": {
+            "value": "\"Efficient Super-Resolution For Chest X-rays\"",
+            "mode": "trusted_latex"
+          },
+          "raw_text": "\"Efficient Super-Resolution For Chest X-rays\""
+        },
+        {
+          "id": "publications-bullet-cb5b9728",
+          "text": {
+            "value": "\"MFAAN: Unveiling Audio Deepfakes with a Multi-Feature Authenticity Network\"",
+            "mode": "trusted_latex"
+          },
+          "raw_text": "\"MFAAN: Unveiling Audio Deepfakes with a Multi-Feature Authenticity Network\""
+        }
+      ],
+      "entries": [],
+      "skills_categories": [],
+      "render_mode": "source_preserved",
+      "warnings": []
+    }
+  ]
+}

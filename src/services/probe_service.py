@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 import requests
 from rich.console import Console
 
-from fetchers import _extract_json_array_from_html
+from fetchers import _extract_json_array_from_html, _extract_teamtailor_job_urls
 
 _ATS_PROBES: list[tuple[str, str, str, Any]] = [
     (
@@ -47,6 +47,12 @@ _ATS_PROBES: list[tuple[str, str, str, Any]] = [
         lambda r: r.status_code == 200 and (
             (isinstance(r.json(), dict) and "offers" in r.json()) or isinstance(r.json(), list)
         ),
+    ),
+    (
+        "teamtailor",
+        "https://{slug}.teamtailor.com/jobs",
+        "GET",
+        lambda r: r.status_code == 200 and len(_extract_teamtailor_job_urls(r.url, r.text)) > 0,
     ),
 ]
 
@@ -104,6 +110,8 @@ def probe_job_count(resp: requests.Response, ats_name: str) -> int:
     if ats_name == "ashby":
         jobs = _extract_json_array_from_html(resp.text, "jobPostings")
         return len(jobs)
+    if ats_name == "teamtailor":
+        return len(_extract_teamtailor_job_urls(resp.url, resp.text))
     return 0
 
 
@@ -140,6 +148,7 @@ def check_company(slug: str) -> None:
 
 def probe_all(slugs: list[str], url_templates: dict[str, str]) -> list[dict[str, Any]]:
     """Probe all ATS for all slugs concurrently, returning canonical hit rows."""
+    allowed_ats = set(url_templates)
 
     def _probe_one(slug: str, ats_name: str, url_tmpl: str, method: str, success_test) -> dict[str, Any] | None:
         url = url_tmpl.format(slug=slug)
@@ -163,6 +172,7 @@ def probe_all(slugs: list[str], url_templates: dict[str, str]) -> list[dict[str,
             ex.submit(_probe_one, slug, ats_name, url_tmpl, method, success_test)
             for slug in slugs
             for ats_name, url_tmpl, method, success_test in _ATS_PROBES
+            if ats_name in allowed_ats
         ]
         for fut in as_completed(futures):
             row = fut.result()

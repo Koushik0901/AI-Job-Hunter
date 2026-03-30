@@ -3,6 +3,7 @@ notify.py — .env loader, country bucketing, and Telegram notification helpers.
 """
 from __future__ import annotations
 
+import hashlib
 import html
 import logging
 import os
@@ -10,6 +11,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
 
@@ -17,6 +19,17 @@ logger = logging.getLogger(__name__)
 
 _COUNTRY_ORDER = ["Canada", "USA / Remote", "Other"]
 _COUNTRY_EMOJI = {"Canada": "\U0001f1e8\U0001f1e6", "USA / Remote": "\U0001f310", "Other": "\U0001f30d"}
+
+
+def _notification_timezone() -> ZoneInfo:
+    name = (
+        str(os.getenv("JOB_HUNTER_TIMEZONE") or os.getenv("TIMEZONE") or os.getenv("TZ") or "America/Edmonton").strip()
+        or "America/Edmonton"
+    )
+    try:
+        return ZoneInfo(name)
+    except ZoneInfoNotFoundError:
+        return ZoneInfo("UTC")
 
 
 def _load_dotenv(path: Path) -> None:
@@ -73,6 +86,10 @@ def _chunk_telegram_lines(lines: list[str]) -> list[str]:
     if current_parts:
         chunks.append("".join(current_parts).rstrip())
     return chunks
+
+
+def telegram_message_hash(chunks: list[str]) -> str:
+    return hashlib.sha1("\n".join(chunks).encode("utf-8")).hexdigest()
 
 
 def format_telegram_message(new_jobs: list[dict[str, Any]], run_date: str) -> list[str]:
@@ -140,6 +157,78 @@ def format_overdue_staging_message(overdue_jobs: list[dict[str, Any]], run_date:
     return _chunk_telegram_lines(lines)
 
 
+def format_daily_briefing_message(briefing: dict[str, Any]) -> list[str]:
+    brief_date = _escape_text(briefing.get("brief_date") or "")
+    summary_line = _escape_text(briefing.get("summary_line") or "")
+    apply_now = list(briefing.get("apply_now") or [])
+    follow_ups_due = list(briefing.get("follow_ups_due") or [])
+    watchlist = list(briefing.get("watchlist") or [])
+    profile_gaps = [str(item).strip() for item in list(briefing.get("profile_gaps") or []) if str(item).strip()]
+    signals = [str(item).strip() for item in list(briefing.get("signals") or []) if str(item).strip()]
+    quiet_day = bool(briefing.get("quiet_day"))
+
+    lines: list[str] = [f"\U0001f4cc <b>Daily briefing \u2014 {brief_date}</b>"]
+    lines.append(summary_line or ("Quiet day: no urgent actions." if quiet_day else "Daily action summary."))
+
+    if apply_now:
+        lines.append("")
+        lines.append("\U0001f680 <b>Apply now</b>")
+        for item in apply_now:
+            company = _escape_text(item.get("company") or "")
+            title = _escape_text(item.get("title") or "")
+            reason = _escape_text(item.get("reason") or "")
+            score = item.get("score")
+            url = _escape_url(item.get("job_url") or "")
+            score_text = f" \u00b7 score {score}" if isinstance(score, int) else ""
+            lines.append(f"\u2022 <b>{company} \u2014 {title}</b>{score_text}")
+            if reason:
+                lines.append(f"  {reason}")
+            if url:
+                lines.append(f'  <a href="{url}">Open \u2192</a>')
+
+    if follow_ups_due:
+        lines.append("")
+        lines.append("\u23f0 <b>Follow-ups due</b>")
+        for item in follow_ups_due:
+            company = _escape_text(item.get("company") or "")
+            title = _escape_text(item.get("title") or "")
+            due_at = _escape_text(item.get("due_at") or "")
+            reason = _escape_text(item.get("reason") or "")
+            url = _escape_url(item.get("job_url") or "")
+            lines.append(f"\u2022 <b>{company} \u2014 {title}</b>")
+            if due_at or reason:
+                meta = " | ".join(part for part in [f"Due {due_at}" if due_at else "", reason] if part)
+                if meta:
+                    lines.append(f"  {meta}")
+            if url:
+                lines.append(f'  <a href="{url}">Review \u2192</a>')
+
+    if watchlist:
+        lines.append("")
+        lines.append("\U0001f440 <b>Watchlist</b>")
+        for item in watchlist[:3]:
+            company = _escape_text(item.get("company") or "")
+            title = _escape_text(item.get("title") or "")
+            reason = _escape_text(item.get("reason") or "")
+            lines.append(f"\u2022 <b>{company} \u2014 {title}</b>")
+            if reason:
+                lines.append(f"  {reason}")
+
+    if profile_gaps:
+        lines.append("")
+        lines.append("\U0001f9e9 <b>Top gaps</b>")
+        for gap in profile_gaps[:2]:
+            lines.append(f"\u2022 {_escape_text(gap)}")
+
+    if signals:
+        lines.append("")
+        lines.append("\U0001f4ca <b>Signals</b>")
+        for signal in signals[:2]:
+            lines.append(f"\u2022 {_escape_text(signal)}")
+
+    return _chunk_telegram_lines(lines)
+
+
 def send_telegram(token: str, chat_id: str, text: str) -> None:
     """Send a single HTML-formatted message via the Telegram Bot API."""
     url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -190,7 +279,7 @@ def notify_new_jobs(
     console: Any,
 ) -> None:
     """Format and send Telegram notifications for newly found jobs."""
-    run_date = datetime.now(timezone.utc).isoformat()[:10]
+    run_date = datetime.now(_notification_timezone()).date().isoformat()
     chunks = format_telegram_message(new_jobs, run_date)
     _send_notification_chunks(
         token=token,
@@ -209,7 +298,7 @@ def notify_overdue_staging_jobs(
     console: Any,
 ) -> None:
     """Format and send Telegram notifications for overdue staging jobs."""
-    run_date = datetime.now(timezone.utc).isoformat()[:10]
+    run_date = datetime.now(_notification_timezone()).date().isoformat()
     chunks = format_overdue_staging_message(overdue_jobs, run_date)
     _send_notification_chunks(
         token=token,
@@ -219,3 +308,21 @@ def notify_overdue_staging_jobs(
         label="overdue staging job(s)",
         item_count=len(overdue_jobs),
     )
+
+
+def notify_daily_briefing(
+    briefing: dict[str, Any],
+    token: str,
+    chat_id: str,
+    console: Any,
+) -> list[str]:
+    chunks = format_daily_briefing_message(briefing)
+    _send_notification_chunks(
+        token=token,
+        chat_id=chat_id,
+        chunks=chunks,
+        console=console,
+        label="daily briefing chunk(s)",
+        item_count=len(chunks),
+    )
+    return chunks

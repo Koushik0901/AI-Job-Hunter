@@ -1,0 +1,137 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - button "Toggle navigation" [ref=e4] [cursor=pointer]
+      - complementary [ref=e9]:
+        - navigation "Primary navigation" [ref=e10]:
+          - link "Board" [ref=e11] [cursor=pointer]:
+            - /url: /
+            - img [ref=e13]
+            - text: Board
+          - link "Artifacts" [ref=e17] [cursor=pointer]:
+            - /url: /artifacts
+            - img [ref=e19]
+            - text: Artifacts
+          - link "Analytics" [ref=e22] [cursor=pointer]:
+            - /url: /analytics
+            - img [ref=e24]
+            - text: Analytics
+          - link "Workspace" [ref=e29] [cursor=pointer]:
+            - /url: /workspace
+            - img [ref=e31]
+            - text: Workspace
+          - link "Evidence Vault" [ref=e34] [cursor=pointer]:
+            - /url: /evidence-vault
+            - img [ref=e36]
+            - text: Evidence Vault
+          - link "Profile" [ref=e39] [cursor=pointer]:
+            - /url: /profile
+            - img [ref=e41]
+            - text: Profile
+      - generic [ref=e63]:
+        - generic [ref=e64]:
+          - generic [ref=e65]:
+            - button "Back ↗" [ref=e66] [cursor=pointer]
+            - heading "Resume (LaTeX)" [level=1] [ref=e67]
+            - paragraph [ref=e68]: Manual save + manual recompile workflow
+          - generic [ref=e69]:
+            - button "View JD ↗" [ref=e70] [cursor=pointer]
+            - combobox [ref=e71] [cursor=pointer]:
+              - generic: classic
+              - img [ref=e72]
+            - button "Download PDF !" [ref=e74] [cursor=pointer]
+            - button "AI Rewrite ↗" [ref=e75] [cursor=pointer]
+            - button "Save Draft +" [ref=e76] [cursor=pointer]
+            - button "Recompile ✓" [ref=e77] [cursor=pointer]
+        - generic [ref=e78]:
+          - generic [ref=e79]: Saved
+          - generic [ref=e80]: "Compile: ok"
+        - status [ref=e81]:
+          - paragraph [ref=e82]: "Missing recommended section tag: header"
+          - paragraph [ref=e83]: "Missing recommended section tag: highlights"
+          - paragraph [ref=e84]: "Missing recommended section tag: skills"
+          - paragraph [ref=e85]: "Missing recommended section tag: experience"
+          - paragraph [ref=e86]: "Missing recommended section tag: education"
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - heading "LaTeX Source" [level=3] [ref=e90]
+            - code [ref=e94]:
+              - generic [ref=e95]:
+                - textbox "Editor content"
+                - generic [ref=e97]:
+                  - generic [ref=e100]: "1"
+                  - generic [ref=e102]: "2"
+                  - generic [ref=e104]: "3"
+                  - generic [ref=e106]: "4"
+                  - generic [ref=e108]: "5"
+                  - generic [ref=e110]: "6"
+                  - generic [ref=e112]: "7"
+                  - generic [ref=e115]: "8"
+                  - generic [ref=e117]: "9"
+                  - generic [ref=e120]: "10"
+                  - generic [ref=e122]: "11"
+                  - generic [ref=e124]: "12"
+                  - generic [ref=e127]: "13"
+                  - generic [ref=e129]: "14"
+                  - generic [ref=e131]: "15"
+                  - generic [ref=e133]: "16"
+                  - generic [ref=e135]: "17"
+                  - generic [ref=e137]: "18"
+                  - generic [ref=e139]: "19"
+                  - generic [ref=e140]:
+                    - generic [ref=e141] [cursor=pointer]: 
+                    - generic [ref=e142]: "20"
+                  - generic [ref=e144]: "21"
+                  - generic [ref=e146]: "22"
+                  - generic [ref=e148]: "23"
+                  - generic [ref=e150]: "24"
+                  - generic [ref=e151]:
+                    - generic [ref=e152] [cursor=pointer]: 
+                    - generic [ref=e153]: "25"
+                - generic [ref=e184]:
+                  - generic [ref=e186]: "\\documentclass[11pt,a4paper,sans]{moderncv}"
+                  - generic [ref=e188]: "\\moderncvstyle{banking}"
+                  - generic [ref=e190]: "\\moderncvcolor{black}"
+                  - generic [ref=e192]: "\\nopagenumbers{}"
+                  - generic [ref=e194]: "\\usepackage[utf8]{inputenc}"
+                  - generic [ref=e196]: "\\usepackage{ragged2e}"
+                  - generic [ref=e198]: \usepackage[left=1.2cm, right=1.2cm, top=1.2cm, bottom=1.2cm]
+                  - generic [ref=e200]: "{geometry}"
+                  - generic [ref=e202]: "\\usepackage{needspace}"
+                  - generic [ref=e204]: "\\usepackage{tabularx} % Add this in the preamble if not"
+                  - generic [ref=e206]: already included
+                  - generic [ref=e208]: "\\usepackage{array} % Improves vertical alignment"
+                  - generic [ref=e210]: "\\usepackage{xcolor}"
+                  - generic [ref=e212]: "\\definecolor{customblue}{HTML}{1A73E8} % You can change this"
+                  - generic [ref=e214]: hex code for any blue you like
+                  - generic [ref=e216]: "\\usepackage{multicol}"
+                  - generic [ref=e218]: "\\usepackage{import}"
+                  - generic [ref=e220]: "\\usepackage{enumitem}"
+                  - generic [ref=e222]: "\\usepackage[utf8]{inputenc}"
+                  - generic [ref=e224]: "\\usepackage{amssymb}"
+                  - generic [ref=e226]: "\\name{Koushik}{Sivarama Krishnan}"
+                  - generic [ref=e228]: "\\newcommand*{\\customcventry}[7][.13em]{"
+                  - generic [ref=e230]: "\\begin{tabular}{@{}l}"
+                  - generic [ref=e232]: "{\\bfseries #4} \\"
+                  - generic [ref=e234]: "{\\itshape #3}"
+                  - generic [ref=e236]: "\\end{tabular}"
+                  - generic [ref=e238]: \hfill
+                  - generic [ref=e240]: "\\begin{tabular}{l@{}}"
+          - generic [ref=e242]:
+            - heading "Compiled PDF Preview" [level=3] [ref=e244]
+            - generic [ref=e245]:
+              - generic "Resume PDF preview" [ref=e246]:
+                - generic [ref=e247]:
+                  - paragraph [ref=e248]: This browser could not render the inline PDF preview.
+                  - paragraph [ref=e249]:
+                    - text: Use
+                    - strong [ref=e250]: Download PDF
+                    - text: to inspect the latest compiled file.
+              - group [ref=e251]:
+                - generic "Compile diagnostics" [ref=e252]
+        - complementary [ref=e253]:
+          - generic [ref=e254]: Select a job card to inspect details.
+    - region "Notifications alt+T"
+  - generic [ref=e255]:
+    - alert
+    - alert
