@@ -32,6 +32,11 @@ jobs:
           done
           exit "$missing"
 
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libcairo2-dev pkg-config
+
       - name: Run scraper (no LLM enrichment)
         env:
           TURSO_URL: ${{ secrets.TURSO_URL }}
