@@ -9,11 +9,28 @@ jobs:
   scrape_only:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      DASHBOARD_CACHE_DISABLED: "1"
+      PYTHONUNBUFFERED: "1"
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: astral-sh/setup-uv@v5
+
+      - name: Verify required secrets
+        env:
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: |
+          missing=0
+          for name in TURSO_URL TURSO_AUTH_TOKEN; do
+            if [ -z "${!name}" ]; then
+              echo "::error title=Missing GitHub secret::$name is not configured for the scheduled scrape workflow."
+              missing=1
+            fi
+          done
+          exit "$missing"
 
       - name: Run scraper (no LLM enrichment)
         env:

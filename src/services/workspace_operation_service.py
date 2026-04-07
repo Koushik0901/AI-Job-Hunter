@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 from typing import Any
@@ -10,7 +11,6 @@ from db import (
     create_workspace_operation,
     get_candidate_profile,
     get_workspace_operation,
-    init_db,
     list_workspace_operations,
     load_active_suppressed_urls,
     load_enabled_company_sources,
@@ -25,6 +25,8 @@ from dashboard.backend import repository as dashboard_repository
 from enrich import run_description_reformat_pipeline, run_enrichment_pipeline
 from match_score import compute_match_score
 from services.scrape_service import scrape_all
+
+logger = logging.getLogger(__name__)
 
 
 def _env_or_default(name: str, default: str) -> str:
@@ -108,9 +110,14 @@ def repository_now_iso() -> str:
 
 
 def _invalidate_dashboard_views() -> None:
-    cache = get_dashboard_cache()
-    cache.startup()
-    cache.invalidate_for_workspace_refresh()
+    if os.getenv("DASHBOARD_CACHE_DISABLED", "").strip().lower() in {"1", "true", "yes"}:
+        return
+    try:
+        cache = get_dashboard_cache()
+        cache.startup()
+        cache.invalidate_for_workspace_refresh()
+    except Exception:
+        logger.exception("Dashboard cache invalidation failed; continuing workspace operation.")
 
 
 def _refresh_daily_briefing(conn: Any, *, trigger_source: str = "scrape") -> None:

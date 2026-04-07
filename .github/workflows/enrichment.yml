@@ -20,10 +20,28 @@ jobs:
   enrich:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      DASHBOARD_CACHE_DISABLED: "1"
+      PYTHONUNBUFFERED: "1"
 
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+
+      - name: Verify required secrets
+        env:
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          missing=0
+          for name in TURSO_URL TURSO_AUTH_TOKEN OPENROUTER_API_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error title=Missing GitHub secret::$name is not configured for the scheduled enrichment workflow."
+              missing=1
+            fi
+          done
+          exit "$missing"
 
       - name: Run enrichment
         env:
