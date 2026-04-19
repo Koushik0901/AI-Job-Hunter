@@ -1,17 +1,11 @@
 from __future__ import annotations
 
-import sys
 import tempfile
 from pathlib import Path
 import unittest
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from db import init_db, normalize_description_text, save_jobs
+from ai_job_hunter.db import init_db, normalize_description_text, save_jobs
 
 
 class DbDescriptionNormalizationTests(unittest.TestCase):

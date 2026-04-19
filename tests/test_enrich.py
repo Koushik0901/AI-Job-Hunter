@@ -1,23 +1,16 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 import unittest
 from unittest.mock import patch
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from enrich import JobEnrichment, enrich_one_job
+from ai_job_hunter.enrich import JobEnrichment, enrich_one_job
 
 
 class EnrichFormattingTests(unittest.TestCase):
-    @patch("enrich.format_description_with_llm")
-    @patch("enrich._invoke_once")
-    @patch("enrich._make_chain")
+    @patch("ai_job_hunter.enrich.format_description_with_llm")
+    @patch("ai_job_hunter.enrich._invoke_once")
+    @patch("ai_job_hunter.enrich._make_chain")
     def test_enrich_one_job_includes_formatted_description(
         self,
         mock_make_chain,
@@ -45,9 +38,9 @@ class EnrichFormattingTests(unittest.TestCase):
         self.assertEqual(result["enrichment_status"], "ok")
         self.assertEqual(result["formatted_description"], "Requirements\n- Python")
 
-    @patch("enrich.format_description_with_llm", side_effect=RuntimeError("format failed"))
-    @patch("enrich._invoke_once")
-    @patch("enrich._make_chain")
+    @patch("ai_job_hunter.enrich.format_description_with_llm", side_effect=RuntimeError("format failed"))
+    @patch("ai_job_hunter.enrich._invoke_once")
+    @patch("ai_job_hunter.enrich._make_chain")
     def test_enrich_one_job_format_failure_is_non_fatal(
         self,
         mock_make_chain,

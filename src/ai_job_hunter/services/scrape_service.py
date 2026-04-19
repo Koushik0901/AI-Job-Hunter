@@ -1,0 +1,276 @@
+from __future__ import annotations
+
+import re
+from typing import Any
+from urllib.parse import urlparse
+
+from rich import box
+from rich.console import Console
+from rich.table import Table
+
+from ai_job_hunter.config import get_locations, get_roles
+from ai_job_hunter.fetchers import (
+    enrich_descriptions,
+    fetch_ashby,
+    fetch_greenhouse,
+    fetch_lever,
+    fetch_recruitee,
+    fetch_smartrecruiters,
+    fetch_teamtailor,
+    fetch_workable,
+    normalize_ashby,
+    normalize_greenhouse,
+    normalize_lever,
+    normalize_recruitee,
+    normalize_smartrecruiters,
+    normalize_teamtailor,
+    normalize_workable,
+)
+
+def _roles_cfg() -> dict[str, Any]:
+    return get_roles()
+
+
+def _locations_cfg() -> dict[str, Any]:
+    return get_locations()
+
+
+def _lc_list(values: Any) -> list[str]:
+    return [str(v).strip().lower() for v in (values or []) if str(v).strip()]
+
+
+def _title_include() -> list[str]:
+    return _lc_list(_roles_cfg().get("include_keywords"))
+
+
+def _title_exclude() -> list[str]:
+    return _lc_list(_roles_cfg().get("exclude_keywords"))
+
+
+def _seniority_exclude_patterns() -> list[str]:
+    return [str(p) for p in (_roles_cfg().get("exclude_seniority_patterns") or [])]
+
+
+def _location_regions() -> list[str]:
+    return _lc_list(_locations_cfg().get("regions"))
+
+
+def _location_region_abbrevs() -> set[str]:
+    return {v for v in _lc_list(_locations_cfg().get("region_abbrevs"))}
+
+
+def _location_cities() -> list[str]:
+    return _lc_list(_locations_cfg().get("cities"))
+
+
+def _location_countries() -> list[str]:
+    return _lc_list(_locations_cfg().get("countries"))
+
+
+def _blocked_remote_regions() -> list[str]:
+    return _lc_list(_locations_cfg().get("blocked_remote_regions"))
+
+
+# Backwards-compatible module-level aliases for callers that imported
+# the old constants directly.
+TITLE_INCLUDE = _title_include()
+TITLE_EXCLUDE = _title_exclude()
+SENIORITY_EXCLUDE_PATTERNS = _seniority_exclude_patterns()
+
+FETCHERS = {
+    "greenhouse": (fetch_greenhouse, normalize_greenhouse),
+    "lever": (fetch_lever, normalize_lever),
+    "ashby": (fetch_ashby, normalize_ashby),
+    "workable": (fetch_workable, normalize_workable),
+    "smartrecruiters": (fetch_smartrecruiters, normalize_smartrecruiters),
+    "recruitee": (fetch_recruitee, normalize_recruitee),
+    "teamtailor": (fetch_teamtailor, normalize_teamtailor),
+}
+
+
+def safe_text(value: Any) -> str:
+    text = str(value or "")
+    try:
+        text.encode("cp1252")
+        return text
+    except UnicodeEncodeError:
+        return text.encode("cp1252", errors="replace").decode("cp1252")
+
+
+def passes_title_filter(title: str) -> bool:
+    t = title.lower()
+    if not any(kw in t for kw in _title_include()):
+        return False
+    if any(kw in t for kw in _title_exclude()):
+        return False
+    if any(re.search(pattern, t) for pattern in _seniority_exclude_patterns()):
+        return False
+    return True
+
+
+def passes_location_filter(location: str) -> bool:
+    if not location:
+        return True
+    loc = location.lower().strip()
+    countries = _location_countries()
+    if any(c in loc for c in countries):
+        return True
+    if any(region in loc for region in _location_regions()):
+        return True
+    if any(city in loc for city in _location_cities()):
+        return True
+    tokens = set(re.split(r"[\s,;|()/\-]+", loc))
+    if tokens & _location_region_abbrevs():
+        return True
+    remote_ok = bool(_locations_cfg().get("remote_ok", True))
+    if "remote" in loc:
+        if not remote_ok:
+            return False
+        blocked = _blocked_remote_regions()
+        return not any(b in loc for b in blocked)
+    if "anywhere" in loc:
+        return bool(remote_ok)
+    return False
+
+
+def _passes_job_title_filter(job: dict[str, Any], title_ok) -> bool:
+    title = str(job.get("title", "") or "")
+    return title_ok(title)
+
+
+def extract_slug(ats_url: str, ats_type: str) -> str:
+    parts = [p for p in urlparse(ats_url).path.strip("/").split("/") if p]
+    if not parts:
+        return ""
+    ats = ats_type.lower()
+    if ats == "greenhouse":
+        return parts[-2] if len(parts) >= 2 else parts[-1]
+    if ats == "workable" and "accounts" in parts:
+        idx = parts.index("accounts")
+        if idx + 1 < len(parts):
+            return parts[idx + 1]
+    if ats == "smartrecruiters" and "companies" in parts:
+        idx = parts.index("companies")
+        if idx + 1 < len(parts):
+            return parts[idx + 1]
+    if ats == "recruitee":
+        host = urlparse(ats_url).hostname or ""
+        if host.endswith(".recruitee.com"):
+            return host.split(".")[0]
+    if ats == "teamtailor":
+        host = urlparse(ats_url).hostname or ""
+        if host.endswith(".teamtailor.com"):
+            return host.split(".")[0]
+    return parts[-1]
+
+
+def scrape_all(
+    companies: list[dict[str, Any]],
+    apply_location_filter: bool = True,
+    enrich: bool = True,
+    title_filter_fn=None,
+) -> list[dict[str, Any]]:
+    title_ok = title_filter_fn if title_filter_fn is not None else passes_title_filter
+    results: list[dict[str, Any]] = []
+    seen_urls: set[str] = set()
+    raw_map: dict[str, dict[str, Any]] = {}
+    console = Console(stderr=True)
+
+    for comp in companies:
+        ats_type = comp.get("ats_type", "").lower()
+        name = comp.get("name", "")
+        ats_url = comp.get("ats_url", "")
+
+        if ats_type not in FETCHERS:
+            console.print(f"  [yellow]Skipping {safe_text(name)}: unknown ats_type '{ats_type}'[/yellow]")
+            continue
+
+        fetcher, normalizer = FETCHERS[ats_type]
+        slug = extract_slug(ats_url, ats_type)
+        console.print(f"  [dim]Fetching {ats_type}:{slug} ({safe_text(name)})...[/dim]", end="")
+        try:
+            raw_jobs = fetcher(slug)
+            console.print(f" [green]{len(raw_jobs)} jobs[/green]")
+        except Exception as e:
+            console.print(f" [red]ERROR: {e}[/red]")
+            continue
+
+        for raw in raw_jobs:
+            job = normalizer(raw, name)
+            if ats_type == "greenhouse":
+                job["_board_token"] = slug
+                job["_job_id"] = str(raw.get("id", ""))
+            elif ats_type == "ashby":
+                job["_org_slug"] = slug
+                job["_job_id"] = str(raw.get("id", ""))
+            elif ats_type == "workable":
+                job["_account_slug"] = slug
+                job["_shortcode"] = str(raw.get("shortcode", ""))
+            elif ats_type == "smartrecruiters":
+                job["_company_slug"] = slug
+                job["_job_id"] = str(raw.get("id", ""))
+            elif ats_type == "recruitee":
+                job["_company_slug"] = slug
+                job["_offer_id"] = str(raw.get("id", ""))
+                if not job.get("url"):
+                    offer_slug = str(raw.get("slug", "")).strip()
+                    offer_id = str(raw.get("id", "")).strip()
+                    if offer_slug:
+                        job["url"] = f"https://{slug}.recruitee.com/o/{offer_slug}"
+                    elif offer_id:
+                        job["url"] = f"https://{slug}.recruitee.com/o/{offer_id}"
+
+            url = job.get("url", "")
+            if url and url in seen_urls:
+                continue
+            if url:
+                seen_urls.add(url)
+                if ats_type in {"lever", "recruitee"}:
+                    raw_map[url] = raw
+
+            if not _passes_job_title_filter(job, title_ok):
+                continue
+            if apply_location_filter and not passes_location_filter(job["location"]):
+                continue
+            results.append(job)
+
+    results.sort(key=lambda j: j.get("posted") or "", reverse=True)
+
+    if enrich and results:
+        console.print(f"\n[dim]Fetching descriptions for {len(results)} jobs...[/dim]")
+        enrich_descriptions(results, raw_map)
+
+    return results
+
+
+def render_jobs_table(jobs: list[dict[str, Any]], limit: int) -> None:
+    console = Console()
+    displayed = jobs[:limit]
+    table = Table(
+        title=f"ML/AI/DS Job Listings ({len(displayed)} shown of {len(jobs)} matched)",
+        box=box.ROUNDED,
+        show_lines=False,
+        highlight=True,
+    )
+    table.add_column("Company", style="green", no_wrap=True, min_width=12)
+    table.add_column("Title", style="cyan", min_width=25, max_width=45)
+    table.add_column("Location", min_width=14, max_width=28)
+    table.add_column("Posted", min_width=10, max_width=10, no_wrap=True)
+    table.add_column("Match", min_width=7, max_width=9, no_wrap=True)
+    table.add_column("URL", min_width=20, max_width=60, no_wrap=True)
+
+    for job in displayed:
+        url = job.get("url", "")
+        display_url = url if len(url) <= 60 else url[:57] + "..."
+        table.add_row(
+            safe_text(job.get("company", "")),
+            safe_text(job.get("title", "")),
+            safe_text(job.get("location", "")),
+            job.get("posted", "")[:10],
+            str(job.get("match_score", "-")),
+            safe_text(display_url),
+        )
+
+    console.print(table)
+    if len(jobs) > limit:
+        console.print(f"[dim]Showing first {limit} of {len(jobs)} results. Use --limit to show more.[/dim]")

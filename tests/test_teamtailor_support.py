@@ -1,23 +1,15 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 import unittest
 
-import pytest
 import requests
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from fetchers import fetch_teamtailor, normalize_teamtailor
-from services.company_registry_service import extract_slug_from_careers_url
-from services.company_source_service import parse_companies_from_markdown, slug_to_ats_url
-from services.probe_service import probe_job_count
-from services.scrape_service import extract_slug
+from ai_job_hunter.fetchers import fetch_teamtailor, normalize_teamtailor
+from ai_job_hunter.services.company_registry_service import extract_slug_from_careers_url
+from ai_job_hunter.services.company_source_service import parse_companies_from_markdown, slug_to_ats_url
+from ai_job_hunter.services.probe_service import probe_job_count
+from ai_job_hunter.services.scrape_service import extract_slug
 
 
 class _FakeResponse:
@@ -132,7 +124,7 @@ def test_fetch_teamtailor_collects_job_details(monkeypatch) -> None:
             return _FakeResponse(text=detail_pages[url], url=url)
         raise AssertionError(f"Unexpected URL: {url}")
 
-    monkeypatch.setattr("fetchers.requests.get", fake_get)
+    monkeypatch.setattr("ai_job_hunter.fetchers.requests.get", fake_get)
 
     jobs = fetch_teamtailor("acme")
 
@@ -179,7 +171,7 @@ def test_fetch_teamtailor_supports_job_posting_nested_in_graph(monkeypatch) -> N
             return _FakeResponse(text=detail_html, url=url)
         raise AssertionError(f"Unexpected URL: {url}")
 
-    monkeypatch.setattr("fetchers.requests.get", fake_get)
+    monkeypatch.setattr("ai_job_hunter.fetchers.requests.get", fake_get)
 
     jobs = fetch_teamtailor("acme")
 

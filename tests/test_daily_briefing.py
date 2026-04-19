@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -11,15 +9,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from commands import daily_briefing as daily_briefing_command
-from db import init_db, save_enrichment, save_jobs
-from dashboard.backend import main, repository
-from notify import format_daily_briefing_message
+from ai_job_hunter.commands import daily_briefing as daily_briefing_command
+from ai_job_hunter.db import init_db, save_enrichment, save_jobs
+from ai_job_hunter.dashboard.backend import main, repository
+from ai_job_hunter.notify import format_daily_briefing_message
 
 
 def _seed_briefing_state(conn) -> tuple[str, str]:

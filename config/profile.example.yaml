@@ -1,0 +1,162 @@
+# AI Job Hunter — user profile configuration
+#
+# Copy this file to `config/profile.yaml` and customize for your own search.
+# The example values below match the original author's ML/AI/DS + Canada search.
+# Loaded by src/config.py at startup. If no profile.yaml exists, these defaults apply.
+
+locations:
+  # Human-readable country names; used for bucketing notifications.
+  countries:
+    - Canada
+  # Shown as an emoji prefix in Telegram bucket headers. Keyed by country name.
+  country_emoji:
+    Canada: "\U0001F1E8\U0001F1E6"  # 🇨🇦
+  # Free-text regions / states / provinces the location filter accepts.
+  regions:
+    - ontario
+    - british columbia
+    - alberta
+    - quebec
+    - nova scotia
+    - new brunswick
+    - prince edward island
+    - newfoundland
+    - labrador
+    - newfoundland and labrador
+    - manitoba
+    - saskatchewan
+    - northwest territories
+    - yukon
+    - nunavut
+  # Short codes (lowercase) matched as whole tokens in the location filter.
+  region_abbrevs:
+    - bc
+    - ab
+    - on
+    - qc
+    - ns
+    - nb
+    - pei
+    - nl
+    - mb
+    - sk
+    - nt
+    - yt
+    - nu
+  cities:
+    - vancouver
+    - toronto
+    - calgary
+    - edmonton
+    - montreal
+    - ottawa
+    - winnipeg
+    - halifax
+    - victoria
+    - waterloo
+    - kitchener
+  # Accept remote listings unless location-tokens match blocked_remote_regions.
+  remote_ok: true
+  blocked_remote_regions:
+    - uk
+    - united kingdom
+    - europe
+    - eu
+    - germany
+    - france
+    - australia
+    - india
+    - brazil
+    - japan
+    - singapore
+    - mexico
+  # Labels applied by notify.bucket_country(). First bucket is the "home" country.
+  notification_buckets:
+    - name: Canada
+      match_any:
+        - canada
+        - ", on"
+        - ", bc"
+        - ", ab"
+        - ", qc"
+        - ", mb"
+        - ", sk"
+        - ", ns"
+        - ", nb"
+        - ", nl"
+        - ", pe"
+        - toronto
+        - vancouver
+        - montreal
+        - ottawa
+        - calgary
+        - waterloo
+        - winnipeg
+        - halifax
+        - edmonton
+        - kitchener
+    - name: USA / Remote
+      match_any:
+        - remote
+        - anywhere
+        - united states
+        - usa
+        - us only
+      match_empty: true  # location string empty -> bucket here
+    - name: Other
+      match_any: []
+      fallback: true
+
+roles:
+  include_keywords:
+    - machine learning
+    - ml engineer
+    - mlops
+    - ml ops
+    - applied ml
+    - ai engineer
+    - applied scientist
+    - data scientist
+    - data science
+    - research scientist
+    - nlp
+    - llm
+    - computer vision
+    - generative ai
+    - ai software engineer
+    - software engineer - ai
+    - software engineer ai
+    - software engineer - ai agents
+    - software engineer - agentic ai
+    - ai agents
+    - ai agent
+    - agentic ai
+  exclude_keywords:
+    - sales
+    - recruiter
+    - marketing
+    - legal
+    - "hr "
+    - designer
+    - customer success
+    - director
+    - "vp "
+    - principal staff
+  exclude_seniority_patterns:
+    - \bsenior\b
+    - \bsr\.?\b
+    - \bstaff\b
+    - \bprincipal\b
+    - \blead\b
+  families:
+    - data scientist
+    - ml engineer
+    - mlops engineer
+    - data engineer
+    - research scientist
+    - analyst
+    - other
+
+notifications:
+  # If false, all Telegram calls become no-ops regardless of env vars.
+  enabled: true

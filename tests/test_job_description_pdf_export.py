@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 import tempfile
 from pathlib import Path
 
@@ -8,14 +7,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from db import init_db, save_enrichment, save_jobs
-from dashboard.backend import main
-from dashboard.backend.job_description_pdf import (
+from ai_job_hunter.db import init_db, save_enrichment, save_jobs
+from ai_job_hunter.dashboard.backend import main
+from ai_job_hunter.dashboard.backend.job_description_pdf import (
     build_job_description_filename,
     export_job_description_pdf,
     render_job_description_html,

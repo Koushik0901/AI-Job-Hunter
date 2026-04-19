@@ -1,18 +1,11 @@
 from __future__ import annotations
 
-import sys
 from datetime import datetime, timezone
-from pathlib import Path
 
 import pytest
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from dashboard.backend.advisor import build_recommendation
+from ai_job_hunter.dashboard.backend.advisor import build_recommendation
 
 
 def _base_profile() -> dict[str, object]:
@@ -117,3 +110,21 @@ def test_interviewing_stage_guidance_does_not_fall_back_to_raw_fit_warning_langu
     assert rec["guidance_mode"] == "stage_narrative"
     assert all("fit signals are weak" not in reason.lower() for reason in rec["guidance_reasons"])
     assert all("moderate fit worth a closer review" not in reason.lower() for reason in rec["guidance_reasons"])
+
+
+def test_fit_score_prefers_raw_fit_over_rank_score() -> None:
+    rec = build_recommendation(
+        profile=_base_profile(),
+        job={
+            "status": "not_applied",
+            "posted": _recent_date(),
+            "match_score": 92,
+            "raw_score": 54,
+            "desired_title_match": True,
+            "enrichment": _enrichment(),
+        },
+        source_quality_score=72,
+        role_quality_score=68,
+    )
+
+    assert rec["fit_score"] == 54

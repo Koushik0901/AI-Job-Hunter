@@ -1,17 +1,10 @@
 from __future__ import annotations
 
 from typing import Any
-import sys
-from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from fetchers import fetch_workable
-from fetchers import fetch_workable_description
+from ai_job_hunter.fetchers import fetch_workable
+from ai_job_hunter.fetchers import fetch_workable_description
 
 
 class _FakeResponse:
@@ -66,7 +59,7 @@ def test_fetch_workable_follows_next_page_token(monkeypatch) -> None:
             }
         )
 
-    monkeypatch.setattr("fetchers.requests.post", fake_post)
+    monkeypatch.setattr("ai_job_hunter.fetchers.requests.post", fake_post)
 
     jobs = fetch_workable("example-company")
 
@@ -86,7 +79,7 @@ def test_fetch_workable_description_uses_v2_job_endpoint(monkeypatch) -> None:
         seen["timeout"] = timeout
         return _FakeResponse({"description": "<p>AI team role</p>"})
 
-    monkeypatch.setattr("fetchers.requests.get", fake_get)
+    monkeypatch.setattr("ai_job_hunter.fetchers.requests.get", fake_get)
 
     description = fetch_workable_description("example-company", "ABC123")
 

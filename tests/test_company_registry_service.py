@@ -1,18 +1,11 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 
 import pytest
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from db import init_db
-from services import company_registry_service
+from ai_job_hunter.db import init_db
+from ai_job_hunter.services import company_registry_service
 
 
 def test_probe_company_sources_splits_zero_job_hits_with_explicit_reason(monkeypatch) -> None:

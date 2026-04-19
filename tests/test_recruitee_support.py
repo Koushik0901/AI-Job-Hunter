@@ -1,19 +1,12 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 import unittest
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from fetchers import normalize_recruitee
-from services.company_source_service import parse_companies_from_markdown, slug_to_ats_url
-from services.probe_service import probe_job_count
-from services.scrape_service import extract_slug
+from ai_job_hunter.fetchers import normalize_recruitee
+from ai_job_hunter.services.company_source_service import parse_companies_from_markdown, slug_to_ats_url
+from ai_job_hunter.services.probe_service import probe_job_count
+from ai_job_hunter.services.scrape_service import extract_slug
 
 
 class RecruiteeSupportTests(unittest.TestCase):

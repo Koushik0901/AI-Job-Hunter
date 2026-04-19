@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Job Copilot AI Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "tertiary-fixed": "#ffdcc6",
+                        "surface": "#f6fafe",
+                        "surface-container-highest": "#dfe3e7",
+                        "on-secondary-fixed": "#001a42",
+                        "inverse-primary": "#d2bbff",
+                        "on-surface": "#171c1f",
+                        "surface-bright": "#f6fafe",
+                        "surface-dim": "#d6dade",
+                        "secondary-container": "#2170e4",
+                        "error": "#ba1a1a",
+                        "secondary-fixed-dim": "#adc6ff",
+                        "primary-container": "#7c3aed",
+                        "surface-variant": "#dfe3e7",
+                        "on-primary-container": "#ede0ff",
+                        "on-background": "#171c1f",
+                        "tertiary-fixed-dim": "#ffb784",
+                        "primary-fixed": "#eaddff",
+                        "outline-variant": "#ccc3d8",
+                        "primary": "#630ed4",
+                        "secondary-fixed": "#d8e2ff",
+                        "surface-container": "#eaeef2",
+                        "inverse-on-surface": "#edf1f5",
+                        "on-primary": "#ffffff",
+                        "on-surface-variant": "#4a4455",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-container": "#a15100",
+                        "error-container": "#ffdad6",
+                        "on-secondary-fixed-variant": "#004395",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#0058be",
+                        "tertiary": "#7d3d00",
+                        "on-tertiary-fixed-variant": "#713700",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#732ee4",
+                        "surface-container-low": "#f0f4f8",
+                        "background": "#f6fafe",
+                        "surface-container-high": "#e4e9ed",
+                        "outline": "#7b7487",
+                        "inverse-surface": "#2c3134",
+                        "primary-fixed-dim": "#d2bbff",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed": "#25005a",
+                        "on-tertiary-fixed": "#301400",
+                        "on-secondary-container": "#fefcff",
+                        "on-primary-fixed-variant": "#5a00c6",
+                        "on-error": "#ffffff",
+                        "on-tertiary-container": "#ffe0cd"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .ai-gradient {
+            background: linear-gradient(45deg, #630ed4, #0058be);
+        }
+        .orb-glow {
+            box-shadow: 0 0 40px rgba(99, 14, 212, 0.2);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface antialiased overflow-x-hidden">
+<!-- TopNavBar Implementation -->
+<nav class="fixed top-4 left-1/2 -translate-x-1/2 w-[95%] max-w-7xl rounded-2xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl flex justify-between items-center px-6 py-3 z-50 shadow-[0_8px_32px_rgba(23,28,31,0.04)] font-['Inter'] antialiased tracking-tight">
+<div class="flex items-center gap-8">
+<span class="text-xl font-bold tracking-tighter text-slate-900 dark:text-white">Copilot AI</span>
+<div class="hidden md:flex gap-6">
+<a class="text-slate-500 dark:text-slate-400 font-medium hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors px-3 py-1 rounded-lg" href="#">Agent</a>
+<a class="text-slate-500 dark:text-slate-400 font-medium hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors px-3 py-1 rounded-lg" href="#">Applications</a>
+<a class="text-violet-600 dark:text-violet-400 font-semibold border-b-2 border-violet-600 px-3 py-1" href="#">Recommended</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-500 hover:bg-slate-100/50 rounded-xl transition-transform scale-95 active:scale-90">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-slate-100/50 rounded-xl transition-transform scale-95 active:scale-90">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container-highest">
+<img alt="User profile" data-alt="Close-up professional portrait of a smiling young creative professional with natural lighting in a modern office environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA2202MyxUBGiYrEaCETyXgJmOxSW4hveRC6_r5h-duo1zDhbzGEXMGRkCXM6v8xEFayXYYHBk8ahudn5jO0b1cMfmjznGaH29hbkeuXEVaPdRDFrXaAjAqhKqXX5Pd5tGdB0N1uIRYMBAuk7eRdtXOxtKZYkI3rQAr2eIfa8oxalWmUnl7uAVydnR7WYX4dD3ddy4E6GOqpbeqE_f7rz_WkfB_kjRUeOVuycKPtxoWZ9VHIOr_XFX5CmRbnmVYyXtpv3r55R2QExo"/>
+</div>
+</div>
+</nav>
+<!-- SideNavBar Implementation (Desktop) -->
+<aside class="hidden lg:flex h-screen w-64 fixed left-0 top-0 bg-slate-50 dark:bg-slate-950 flex-col p-4 gap-2 font-['Inter'] text-sm font-medium z-40">
+<div class="mt-20 mb-8 px-4 flex items-center gap-3">
+<div class="w-10 h-10 rounded-full ai-gradient flex items-center justify-center text-white orb-glow">
+<span class="material-symbols-outlined" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<div>
+<h2 class="text-lg font-semibold text-slate-900 dark:text-white leading-none">The Navigator</h2>
+<p class="text-[10px] text-violet-600 dark:text-violet-400 uppercase tracking-widest mt-1">AI Copilot Active</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-900 text-violet-600 dark:text-violet-400 shadow-sm rounded-xl transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="grid_view">grid_view</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-xl transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span>Resumes</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-xl transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="forum">forum</span>
+<span>Interviews</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-xl transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span>Networking</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-xl transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="trending_up">trending_up</span>
+<span>Market Trends</span>
+</a>
+</nav>
+<div class="border-t border-slate-200 dark:border-slate-800 pt-4 mt-auto space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-xl transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+<span>Help Center</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-xl transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span>Sign Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="lg:ml-64 pt-24 px-4 md:px-12 pb-12 max-w-[1600px] mx-auto">
+<!-- Header Section with Asymmetry -->
+<header class="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div class="max-w-2xl">
+<h1 class="text-4xl md:text-5xl font-headline font-bold text-on-surface tracking-tight mb-4">
+                    Good morning, <span class="text-primary">Koushik</span>. 
+                </h1>
+<p class="text-lg text-on-surface-variant leading-relaxed">
+                    I've found <span class="font-semibold text-on-surface">14 new opportunities</span> that match your Senior Product Designer profile and recent search for Remote Fintech roles.
+                </p>
+</div>
+<div class="flex gap-3">
+<button class="bg-surface-container-highest text-on-surface px-6 py-3 rounded-xl font-medium hover:bg-surface-container-high transition-colors">
+                    Search preferences
+                </button>
+
+</div>
+</header>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+<!-- Left Column: Featured Recommended Jobs (The Main List) -->
+<div class="xl:col-span-8 space-y-6">
+<div class="flex items-center justify-between mb-4">
+<h2 class="text-xl font-semibold text-on-surface">Top Matches For You</h2>
+<span class="text-sm font-medium text-primary">View all recommended</span>
+</div>
+<!-- Job Card 1: High Fidelity Glassmorphic -->
+<div class="glass-card p-6 rounded-xl border border-white/50 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
+<div class="absolute top-0 right-0 w-32 h-32 ai-gradient opacity-[0.03] rounded-bl-full pointer-events-none"></div>
+<div class="flex flex-col md:flex-row gap-6">
+<!-- Company Logo & Match Score -->
+<div class="flex flex-row md:flex-col items-center md:items-start justify-between md:justify-start gap-4">
+<div class="w-16 h-16 rounded-xl bg-surface-container-lowest flex items-center justify-center shadow-sm border border-outline-variant/20">
+<span class="material-symbols-outlined text-3xl text-secondary" data-icon="account_balance">account_balance</span>
+</div>
+<div class="relative w-16 h-16 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90">
+<circle class="text-surface-container-high" cx="32" cy="32" fill="transparent" r="28" stroke="currentColor" stroke-width="4"></circle>
+<circle class="text-primary transition-all duration-1000" cx="32" cy="32" fill="transparent" r="28" stroke="currentColor" stroke-dasharray="175.9" stroke-dashoffset="17.6" stroke-width="4"></circle>
+</svg>
+<span class="absolute text-xs font-bold text-primary">90%</span>
+</div>
+</div>
+<!-- Job Details -->
+<div class="flex-1">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="text-xl font-bold text-on-surface mb-1 group-hover:text-primary transition-colors">Senior Experience Designer</h3>
+<p class="text-on-surface-variant font-medium">Revolt Global • Remote, London</p>
+</div>
+<span class="bg-secondary-container/10 text-secondary text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-tighter">New Opportunity</span>
+</div>
+<div class="flex flex-wrap gap-2 my-4">
+<span class="px-3 py-1 rounded-full bg-surface-container-low text-on-surface-variant text-xs font-medium border border-outline-variant/10">Figma Mastery</span>
+<span class="px-3 py-1 rounded-full bg-surface-container-low text-on-surface-variant text-xs font-medium border border-outline-variant/10">Fintech Experience</span>
+<span class="px-3 py-1 rounded-full bg-tertiary-fixed text-on-tertiary-fixed-variant text-xs font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="warning">warning</span>
+                                    Web3 Native
+                                </span>
+</div>
+<!-- AI Reasoning Section -->
+<div class="bg-primary/5 rounded-xl p-4 border border-primary/10 mt-4">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary text-sm mt-1" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<div>
+<p class="text-sm font-semibold text-primary mb-1">Why this matches</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">Your portfolio case study on "Neobank Onboarding" directly aligns with their upcoming Q3 roadmap. Your experience with multi-currency wallets is a 100% technical match.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Job Card 2 -->
+<div class="glass-card p-6 rounded-xl border border-white/50 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
+<div class="flex flex-col md:flex-row gap-6">
+<div class="flex flex-row md:flex-col items-center md:items-start justify-between md:justify-start gap-4">
+<div class="w-16 h-16 rounded-xl bg-surface-container-lowest flex items-center justify-center shadow-sm border border-outline-variant/20">
+<span class="material-symbols-outlined text-3xl text-primary" data-icon="dataset">dataset</span>
+</div>
+<div class="relative w-16 h-16 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90">
+<circle class="text-surface-container-high" cx="32" cy="32" fill="transparent" r="28" stroke="currentColor" stroke-width="4"></circle>
+<circle class="text-primary transition-all duration-1000" cx="32" cy="32" fill="transparent" r="28" stroke="currentColor" stroke-dasharray="175.9" stroke-dashoffset="35.2" stroke-width="4"></circle>
+</svg>
+<span class="absolute text-xs font-bold text-primary">82%</span>
+</div>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="text-xl font-bold text-on-surface mb-1 group-hover:text-primary transition-colors">Staff Product Designer</h3>
+<p class="text-on-surface-variant font-medium">Stripe • San Francisco (Hybrid)</p>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 my-4">
+<span class="px-3 py-1 rounded-full bg-surface-container-low text-on-surface-variant text-xs font-medium border border-outline-variant/10">Systems Design</span>
+<span class="px-3 py-1 rounded-full bg-surface-container-low text-on-surface-variant text-xs font-medium border border-outline-variant/10">Team Leadership</span>
+<span class="px-3 py-1 rounded-full bg-secondary-container/10 text-on-secondary-fixed-variant text-xs font-medium">High Salary</span>
+</div>
+<div class="bg-primary/5 rounded-xl p-4 border border-primary/10 mt-4">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary text-sm mt-1" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<div>
+<p class="text-sm font-semibold text-primary mb-1">AI Insight</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">This role requires "0-to-1" experience which you demonstrated at your previous startup. Skill gap: They prefer Framer expertise; you've primarily used ProtoPie.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Sidebar Insights -->
+<div class="xl:col-span-4 space-y-8">
+<!-- Skill Gap Bento Piece -->
+<div class="bg-surface-container-low rounded-2xl p-6 border border-outline-variant/10">
+<h3 class="text-lg font-bold mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="bar_chart">bar_chart</span>
+                        Skill Gap Analysis
+                    </h3>
+<div class="space-y-4">
+<div>
+<div class="flex justify-between text-xs font-bold mb-2">
+<span class="text-on-surface">Design Systems</span>
+<span class="text-primary">95% Match</span>
+</div>
+<div class="h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[95%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-xs font-bold mb-2">
+<span class="text-on-surface">Strategic Leadership</span>
+<span class="text-secondary">70% Match</span>
+</div>
+<div class="h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-[70%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-xs font-bold mb-2">
+<span class="text-on-surface">React/Frontend</span>
+<span class="text-tertiary">40% Match</span>
+</div>
+<div class="h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-tertiary w-[40%]"></div>
+</div>
+</div>
+</div>
+<button class="w-full mt-6 py-2 bg-white rounded-lg border border-outline-variant/20 text-xs font-bold text-on-surface hover:bg-surface-container-low transition-colors">
+                        Upskill Recommendations
+                    </button>
+</div>
+<!-- AI Resume Coach Floating Section -->
+<div class="ai-gradient rounded-2xl p-6 text-white relative overflow-hidden shadow-2xl">
+<div class="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
+<div class="relative z-10">
+<span class="text-[10px] font-bold uppercase tracking-widest bg-white/20 px-2 py-1 rounded-lg mb-4 inline-block">Coach Mode</span>
+<h3 class="text-xl font-bold mb-2">Optimize for Stripe</h3>
+<p class="text-sm text-on-primary-container/80 leading-relaxed mb-6">
+                            I've noticed your current resume lacks keywords for "Scalable Design Systems". Click below to let me rewrite your second experience block.
+                        </p>
+<button class="w-full bg-white text-primary py-3 rounded-xl font-bold text-sm shadow-md hover:scale-[1.02] transition-transform">
+                            Generate Rewrite
+                        </button>
+</div>
+</div>
+
+</main>
+<!-- Floating AI Orb -->
+<div class="fixed bottom-8 right-8 z-[60]">
+<button class="w-16 h-16 rounded-full ai-gradient flex items-center justify-center text-white orb-glow hover:scale-110 active:scale-95 transition-all shadow-2xl group">
+<span class="material-symbols-outlined text-2xl group-hover:rotate-12 transition-transform" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<span class="absolute -top-1 -right-1 w-4 h-4 bg-error rounded-full border-2 border-white"></span>
+</button>
+</div>
+</body></html>

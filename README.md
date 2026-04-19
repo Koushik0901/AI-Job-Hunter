@@ -36,7 +36,7 @@ That process created the same friction over and over:
 | Jobs were scattered across too many sources | High-signal roles were easy to lose in volume |
 | Descriptions were noisy and inconsistent | Comparing opportunities quickly was harder than it should have been |
 | Application status lived in my head | Follow-ups and next actions became unreliable |
-| “Interesting” and “active pipeline” blurred together | Good opportunities were not getting structured attention |
+| "Interesting" and "active pipeline" blurred together | Good opportunities were not getting structured attention |
 | There was no daily operating view | The search felt reactive instead of intentional |
 
 AI Job Hunter is my attempt to solve that like a systems problem, not just a note-taking problem.
@@ -45,23 +45,36 @@ AI Job Hunter is my attempt to solve that like a systems problem, not just a not
 
 The product combines sourcing, workflow management, and assistant-style prioritization into one system.
 
+The current frontend is organized around distinct workflow surfaces instead of overlapping dashboards:
+
+| Route | Purpose |
+| --- | --- |
+| `Today` | short daily operating brief |
+| `Board` | pipeline operations and detailed job review |
+| `Discover` | ranked intake feed for strong unopened roles |
+| `Apply` | chat-first application workspace with an action canvas |
+| `Strategy` | search pattern review and course correction |
+| `Settings` | profile and document base |
+
 <table>
   <tr>
     <td valign="top" width="33%">
 
 ### Today
 
-The daily operating surface.
+The operational brief.
 
-- daily briefing
-- action queue
+- daily operating summary
+- must-do-now actions
 - follow-ups due
-- concise next-step notes
+- lower-urgency review lane
+- top signals and quiet-day guidance
 
 Built to answer:
 
-- what should I do today?
-- which jobs need action now?
+- what should I do now?
+- what can wait?
+- what changed since last check?
 
     </td>
     <td valign="top" width="33%">
@@ -82,12 +95,55 @@ The pipeline workspace.
 
 ### Insights
 
-The longer-horizon review page.
+The search review page.
 
-- conversion metrics
-- source quality
-- profile-gap analysis
-- targeting guidance
+- pipeline health
+- pipeline mix visualization
+- opportunity quality visualization
+- source performance
+- profile blockers
+- role family response patterns
+- AI strategy notes
+
+    </td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td valign="top" width="33%">
+
+### Discover
+
+A ranked recommendation queue.
+
+- strong unopened opportunities
+- cohort-calibrated rank feed
+- direct queueing into the application workflow
+- scoped skill-gap summaries for the current recommendation set
+
+    </td>
+    <td valign="top" width="33%">
+
+### Apply
+
+The chat-first application studio.
+
+- compact queued-role context
+- slash-skill commands for `/discover`, `/resume`, `/cover-letter`, and `/critique`
+- persistent action canvas for discovery results, tailored documents, and critiques
+- artifact editing and PDF export without leaving the workflow
+
+    </td>
+    <td valign="top" width="33%">
+
+### Chrome Extension
+
+Form filling for ATS.
+
+- auto-fill Greenhouse, Lever, Ashby, Workable, SmartRecruiters
+- upload tailored resume/cover letter PDFs directly to file inputs
+- side panel for quick job review
 
     </td>
   </tr>
@@ -104,6 +160,7 @@ It is designed to reduce workflow overhead during an active search:
 - job descriptions are normalized before enrichment and storage
 - recommendations change based on application stage
 - daily briefing and action queues compress a large backlog into a smaller set of concrete actions
+- dashboard reads are snapshot-backed so browsing and queue work stay responsive while background jobs continue
 
 ## Why This Is Stronger Than a Normal Job Board
 
@@ -148,27 +205,61 @@ Jobs expose a compact processing state:
 
 ### Recommendation model
 
-- early-stage jobs use opportunity evaluation
-- later-stage jobs use active-process guidance
-- the UI avoids misleading “interview likelihood” framing for jobs already in progress
+- `raw_fit` measures content alignment against the profile
+- `rank_score` calibrates that fit against the active cohort so top scores stay rare and meaningful
+- `recommendation` stays stage-aware and blends fit, urgency, friction, confidence, and light historical signals
+- progressed jobs no longer show misleading early-stage interview framing
+- `Recommend` and `Insights` present recommendation context as rank plus reasoning, not a fake percent-fit
+
+### Insights visuals
+
+The `Insights` page keeps the calmer narrative layout while still providing fast-read visual analysis:
+
+- tracked pipeline composition donut
+- rank distribution and fit analysis
+- funnel and source-performance visuals that support weekly course correction
+
+### Apply workspace
+
+The `Apply` page is now structured as a co-pilot studio instead of a queue-first utility page:
+
+- left pane is the dominant interaction surface for conversation, slash skills, and current-role context
+- right pane is a quieter action canvas that keeps the latest tangible result visible
+- advisory chat replies stay in the thread rather than wiping the current output
+- the page follows the calmer Ethereal Navigator direction with spatial hierarchy, tonal depth, and more restrained gradient use
 
 ### Performance model
 
-The dashboard uses layered caching:
+The dashboard now uses a fast read path plus background work:
 
-- browser memory reuse
-- `ETag`-based HTTP revalidation
-- Redis-backed server-side caching for board and assistant reads
+- snapshot-backed list reads for jobs, stats, recommendations, and assistant surfaces
+- browser memory reuse plus shared client-side caches for bootstrap, jobs, queue, detail, events, and artifacts
+- `ETag`-based HTTP revalidation and Redis-backed server-side caching
+- `stale-while-revalidate` reads plus live SSE invalidation for background updates
+- deterministic fast-agent replies for common prompts before LLM fallback
+
+### Design system
+
+The dashboard uses a formal design system called **The Navigator**:
+
+- **Brand personality**: Authoritative, Calm, Disciplined
+- **Fonts**: "Plus Jakarta Sans" (headings) + "Inter" (body)
+- **Color**: Violet accent (`#630ed4`), tonal layering (surface-0 to surface-3)
+- **Accessibility**: Universal `prefers-reduced-motion` support, global `:focus-visible` rings
+- **Source of truth**: `.impeccable.md` contains the formal design context
+- **Page benchmark**: `Board` and dedicated job detail pages are the visual reference for the calmer, premium frontend direction
 
 ## Stack
 
 | Layer | Tools |
 | --- | --- |
 | Frontend | React, Vite, TypeScript |
-| Backend | Python |
+| Backend | Python (FastAPI) |
 | Data / storage | SQLite or Turso |
 | Cache | Redis |
 | Workflow | scraping, enrichment, formatting, recommendation, daily briefing |
+| Browser automation | Chrome Extension (Manifest V3) |
+| AI | OpenRouter, LangChain |
 
 ## Running Locally
 
@@ -178,12 +269,27 @@ The dashboard uses layered caching:
 uv run python src/dashboard/backend/main.py
 ```
 
+### Background worker
+
+```bash
+uv run python src/dashboard/backend/worker.py
+```
+
 ### Frontend
 
 ```bash
 cd src/dashboard/frontend
 npm install
 npm run dev
+```
+
+### Chrome Extension
+
+```bash
+cd src/chrome-extension
+npm install
+npm run build
+# Load src/chrome-extension/dist/ as unpacked extension in Chrome
 ```
 
 ### CLI
@@ -211,18 +317,17 @@ Important keys:
 
 - `DB_PATH`, `TURSO_URL`, `TURSO_AUTH_TOKEN`
 - `REDIS_URL`
-- `DASHBOARD_CACHE_TTL_JOBS_LIST`
-- `DASHBOARD_CACHE_TTL_JOB_DETAIL`
-- `DASHBOARD_CACHE_TTL_EVENTS`
-- `DASHBOARD_CACHE_TTL_STATS`
+- `AGENT_MODEL`
+- `DASHBOARD_CACHE_TTL_SHORT`, `DASHBOARD_CACHE_TTL_LONG`
 - `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`
 - `JOB_HUNTER_TIMEZONE`
 - `OPENROUTER_API_KEY`
 - `ENRICHMENT_MODEL`
 - `DESCRIPTION_FORMAT_MODEL`
+- `ARTIFACT_MODEL`
 
 ## Current Boundaries
 
-- resume tailoring and cover-letter generation are intentionally not part of this README story yet
 - outbound recruiter messaging workflows are not built into the product yet
 - smart manual-add parsing from pasted job-board URLs is still future work
+- LLM-heavy enrichment and artifact generation still depend on external model latency, even though the dashboard no longer blocks on them

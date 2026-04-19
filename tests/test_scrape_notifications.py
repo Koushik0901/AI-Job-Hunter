@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,14 +7,9 @@ from types import SimpleNamespace
 import pytest
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from commands import scrape_jobs
-from db import init_db, list_overdue_staging_jobs, save_jobs, suppress_job_id
-from notify import format_overdue_staging_message
+from ai_job_hunter.commands import scrape_jobs
+from ai_job_hunter.db import init_db, list_overdue_staging_jobs, save_jobs, suppress_job_id
+from ai_job_hunter.notify import format_overdue_staging_message
 
 
 def _scrape_args(**overrides):

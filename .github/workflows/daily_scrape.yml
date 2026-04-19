@@ -43,4 +43,4 @@ jobs:
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: uv run python src/cli.py scrape --no-enrich-llm
+        run: uv run ai-job-hunter scrape --no-enrich-llm

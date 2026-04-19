@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "AI Job Hunter Autofill",
+  "version": "1.1.0",
+  "description": "Auto-fills job application forms on Greenhouse, Lever, Ashby, Workable, and SmartRecruiters using your AI Job Hunter profile.",
+  "permissions": ["storage", "activeTab", "scripting", "sidePanel"],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*",
+    "https://boards.greenhouse.io/*",
+    "https://job-boards.greenhouse.io/*",
+    "https://jobs.lever.co/*",
+    "https://jobs.ashbyhq.com/*",
+    "https://apply.workable.com/*",
+    "https://jobs.smartrecruiters.com/*",
+    "https://smartrecruiters.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://boards.greenhouse.io/*/jobs/*",
+        "https://job-boards.greenhouse.io/*/jobs/*",
+        "https://jobs.lever.co/*/*",
+        "https://jobs.ashbyhq.com/*/*",
+        "https://apply.workable.com/*/j/*/apply*",
+        "https://jobs.smartrecruiters.com/*",
+        "https://smartrecruiters.com/*/jobs/*"
+      ],
+      "js": ["src/content/index.ts"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "AI Job Hunter Autofill"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/sidepanel.html"
+  }
+}

@@ -58,11 +58,11 @@ jobs:
         run: |
           processing_mode="${{ github.event.inputs.processing_mode || 'enrich_backfill' }}"
           if [ "$processing_mode" = "re_enrich_all" ]; then
-            uv run python src/cli.py scrape --re-enrich-all
+            uv run ai-job-hunter scrape --re-enrich-all
           elif [ "$processing_mode" = "jd_reformat_missing" ]; then
-            uv run python src/cli.py scrape --jd-reformat-missing
+            uv run ai-job-hunter scrape --jd-reformat-missing
           elif [ "$processing_mode" = "jd_reformat_all" ]; then
-            uv run python src/cli.py scrape --jd-reformat-all
+            uv run ai-job-hunter scrape --jd-reformat-all
           else
-            uv run python src/cli.py scrape --enrich-backfill
+            uv run ai-job-hunter scrape --enrich-backfill
           fi

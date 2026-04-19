@@ -1,18 +1,11 @@
 from __future__ import annotations
 
 import os
-import sys
 import tempfile
 import unittest
 
-
-REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
-SRC_DIR = os.path.join(REPO_ROOT, "src")
-if SRC_DIR not in sys.path:
-    sys.path.insert(0, SRC_DIR)
-
-from db import init_db, save_enrichment, save_jobs
-from dashboard.backend import repository
+from ai_job_hunter.db import init_db, save_enrichment, save_jobs
+from ai_job_hunter.dashboard.backend import repository
 
 
 class ProfileAndRepositoryTests(unittest.TestCase):
@@ -136,8 +129,9 @@ class ProfileAndRepositoryTests(unittest.TestCase):
         self.assertIsNotNone(detail)
         self.assertEqual(detail["enrichment"]["formatted_description"], "Requirements\n- Python\n- PyTorch")
         self.assertFalse(bool(detail["match_meta"]["stale"]))
+        self.assertEqual(detail["match"]["raw_score"], detail["fit_score"])
 
-    def test_recompute_match_scores_and_profile_version_staleness(self) -> None:
+    def test_recompute_match_scores_refresh_current_profile_version(self) -> None:
         repository.save_profile(
             self.conn,
             {
@@ -183,8 +177,19 @@ class ProfileAndRepositoryTests(unittest.TestCase):
 
         next_version = repository.bump_profile_score_version(self.conn)
         self.assertGreaterEqual(next_version, 2)
-        stale_detail = repository.get_job_detail(self.conn, self._job_id("https://example.com/scored"))
-        self.assertTrue(bool(stale_detail["match_meta"]["stale"]))
+        refreshed_detail = repository.get_job_detail(self.conn, self._job_id("https://example.com/scored"))
+        self.assertTrue(bool(refreshed_detail["match_meta"]["stale"]))
+
+        refreshed = repository.recompute_match_scores(
+            self.conn, urls=["https://example.com/scored"]
+        )
+        self.assertEqual(refreshed, 1)
+        rescored_detail = repository.get_job_detail(
+            self.conn, self._job_id("https://example.com/scored")
+        )
+        self.assertFalse(bool(rescored_detail["match_meta"]["stale"]))
+        self.assertEqual(int(refreshed_detail["match_meta"]["profile_version"]), next_version)
+        self.assertEqual(refreshed_detail["match"]["raw_score"], refreshed_detail["fit_score"])
 
     def test_manual_job_creation_and_suppression_hides_job(self) -> None:
         created = repository.create_manual_job(
@@ -329,6 +334,35 @@ class ProfileAndRepositoryTests(unittest.TestCase):
         self.assertTrue(second["duplicate_detected"])
         self.assertEqual(second["duplicate_of_job_id"], first["id"])
         self.assertEqual(second["duplicate_match_kind"], "url")
+
+    def test_tracking_pin_persists_across_status_changes(self) -> None:
+        save_jobs(
+            self.conn,
+            [
+                {
+                    "url": "https://example.com/pinned-role",
+                    "company": "Pinned Co",
+                    "title": "ML Engineer",
+                    "location": "Remote",
+                    "posted": "2026-03-02",
+                    "ats": "greenhouse",
+                    "description": "x",
+                }
+            ],
+        )
+        job_id = self._job_id("https://example.com/pinned-role")
+
+        repository.upsert_tracking(self.conn, job_id, {"status": "staging", "pinned": True})
+        staged = repository.get_job_detail(self.conn, job_id)
+        self.assertIsNotNone(staged)
+        self.assertTrue(bool(staged["pinned"]))
+        self.assertEqual(staged["tracking_status"], "staging")
+
+        repository.upsert_tracking(self.conn, job_id, {"status": "applied"})
+        applied = repository.get_job_detail(self.conn, job_id)
+        self.assertIsNotNone(applied)
+        self.assertTrue(bool(applied["pinned"]))
+        self.assertEqual(applied["tracking_status"], "applied")
 
     def test_unsuppress_restores_visibility(self) -> None:
         save_jobs(

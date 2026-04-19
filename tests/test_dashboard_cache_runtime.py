@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import sys
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -9,15 +8,10 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from db import init_db, save_jobs
-from dashboard.backend import main, repository
-import dashboard.backend.cache as cache_module
-from dashboard.backend.cache import DashboardCache
+from ai_job_hunter.db import init_db, save_jobs
+from ai_job_hunter.dashboard.backend import main, repository
+import ai_job_hunter.dashboard.backend.cache as cache_module
+from ai_job_hunter.dashboard.backend.cache import DashboardCache
 
 
 class FakeRedisClient:
@@ -95,7 +89,9 @@ def _client_with_cache(monkeypatch):
                 }
             ],
         )
-        job_id = repository.get_job_id_by_url(conn, f"https://example.com/jobs/platform-engineer-{db_path.stem}")
+        job_id = repository.get_job_id_by_url(
+            conn, f"https://example.com/jobs/platform-engineer-{db_path.stem}"
+        )
         assert job_id is not None
         with TestClient(main.app) as client:
             yield client, str(job_id), fake_cache
@@ -110,7 +106,10 @@ def test_cached_endpoints_emit_miss_hit_and_304(monkeypatch) -> None:
         jobs_response = client.get("/api/jobs")
         assert jobs_response.status_code == 200
         assert jobs_response.headers["x-cache"] == "MISS"
-        assert jobs_response.headers["cache-control"] == "private, no-cache"
+        assert (
+            jobs_response.headers["cache-control"]
+            == "private, max-age=60, stale-while-revalidate=30"
+        )
         jobs_etag = jobs_response.headers["etag"]
 
         jobs_hit = client.get("/api/jobs")
@@ -139,7 +138,9 @@ def test_cached_endpoints_emit_miss_hit_and_304(monkeypatch) -> None:
 
 def test_assistant_endpoints_emit_miss_hit_and_304(monkeypatch) -> None:
     with _client_with_cache(monkeypatch) as (client, job_id, _fake_cache):
-        client.post(f"/api/jobs/{job_id}/decision", json={"recommendation": "apply_now"})
+        client.post(
+            f"/api/jobs/{job_id}/decision", json={"recommendation": "apply_now"}
+        )
 
         assistant_paths = [
             "/api/meta/daily-briefing/latest",
@@ -155,7 +156,10 @@ def test_assistant_endpoints_emit_miss_hit_and_304(monkeypatch) -> None:
             first = client.get(path)
             assert first.status_code == 200
             assert first.headers["x-cache"] == "MISS"
-            assert first.headers["cache-control"] == "private, no-cache"
+            assert (
+                first.headers["cache-control"]
+                == "private, max-age=60, stale-while-revalidate=30"
+            )
             etag = first.headers["etag"]
 
             second = client.get(path)
@@ -205,12 +209,19 @@ def test_mutations_invalidate_related_cache_keys(monkeypatch) -> None:
 
         event_response = client.post(
             f"/api/jobs/{job_id}/events",
-            json={"event_type": "note", "title": "Reached out", "body": "", "event_at": "2026-03-02"},
+            json={
+                "event_type": "note",
+                "title": "Reached out",
+                "body": "",
+                "event_at": "2026-03-02",
+            },
         )
         assert event_response.status_code == 200
         assert fake_cache.get_cached_envelope(events_key) is None
         assert fake_cache.get_cached_envelope(stats_key) is None
-        assert all(fake_cache.get_cached_envelope(key) is None for key in assistant_keys)
+        assert all(
+            fake_cache.get_cached_envelope(key) is None for key in assistant_keys
+        )
 
         fake_cache.set_cached_envelope(detail_key, {"id": job_id}, 300)
         fake_cache.set_cached_envelope(jobs_key, {"items": [], "total": 0}, 60)
@@ -218,12 +229,16 @@ def test_mutations_invalidate_related_cache_keys(monkeypatch) -> None:
         for key in assistant_keys:
             fake_cache.set_cached_envelope(key, {"ok": True}, 60)
 
-        patch_response = client.patch(f"/api/jobs/{job_id}/tracking", json={"status": "staging"})
+        patch_response = client.patch(
+            f"/api/jobs/{job_id}/tracking", json={"status": "staging"}
+        )
         assert patch_response.status_code == 200
         assert fake_cache.get_cached_envelope(detail_key) is None
         assert fake_cache.get_cached_envelope(jobs_key) is None
         assert fake_cache.get_cached_envelope(stats_key) is None
-        assert all(fake_cache.get_cached_envelope(key) is None for key in assistant_keys)
+        assert all(
+            fake_cache.get_cached_envelope(key) is None for key in assistant_keys
+        )
 
         fake_cache.set_cached_envelope(detail_key, {"id": job_id}, 300)
         fake_cache.set_cached_envelope(jobs_key, {"items": [], "total": 0}, 60)
@@ -231,14 +246,37 @@ def test_mutations_invalidate_related_cache_keys(monkeypatch) -> None:
         for key in assistant_keys:
             fake_cache.set_cached_envelope(key, {"ok": True}, 60)
 
-        decision_response = client.post(f"/api/jobs/{job_id}/decision", json={"recommendation": "apply_now"})
+        pin_response = client.patch(
+            f"/api/jobs/{job_id}/tracking", json={"pinned": True}
+        )
+        assert pin_response.status_code == 200
+        assert fake_cache.get_cached_envelope(detail_key) is None
+        assert fake_cache.get_cached_envelope(jobs_key) is None
+        assert fake_cache.get_cached_envelope(stats_key) is None
+        assert all(
+            fake_cache.get_cached_envelope(key) is None for key in assistant_keys
+        )
+
+        fake_cache.set_cached_envelope(detail_key, {"id": job_id}, 300)
+        fake_cache.set_cached_envelope(jobs_key, {"items": [], "total": 0}, 60)
+        fake_cache.set_cached_envelope(stats_key, {"ok": True}, 30)
+        for key in assistant_keys:
+            fake_cache.set_cached_envelope(key, {"ok": True}, 60)
+
+        decision_response = client.post(
+            f"/api/jobs/{job_id}/decision", json={"recommendation": "apply_now"}
+        )
         assert decision_response.status_code == 200
         assert fake_cache.get_cached_envelope(detail_key) is None
         assert fake_cache.get_cached_envelope(jobs_key) is None
         assert fake_cache.get_cached_envelope(stats_key) is None
-        assert all(fake_cache.get_cached_envelope(key) is None for key in assistant_keys)
+        assert all(
+            fake_cache.get_cached_envelope(key) is None for key in assistant_keys
+        )
 
-        client.post(f"/api/jobs/{job_id}/decision", json={"recommendation": "apply_now"})
+        client.post(
+            f"/api/jobs/{job_id}/decision", json={"recommendation": "apply_now"}
+        )
         queue_response = client.get("/api/actions/today")
         assert queue_response.status_code == 200
         action_id = next(
@@ -257,7 +295,9 @@ def test_mutations_invalidate_related_cache_keys(monkeypatch) -> None:
         assert fake_cache.get_cached_envelope(detail_key) is None
         assert fake_cache.get_cached_envelope(jobs_key) is None
         assert fake_cache.get_cached_envelope(stats_key) is None
-        assert all(fake_cache.get_cached_envelope(key) is None for key in assistant_keys)
+        assert all(
+            fake_cache.get_cached_envelope(key) is None for key in assistant_keys
+        )
 
         queue_response = client.get("/api/meta/action-queue")
         assert queue_response.status_code == 200
@@ -273,12 +313,16 @@ def test_mutations_invalidate_related_cache_keys(monkeypatch) -> None:
         for key in assistant_keys:
             fake_cache.set_cached_envelope(key, {"ok": True}, 60)
 
-        defer_response = client.post(f"/api/actions/{action_id}/defer", json={"days": 2})
+        defer_response = client.post(
+            f"/api/actions/{action_id}/defer", json={"days": 2}
+        )
         assert defer_response.status_code == 200
         assert fake_cache.get_cached_envelope(detail_key) is None
         assert fake_cache.get_cached_envelope(jobs_key) is None
         assert fake_cache.get_cached_envelope(stats_key) is None
-        assert all(fake_cache.get_cached_envelope(key) is None for key in assistant_keys)
+        assert all(
+            fake_cache.get_cached_envelope(key) is None for key in assistant_keys
+        )
 
         fake_cache.set_cached_envelope(detail_key, {"id": job_id}, 300)
         fake_cache.set_cached_envelope(jobs_key, {"items": [], "total": 0}, 60)
@@ -286,23 +330,29 @@ def test_mutations_invalidate_related_cache_keys(monkeypatch) -> None:
         for key in assistant_keys:
             fake_cache.set_cached_envelope(key, {"ok": True}, 60)
 
-        suppress_response = client.post(f"/api/jobs/{job_id}/suppress", json={"reason": "not now"})
+        suppress_response = client.post(
+            f"/api/jobs/{job_id}/suppress", json={"reason": "not now"}
+        )
         assert suppress_response.status_code == 200
         assert fake_cache.get_cached_envelope(detail_key) is None
         assert fake_cache.get_cached_envelope(jobs_key) is None
         assert fake_cache.get_cached_envelope(stats_key) is None
-        assert all(fake_cache.get_cached_envelope(key) is None for key in assistant_keys)
+        assert all(
+            fake_cache.get_cached_envelope(key) is None for key in assistant_keys
+        )
 
         profile_response = client.post("/api/profile/skills", json={"skill": "GraphQL"})
         assert profile_response.status_code == 200
         assert fake_cache.get_cached_envelope(detail_key) is None
         assert fake_cache.get_cached_envelope(jobs_key) is None
         assert fake_cache.get_cached_envelope(stats_key) is None
-        assert all(fake_cache.get_cached_envelope(key) is None for key in assistant_keys)
+        assert all(
+            fake_cache.get_cached_envelope(key) is None for key in assistant_keys
+        )
 
 
 def test_dashboard_cache_startup_starts_local_stopped_container(monkeypatch) -> None:
-    import dashboard.backend.cache as cache_module
+    import ai_job_hunter.dashboard.backend.cache as cache_module
 
     calls: list[list[str]] = []
 
@@ -312,13 +362,27 @@ def test_dashboard_cache_startup_starts_local_stopped_container(monkeypatch) -> 
             del url, kwargs
             return FakeRedisClient()
 
-    def fake_run(command: list[str], capture_output: bool, text: bool, timeout: int, check: bool):
+    def fake_run(
+        command: list[str], capture_output: bool, text: bool, timeout: int, check: bool
+    ):
         del capture_output, text, timeout, check
         calls.append(command)
         if command == ["docker", "inspect", "ai-job-hunter-redis"]:
-            return type("Completed", (), {"returncode": 0, "stdout": json.dumps([{"State": {"Running": False}}]), "stderr": ""})()
+            return type(
+                "Completed",
+                (),
+                {
+                    "returncode": 0,
+                    "stdout": json.dumps([{"State": {"Running": False}}]),
+                    "stderr": "",
+                },
+            )()
         if command == ["docker", "start", "ai-job-hunter-redis"]:
-            return type("Completed", (), {"returncode": 0, "stdout": "ai-job-hunter-redis", "stderr": ""})()
+            return type(
+                "Completed",
+                (),
+                {"returncode": 0, "stdout": "ai-job-hunter-redis", "stderr": ""},
+            )()
         raise AssertionError(f"Unexpected command: {command}")
 
     monkeypatch.setattr(cache_module, "redis", FakeRedisModule)
