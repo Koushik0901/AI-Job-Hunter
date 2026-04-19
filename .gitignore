@@ -12,18 +12,26 @@ wheels/
 # Secrets and local data
 .env
 *.db
+*.sqlite
+*.sqlite3
 artifacts_workspace/
 output/
+tmp/
 .tmp/
 .tmp-*.log
+*.log
 board-screen.png
 assets/Screenshot*.png
+.playwright-cli/
 src/dashboard/frontend/*.log
 src/dashboard/frontend/.playwright-cli/
 src/dashboard/frontend/dist/
 src/dashboard/frontend/vite-dev.log
+src/chrome-extension/dist/
 *.tsbuildinfo
 tmp-test-startprocess.txt
+.pytest_cache/
+.ruff_cache/
 
 # Generated LaTeX build artifacts
 src/dashboard/backend/latex_templates/**/*.aux
