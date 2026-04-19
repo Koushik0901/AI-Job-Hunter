@@ -1903,20 +1903,40 @@ def _assistant_snapshot_jobs(conn: Any, limit: int = 500) -> list[dict[str, Any]
             payload = {}
         if isinstance(payload, dict):
             items.append(payload)
-    if items:
+    if not items:
+        items, _ = list_jobs(
+            conn,
+            status=None,
+            q=None,
+            ats=None,
+            company=None,
+            posted_after=None,
+            posted_before=None,
+            sort="match_desc",
+            limit=limit,
+            offset=0,
+        )
         return items
-    items, _ = list_jobs(
-        conn,
-        status=None,
-        q=None,
-        ats=None,
-        company=None,
-        posted_after=None,
-        posted_before=None,
-        sort="match_desc",
-        limit=limit,
-        offset=0,
-    )
+
+    # Overlay fresh manual decisions and tracking state on top of the cached
+    # snapshot payload. Snapshot refresh is async, so the recommendation baked
+    # into the snapshot can lag behind the latest decision/tracking mutation.
+    decisions = _load_manual_decisions(conn)
+    if not decisions:
+        return items
+    source_quality_map, role_quality_map = _load_source_quality_maps(conn)
+    for item in items:
+        job_id = str(item.get("id") or "")
+        if not job_id or job_id not in decisions:
+            continue
+        _attach_recommendation(
+            conn,
+            profile=profile,
+            item=item,
+            decisions=decisions,
+            source_quality_map=source_quality_map,
+            role_quality_map=role_quality_map,
+        )
     return items
 
 
