@@ -38,6 +38,8 @@ import { Button } from "../components/ui/button";
 import { Kanban, KanbanBoard, KanbanColumn, KanbanItem, KanbanOverlay } from "../components/ui/kanban";
 import { useGlobalHotkeys } from "../hooks/useHotkeys";
 import { dateValueMs, formatDateShort } from "../dateUtils";
+import { normalizeSkill } from "../skillUtils";
+import { useDashboardData } from "../contexts/DashboardDataContext";
 import type {
   CandidateProfile,
   ColumnSortOption,
@@ -301,48 +303,6 @@ function isOlderThanDays(value: string, days: number): boolean {
   return ageMs > days * 24 * 60 * 60 * 1000;
 }
 
-function normalizeSkill(value: string): string {
-  const normalized = value.trim().toLowerCase();
-  const parenthetical = [...normalized.matchAll(/\(([^)]{1,32})\)/g)].map((match) => match[1] ?? "");
-  const stripped = normalized
-    .replace(/[/_-]+/g, " ")
-    .replace(/\([^)]*\)/g, " ")
-    .replace(/[^a-z0-9\s]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const aliases: Record<string, string> = {
-    js: "javascript",
-    ts: "typescript",
-    k8s: "kubernetes",
-    tf: "tensorflow",
-    torch: "pytorch",
-    rag: "retrieval augmented generation",
-    llm: "large language model",
-    llms: "large language model",
-    nlp: "natural language processing",
-    cv: "computer vision",
-    ml: "machine learning",
-    genai: "generative ai",
-    cicd: "ci cd",
-  };
-  for (const raw of parenthetical) {
-    const key = raw.replace(/[^a-z0-9]+/g, "");
-    if (aliases[key]) {
-      return aliases[key];
-    }
-  }
-  if (aliases[stripped]) {
-    return aliases[stripped];
-  }
-  const tokens = stripped.split(" ").filter(Boolean);
-  if (tokens.length >= 2) {
-    const acronym = tokens.map((token) => token[0]).join("");
-    if (aliases[acronym]) {
-      return aliases[acronym];
-    }
-  }
-  return stripped;
-}
 
 function parseStatusFilter(raw: string | null): TrackingStatus | "all" {
   if (!raw) {
@@ -582,6 +542,7 @@ const BoardEmptyState = memo(function BoardEmptyState({
 export function BoardPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { skillAliases } = useDashboardData();
   const portalRoot = typeof document !== "undefined" ? document.body : null;
   const [searchParams, setSearchParams] = useSearchParams();
   const initialStatusFilter = parseStatusFilter(searchParams.get("status"));
@@ -1129,8 +1090,8 @@ export function BoardPage() {
     if (!incoming) {
       return;
     }
-    const existing = new Set((profile?.skills ?? []).map((item) => normalizeSkill(item)));
-    if (existing.has(normalizeSkill(incoming))) {
+    const existing = new Set((profile?.skills ?? []).map((item) => normalizeSkill(item, skillAliases)));
+    if (existing.has(normalizeSkill(incoming, skillAliases))) {
       return;
     }
 
