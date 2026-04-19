@@ -130,9 +130,8 @@ Copy `.env.example` → `.env`. Critical vars:
 
 ## Known gaps
 
-- Insights conversion metrics query a `job_outcomes` table rather than `job_tracking.status` and render as zeros.
-- Role-family trends section on Insights is a heading-only stub.
 - Artifact generation endpoints are async via task queue, but the underlying LLM call itself is synchronous (10–25 s) — no streaming to the frontend yet.
+- `types.generated.ts` does not exist until you run `npm run generate:types` against a live backend. The frontend compiles without it; hand-maintained `types.ts` covers all current shapes.
 
 ## Design system ("The Navigator")
 
