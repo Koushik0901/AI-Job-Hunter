@@ -603,6 +603,68 @@ export function setDefaultBaseDocument(id: number): Promise<BaseDocument> {
 }
 
 // ---------------------------------------------------------------------------
+// Story bank
+// ---------------------------------------------------------------------------
+
+export function listStories(options: { includeDrafts?: boolean } = {}): Promise<import("./types").UserStory[]> {
+  const qs = options.includeDrafts === false ? "?include_drafts=false" : "";
+  return request<import("./types").UserStory[]>(`/api/stories${qs}`);
+}
+
+export function getStoryCount(): Promise<import("./types").StoryCount> {
+  return request<import("./types").StoryCount>("/api/stories/count");
+}
+
+export function createStory(data: import("./types").UserStoryCreate): Promise<import("./types").UserStory> {
+  return request<import("./types").UserStory>("/api/stories", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateStory(id: number, data: import("./types").UserStoryUpdate): Promise<import("./types").UserStory> {
+  return request<import("./types").UserStory>(`/api/stories/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteStory(id: number): Promise<void> {
+  return request<void>(`/api/stories/${id}`, { method: "DELETE" });
+}
+
+export function bulkAcceptStories(
+  storyIds: number[],
+  profileDelta?: import("./types").ExtractedProfileDelta | null,
+): Promise<{ accepted: number }> {
+  return request<{ accepted: number }>("/api/stories/bulk-accept", {
+    method: "POST",
+    body: JSON.stringify({ story_ids: storyIds, profile_delta: profileDelta ?? null }),
+  });
+}
+
+export function extractStoriesFromResume(baseDocId: number): Promise<import("./types").WorkspaceOperation> {
+  return request<import("./types").WorkspaceOperation>(
+    `/api/stories/extract-from-resume?base_doc_id=${baseDocId}`,
+    { method: "POST" },
+  );
+}
+
+export function getRelevantStories(jobId: string, topK = 5): Promise<import("./types").RelevantStory[]> {
+  return request<import("./types").RelevantStory[]>(
+    `/api/jobs/${encodeURIComponent(jobId)}/relevant-stories?top_k=${topK}`,
+  );
+}
+
+export function triggerStoryEmbedding(): Promise<{ embedded: number }> {
+  return request<{ embedded: number }>("/api/stories/embed", { method: "POST" });
+}
+
+export function triggerJobEmbedding(limit = 200): Promise<{ embedded: number }> {
+  return request<{ embedded: number }>(`/api/jobs/embed?limit=${limit}`, { method: "POST" });
+}
+
+// ---------------------------------------------------------------------------
 // Application queue
 // ---------------------------------------------------------------------------
 
@@ -704,6 +766,66 @@ export function generateCoverLetter(job_id: string, base_doc_id: number): Promis
     invalidateCache(`job-artifacts:${job_id}`);
     return value;
   });
+}
+
+export function streamArtifact(
+  job_id: string,
+  artifact_type: "resume" | "cover_letter",
+  base_doc_id: number,
+  handlers: {
+    onChunk: (token: string) => void;
+    onArtifact: (artifact: JobArtifact) => void;
+    onError: (detail: string) => void;
+    onDone: () => void;
+  },
+): () => void {
+  const slug = artifact_type === "resume" ? "resume" : "cover-letter";
+  const url = buildApiUrl(
+    `/api/jobs/${encodeURIComponent(job_id)}/artifacts/${slug}/stream?base_doc_id=${base_doc_id}`,
+  );
+  const source = new EventSource(url);
+
+  source.addEventListener("chunk", (event: MessageEvent) => {
+    try {
+      const token = JSON.parse(event.data) as string;
+      handlers.onChunk(token);
+    } catch {
+      // ignore malformed frames
+    }
+  });
+
+  source.addEventListener("artifact", (event: MessageEvent) => {
+    try {
+      const artifact = JSON.parse(event.data) as JobArtifact;
+      invalidateCache(`job-artifacts:${job_id}`);
+      handlers.onArtifact(artifact);
+    } catch {
+      // ignore malformed frames
+    }
+  });
+
+  source.addEventListener("error", (event: MessageEvent) => {
+    try {
+      const payload = JSON.parse(event.data) as { detail?: string };
+      handlers.onError(payload.detail ?? "Generation failed");
+    } catch {
+      handlers.onError("Generation failed");
+    }
+    source.close();
+  });
+
+  source.addEventListener("done", () => {
+    handlers.onDone();
+    source.close();
+  });
+
+  // Network-level error (connection refused, etc.)
+  source.onerror = () => {
+    handlers.onError("Connection error during generation");
+    source.close();
+  };
+
+  return () => source.close();
 }
 
 export function updateArtifact(id: number, content_md: string): Promise<JobArtifact> {

@@ -452,28 +452,45 @@ def _load_profile_context(conn: Any) -> dict:
     }
 
 
-def _call_llm(prompt: str, system: str) -> str:
+def _build_llm() -> Any:
     api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
-
     model = (os.getenv("ARTIFACT_MODEL") or _DEFAULT_ARTIFACT_MODEL).strip()
-
     try:
-        from langchain_core.messages import HumanMessage, SystemMessage
         from langchain_openai import ChatOpenAI
     except ImportError:
         raise RuntimeError("langchain-openai is required. Run: uv add langchain-openai")
-
-    llm = ChatOpenAI(
+    return ChatOpenAI(
         model=model,
         api_key=api_key,
         base_url=_OPENROUTER_BASE_URL,
         temperature=0.3,
         max_tokens=3000,
     )
+
+
+def _call_llm(prompt: str, system: str) -> str:
+    try:
+        from langchain_core.messages import HumanMessage, SystemMessage
+    except ImportError:
+        raise RuntimeError("langchain-openai is required. Run: uv add langchain-openai")
+    llm = _build_llm()
     response = llm.invoke([SystemMessage(content=system), HumanMessage(content=prompt)])
     return str(getattr(response, "content", "") or "").strip()
+
+
+async def _call_llm_astream(prompt: str, system: str):
+    """Async generator yielding str token chunks from the LLM."""
+    try:
+        from langchain_core.messages import HumanMessage, SystemMessage
+    except ImportError:
+        raise RuntimeError("langchain-openai is required. Run: uv add langchain-openai")
+    llm = _build_llm()
+    async for chunk in llm.astream([SystemMessage(content=system), HumanMessage(content=prompt)]):
+        token = str(getattr(chunk, "content", "") or "")
+        if token:
+            yield token
 
 
 def generate_tailored_resume(job_id: str, base_doc_id: int, conn: Any) -> str:
@@ -586,6 +603,120 @@ Instructions:
 5. Output clean Markdown only"""
 
     return _call_llm(prompt, system)
+
+
+async def generate_tailored_resume_astream(job_id: str, base_doc_id: int, conn: Any):
+    """Async generator yielding resume token chunks."""
+    job = _load_job_context(job_id, conn)
+    profile = _load_profile_context(conn)
+    base_doc = get_base_document(base_doc_id, conn)
+    if not base_doc:
+        raise ValueError(f"Base document {base_doc_id} not found")
+
+    req_skills = ", ".join(job["required_skills"][:10]) if job["required_skills"] else "Not specified"
+    pref_skills = ", ".join(job["preferred_skills"][:10]) if job["preferred_skills"] else "Not specified"
+    profile_skills = ", ".join(profile.get("skills", [])[:20]) if profile.get("skills") else "Not specified"
+    seniority = job["seniority"] or "Not specified"
+    years_range = ""
+    if job["years_exp_min"] is not None:
+        years_range = f"{job['years_exp_min']}"
+        if job["years_exp_max"] is not None:
+            years_range += f"-{job['years_exp_max']}"
+        years_range += " years"
+
+    system = (
+        "You are an expert resume writer specializing in tailoring resumes for specific job applications. "
+        "Output ONLY the resume in clean Markdown format. Use ## for section headers, **bold** for job titles/companies. "
+        "Do not add any explanations, preamble, or commentary. Start directly with the candidate's name."
+    )
+    prompt = f"""Tailor this resume for the following job application.
+
+JOB DETAILS:
+- Title: {job['title']}
+- Company: {job['company']}
+- Location: {job['location']}
+- Seniority: {seniority}
+- Work mode: {job['work_mode'] or 'Not specified'}
+- Required skills: {req_skills}
+- Preferred skills: {pref_skills}
+- Years experience required: {years_range or 'Not specified'}
+
+JOB DESCRIPTION EXCERPT:
+{job['description'][:3000]}
+
+CANDIDATE PROFILE:
+- Name: {profile.get('full_name', '')}
+- Email: {profile.get('email', '')}
+- Phone: {profile.get('phone', '')}
+- LinkedIn: {profile.get('linkedin_url', '')}
+- Location: {profile.get('city', '')}, {profile.get('country', '')}
+- Years of experience: {profile.get('years_experience', 0)}
+- Skills: {profile_skills}
+
+BASE RESUME (tailor this):
+{base_doc['content_md']}
+
+Instructions:
+1. Keep all factual information accurate - do not invent experience or skills
+2. Reorder and emphasize experiences/skills that best match the job requirements
+3. Use keywords from the job description naturally
+4. Keep the resume to a reasonable length (1-2 pages worth of content)
+5. Ensure contact info is at the top
+6. Output clean Markdown only"""
+
+    async for token in _call_llm_astream(prompt, system):
+        yield token
+
+
+async def generate_cover_letter_astream(job_id: str, base_doc_id: int, conn: Any):
+    """Async generator yielding cover letter token chunks."""
+    job = _load_job_context(job_id, conn)
+    profile = _load_profile_context(conn)
+    base_doc = get_base_document(base_doc_id, conn)
+    if not base_doc:
+        raise ValueError(f"Base document {base_doc_id} not found")
+
+    req_skills = ", ".join(job["required_skills"][:8]) if job["required_skills"] else "Not specified"
+    profile_skills = ", ".join(profile.get("skills", [])[:15]) if profile.get("skills") else "Not specified"
+
+    system = (
+        "You are an expert cover letter writer. "
+        "Output ONLY the cover letter in clean Markdown format. "
+        "Do not add explanations, preamble, or commentary. "
+        "Start with the date and address block."
+    )
+    prompt = f"""Write a tailored cover letter for this job application.
+
+JOB DETAILS:
+- Title: {job['title']}
+- Company: {job['company']}
+- Location: {job['location']}
+- Required skills: {req_skills}
+
+JOB DESCRIPTION EXCERPT:
+{job['description'][:2000]}
+
+CANDIDATE PROFILE:
+- Name: {profile.get('full_name', 'Hiring Manager')}
+- Email: {profile.get('email', '')}
+- Phone: {profile.get('phone', '')}
+- LinkedIn: {profile.get('linkedin_url', '')}
+- Location: {profile.get('city', '')}, {profile.get('country', '')}
+- Years of experience: {profile.get('years_experience', 0)}
+- Skills: {profile_skills}
+
+BASE RESUME (for reference - use actual experience from here):
+{base_doc['content_md'][:2000]}
+
+Instructions:
+1. 3-4 paragraphs: opening hook, relevant experience, why this company/role, closing
+2. Reference specific skills and requirements from the job description
+3. Keep it concise - no longer than 350 words
+4. Professional, enthusiastic but not over-the-top tone
+5. Output clean Markdown only"""
+
+    async for token in _call_llm_astream(prompt, system):
+        yield token
 
 
 # ---------------------------------------------------------------------------

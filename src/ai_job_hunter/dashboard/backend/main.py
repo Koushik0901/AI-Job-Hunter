@@ -42,6 +42,7 @@ from ai_job_hunter.dashboard.backend.schemas import (
     AgentChatRequest,
     AgentChatResponse,
     AppHealthResponse,
+    BulkAcceptStoriesRequest,
     CandidateProfile,
     CreateEventRequest,
     DeferActionRequest,
@@ -72,10 +73,14 @@ from ai_job_hunter.dashboard.backend.schemas import (
     ReorderQueueRequest,
     UpdateArtifactRequest,
     UpdateQueueItemRequest,
+    UserStory,
+    UserStoryCreate,
+    UserStoryUpdate,
     WorkspaceOperation,
 )
 from ai_job_hunter.dashboard.backend.agent_gateway import handle_agent_chat
 from ai_job_hunter.dashboard.backend import artifacts as artifact_svc
+from ai_job_hunter.dashboard.backend import stories as story_svc
 from ai_job_hunter.dashboard.backend.task_queue import get_dashboard_task_queue
 from ai_job_hunter.dashboard.backend.core_actions import enqueue_artifact_generation, enqueue_operation
 from ai_job_hunter.dashboard.backend.utils import (
@@ -1624,6 +1629,53 @@ def get_job_artifacts(job_id: str, response: Response) -> list[JobArtifact]:
     return [JobArtifact(**a) for a in arts]
 
 
+@app.get("/api/jobs/{job_id}/artifacts/resume/stream")
+async def stream_resume_artifact(job_id: str, base_doc_id: int = Query(...)) -> StreamingResponse:
+    return _sse_response(_artifact_stream("resume", job_id, base_doc_id))
+
+
+@app.get("/api/jobs/{job_id}/artifacts/cover-letter/stream")
+async def stream_cover_letter_artifact(job_id: str, base_doc_id: int = Query(...)) -> StreamingResponse:
+    return _sse_response(_artifact_stream("cover_letter", job_id, base_doc_id))
+
+
+async def _artifact_stream(artifact_type: str, job_id: str, base_doc_id: int):
+    with _conn() as conn:
+        row = conn.execute("SELECT id FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        if not row:
+            yield f"event: error\ndata: {json.dumps({'detail': 'Job not found'})}\n\n"
+            return
+        doc = artifact_svc.get_base_document(base_doc_id, conn)
+        if not doc:
+            yield f"event: error\ndata: {json.dumps({'detail': 'Base document not found'})}\n\n"
+            return
+
+    chunks: list[str] = []
+    try:
+        if artifact_type == "resume":
+            stream = artifact_svc.generate_tailored_resume_astream
+        else:
+            stream = artifact_svc.generate_cover_letter_astream
+
+        with _conn() as conn:
+            async for token in stream(job_id, base_doc_id, conn):
+                chunks.append(token)
+                yield f"event: chunk\ndata: {json.dumps(token, ensure_ascii=True)}\n\n"
+
+        content_md = "".join(chunks).strip()
+        model = (os.getenv("ARTIFACT_MODEL") or "openai/gpt-4o").strip()
+        with _conn() as conn:
+            artifact = artifact_svc.save_artifact(job_id, artifact_type, content_md, base_doc_id, model, conn)
+        _cache().invalidate_job_detail(job_id)
+        _cache().publish_dashboard_event("refresh", "artifacts", job_id=job_id)
+        yield f"event: artifact\ndata: {json.dumps(artifact, ensure_ascii=True)}\n\n"
+    except Exception as exc:
+        logger.exception("Artifact stream failed for job %s type %s", job_id, artifact_type)
+        yield f"event: error\ndata: {json.dumps({'detail': str(exc)}, ensure_ascii=True)}\n\n"
+        return
+    yield "event: done\ndata: {}\n\n"
+
+
 @app.post("/api/jobs/{job_id}/artifacts/resume", response_model=WorkspaceOperation)
 def generate_resume_artifact(
     job_id: str, body: GenerateArtifactRequest, response: Response
@@ -1709,6 +1761,169 @@ def get_artifacts_by_url(
         resume=resume,
         cover_letter=cover_letter,
     )
+
+
+# ---------------------------------------------------------------------------
+# Story bank endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/stories", response_model=list[UserStory])
+def list_stories(response: Response, include_drafts: bool = Query(default=True)) -> list[UserStory]:
+    _set_no_store(response)
+    with _conn() as conn:
+        items = story_svc.list_stories(conn, include_drafts=include_drafts)
+    return [UserStory(**s) for s in items]
+
+
+@app.get("/api/stories/count")
+def get_story_count(response: Response) -> dict:
+    _set_no_store(response)
+    with _conn() as conn:
+        counts = story_svc.count_stories(conn)
+    return counts
+
+
+@app.get("/api/stories/{story_id}", response_model=UserStory)
+def get_story(story_id: int, response: Response) -> UserStory:
+    _set_no_store(response)
+    with _conn() as conn:
+        story = story_svc.get_story(story_id, conn)
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+    return UserStory(**story)
+
+
+@app.post("/api/stories", response_model=UserStory, status_code=201)
+def create_story(body: UserStoryCreate) -> UserStory:
+    with _conn() as conn:
+        story = story_svc.create_story(body.model_dump(), conn)
+        _bump_score_version(conn)
+    _cache().publish_dashboard_event("refresh", "stories")
+    return UserStory(**story)
+
+
+@app.patch("/api/stories/{story_id}", response_model=UserStory)
+def update_story(story_id: int, body: UserStoryUpdate) -> UserStory:
+    with _conn() as conn:
+        story = story_svc.update_story(
+            story_id,
+            {k: v for k, v in body.model_dump().items() if v is not None},
+            conn,
+        )
+        if not story:
+            raise HTTPException(status_code=404, detail="Story not found")
+        _bump_score_version(conn)
+    _cache().publish_dashboard_event("refresh", "stories")
+    return UserStory(**story)
+
+
+@app.delete("/api/stories/{story_id}", status_code=204)
+def delete_story(story_id: int) -> None:
+    with _conn() as conn:
+        ok = story_svc.delete_story(story_id, conn)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Story not found")
+        _bump_score_version(conn)
+    _cache().publish_dashboard_event("refresh", "stories")
+
+
+@app.post("/api/stories/bulk-accept", status_code=200)
+def bulk_accept_stories(body: BulkAcceptStoriesRequest) -> dict:
+    with _conn() as conn:
+        count = story_svc.bulk_accept_stories(body.story_ids, conn)
+        # Apply profile delta if provided
+        if body.profile_delta:
+            delta = body.profile_delta.model_dump(exclude_none=True)
+            if delta:
+                row = conn.execute("SELECT * FROM candidate_profile WHERE id = 1").fetchone()
+                if row:
+                    cols = [d[0] for d in conn.execute("SELECT * FROM candidate_profile LIMIT 0").description]
+                    current: dict[str, Any] = dict(zip(cols, row))
+                    for field, val in delta.items():
+                        if field in ("skills", "desired_job_titles") and isinstance(val, list):
+                            existing = json.loads(current.get(field) or "[]")
+                            merged = list(dict.fromkeys(existing + val))
+                            conn.execute(
+                                f"UPDATE candidate_profile SET {field} = ? WHERE id = 1",
+                                (json.dumps(merged),),
+                            )
+                        elif field in current:
+                            conn.execute(
+                                f"UPDATE candidate_profile SET {field} = ? WHERE id = 1",
+                                (val,),
+                            )
+                    conn.commit()
+        _bump_score_version(conn)
+    _cache().publish_dashboard_event("refresh", "stories")
+    return {"accepted": count}
+
+
+@app.post("/api/stories/extract-from-resume", response_model=WorkspaceOperation)
+def extract_stories_from_resume(
+    base_doc_id: int = Query(..., description="ID of the base resume document to extract from"),
+    response: Response = None,
+) -> WorkspaceOperation:
+    _set_no_store(response)
+    with _conn() as conn:
+        doc = artifact_svc.get_base_document(base_doc_id, conn)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Base document not found")
+        if doc.get("doc_type") != "resume":
+            raise HTTPException(status_code=400, detail="Document must be a resume")
+    operation = enqueue_operation("resume_extract", {"base_doc_id": base_doc_id})
+    return WorkspaceOperation(**operation)
+
+
+@app.get("/api/jobs/{job_id}/relevant-stories")
+def get_relevant_stories(job_id: str, top_k: int = Query(default=5, ge=1, le=20)) -> list[dict]:
+    """Return stories most semantically relevant to a job, ranked by cosine similarity."""
+    try:
+        from ai_job_hunter.dashboard.backend.embeddings import get_relevant_stories_for_job
+    except ImportError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    with _conn() as conn:
+        return get_relevant_stories_for_job(job_id, conn, top_k=top_k)
+
+
+@app.post("/api/stories/embed")
+def trigger_story_embedding() -> dict:
+    """Embed all accepted stories that lack vectors. Non-blocking — returns count immediately."""
+    try:
+        from ai_job_hunter.dashboard.backend.embeddings import embed_pending_stories
+    except ImportError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    with _conn() as conn:
+        try:
+            count = embed_pending_stories(conn)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"embedded": count}
+
+
+@app.post("/api/jobs/embed")
+def trigger_job_embedding(limit: int = Query(default=200, ge=1, le=1000)) -> dict:
+    """Embed enriched jobs that lack vectors. Returns count embedded."""
+    try:
+        from ai_job_hunter.dashboard.backend.embeddings import embed_pending_jobs
+    except ImportError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    with _conn() as conn:
+        try:
+            count = embed_pending_jobs(conn, limit=limit)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"embedded": count}
+
+
+def _bump_score_version(conn: Any) -> None:
+    try:
+        conn.execute(
+            "UPDATE candidate_profile SET score_version = score_version + 1 WHERE id = 1"
+        )
+        conn.commit()
+    except Exception:
+        pass
 
 
 def run() -> None:

@@ -7,8 +7,6 @@ import { useNavigate } from "react-router-dom";
 import {
   addToQueue,
   agentChat,
-  generateCoverLetter,
-  generateResume,
   getArtifactPdfUrl,
   getJobArtifacts,
   getJobDetail,
@@ -21,6 +19,7 @@ import {
   prefetchJobDetail,
   prefetchQueue,
   removeFromQueue,
+  streamArtifact,
   subscribeToDashboardEvents,
   subscribeToOperation,
   updateArtifact,
@@ -477,6 +476,7 @@ export function AgentPage() {
   const threadRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const liveRefreshTimerRef = useRef<number>(0);
+  const artifactStreamRef = useRef<(() => void) | null>(null);
 
   const resumeArtifact = artifacts.find((item) => item.artifact_type === "resume") ?? null;
   const coverLetterArtifact = artifacts.find((item) => item.artifact_type === "cover_letter") ?? null;
@@ -708,34 +708,62 @@ export function AgentPage() {
     return docsOfType.find((doc) => doc.is_default)?.id ?? docsOfType[0].id;
   }
 
-  async function handleGenerateResume(baseDocId: number) {
+  function handleGenerateResume(baseDocId: number) {
     if (!selected) return;
+    artifactStreamRef.current?.();
     setGeneratingResume(true);
+    setResumeDraft("");
+    setResumeSaved(true);
     setAgentOutput({ kind: "resume", jobId: selected.job_id, generating: true, operationId: null });
     setActiveMobilePane("output");
-    try {
-      const operation = await generateResume(selected.job_id, baseDocId);
-      setAgentOutput({ kind: "resume", jobId: selected.job_id, generating: true, operationId: operation.id });
-      void finalizeArtifactOutput("resume", selected.job_id, operation.id);
-    } catch (error) {
-      setGeneratingResume(false);
-      setChatError(error instanceof Error ? error.message : "Resume generation failed");
-    }
+    const jobId = selected.job_id;
+    const stop = streamArtifact(jobId, "resume", baseDocId, {
+      onChunk: (token) => setResumeDraft((prev) => prev + token),
+      onArtifact: (artifact) => {
+        setArtifacts((prev) => {
+          const filtered = prev.filter((item) => item.artifact_type !== "resume");
+          return [...filtered, artifact];
+        });
+        setResumeSaved(true);
+        setAgentOutput({ kind: "resume", jobId, generating: false, operationId: null });
+      },
+      onError: (detail) => {
+        setChatError(detail);
+        setGeneratingResume(false);
+        setAgentOutput((current) => (current.kind === "resume" ? { ...current, generating: false } : current));
+      },
+      onDone: () => setGeneratingResume(false),
+    });
+    artifactStreamRef.current = stop;
   }
 
-  async function handleGenerateCoverLetter(baseDocId: number) {
+  function handleGenerateCoverLetter(baseDocId: number) {
     if (!selected) return;
+    artifactStreamRef.current?.();
     setGeneratingCL(true);
+    setClDraft("");
+    setClSaved(true);
     setAgentOutput({ kind: "cover_letter", jobId: selected.job_id, generating: true, operationId: null });
     setActiveMobilePane("output");
-    try {
-      const operation = await generateCoverLetter(selected.job_id, baseDocId);
-      setAgentOutput({ kind: "cover_letter", jobId: selected.job_id, generating: true, operationId: operation.id });
-      void finalizeArtifactOutput("cover_letter", selected.job_id, operation.id);
-    } catch (error) {
-      setGeneratingCL(false);
-      setChatError(error instanceof Error ? error.message : "Cover letter generation failed");
-    }
+    const jobId = selected.job_id;
+    const stop = streamArtifact(jobId, "cover_letter", baseDocId, {
+      onChunk: (token) => setClDraft((prev) => prev + token),
+      onArtifact: (artifact) => {
+        setArtifacts((prev) => {
+          const filtered = prev.filter((item) => item.artifact_type !== "cover_letter");
+          return [...filtered, artifact];
+        });
+        setClSaved(true);
+        setAgentOutput({ kind: "cover_letter", jobId, generating: false, operationId: null });
+      },
+      onError: (detail) => {
+        setChatError(detail);
+        setGeneratingCL(false);
+        setAgentOutput((current) => (current.kind === "cover_letter" ? { ...current, generating: false } : current));
+      },
+      onDone: () => setGeneratingCL(false),
+    });
+    artifactStreamRef.current = stop;
   }
 
   function requestGenerate(type: "resume" | "cover_letter") {
