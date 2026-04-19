@@ -223,7 +223,7 @@ export interface AgentChatRequest {
 export interface AgentChatResponse {
   reply: string;
   context_snapshot: string;
-  response_mode: "fast" | "llm" | "fallback" | "skill";
+  response_mode: "fast" | "llm" | "llm_strong" | "tool_agent" | "fallback" | "skill";
   output_kind: AgentOutputKind;
   output_payload?: Record<string, unknown> | null;
   operation_id?: string | null;
@@ -483,6 +483,14 @@ export interface StoryCount {
   total: number;
   accepted: number;
   drafts: number;
+}
+
+export interface AtsCritique {
+  pass_likelihood: number;
+  missing_keywords: string[];
+  weak_sections: string[];
+  suggestions: string[];
+  revised_resume: string | null;
 }
 
 export interface RelevantStory {

@@ -866,6 +866,80 @@ Instructions:
 
 
 # ---------------------------------------------------------------------------
+# ATS critique
+# ---------------------------------------------------------------------------
+
+def critique_resume_for_ats(job_id: str, resume_md: str, conn: Any) -> dict:
+    """
+    Critique a resume's ATS compatibility against the given job.
+
+    Returns a dict with:
+      - pass_likelihood: int 0-100
+      - missing_keywords: list[str]
+      - weak_sections: list[str]
+      - suggestions: list[str]
+      - revised_resume: str | None
+    """
+    job = _load_job_context(job_id, conn)
+
+    req_skills = ", ".join(job["required_skills"][:15]) if job["required_skills"] else "Not specified"
+    pref_skills = ", ".join(job["preferred_skills"][:10]) if job["preferred_skills"] else "Not specified"
+
+    system = (
+        "You are an ATS (Applicant Tracking System) expert and resume coach. "
+        "Analyze how well a resume matches job requirements. "
+        "Return ONLY a valid JSON object with these exact fields:\n"
+        "- pass_likelihood: integer 0-100 (probability ATS will pass this resume)\n"
+        "- missing_keywords: array of strings (important keywords/skills from JD missing from resume)\n"
+        "- weak_sections: array of strings (section names that are weak or missing)\n"
+        "- suggestions: array of 3-5 specific, actionable improvement suggestions\n"
+        "- revised_resume: string (improved resume markdown with keywords woven in naturally)\n"
+        "Output ONLY valid JSON. No markdown fences, no explanations."
+    )
+
+    prompt = f"""Analyze this resume for ATS compatibility with the following job.
+
+JOB DETAILS:
+- Title: {job['title']}
+- Company: {job['company']}
+- Required skills: {req_skills}
+- Preferred skills: {pref_skills}
+
+JOB DESCRIPTION EXCERPT:
+{job['description'][:2000]}
+
+RESUME TO ANALYZE:
+{resume_md[:3000]}"""
+
+    raw = _call_llm(prompt, system)
+
+    # Strip markdown fences if the model added them
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[a-z]*\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```$", "", cleaned.strip())
+
+    try:
+        result = json.loads(cleaned)
+    except Exception:
+        result = {
+            "pass_likelihood": 50,
+            "missing_keywords": [],
+            "weak_sections": [],
+            "suggestions": ["Unable to parse critique — please try again."],
+            "revised_resume": None,
+        }
+
+    return {
+        "pass_likelihood": max(0, min(100, int(result.get("pass_likelihood") or 50))),
+        "missing_keywords": [str(k) for k in (result.get("missing_keywords") or [])[:20]],
+        "weak_sections": [str(s) for s in (result.get("weak_sections") or [])[:10]],
+        "suggestions": [str(s) for s in (result.get("suggestions") or [])[:10]],
+        "revised_resume": str(result["revised_resume"]) if result.get("revised_resume") else None,
+    }
+
+
+# ---------------------------------------------------------------------------
 # PDF rendering
 # ---------------------------------------------------------------------------
 

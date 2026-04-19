@@ -212,6 +212,18 @@ class UpdateArtifactRequest(BaseModel):
     content_md: str = Field(min_length=1)
 
 
+class AtsCritiqueRequest(BaseModel):
+    resume_md: str = Field(min_length=1)
+
+
+class AtsCritiqueResponse(BaseModel):
+    pass_likelihood: int
+    missing_keywords: list[str] = Field(default_factory=list)
+    weak_sections: list[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
+    revised_resume: str | None = None
+
+
 class AddToQueueRequest(BaseModel):
     job_id: str = Field(min_length=1)
 
@@ -256,7 +268,10 @@ class AgentChatRequest(BaseModel):
 class AgentChatResponse(BaseModel):
     reply: str
     context_snapshot: str = ""
-    response_mode: str = "llm"
+    response_mode: str = Field(
+        default="llm",
+        pattern="^(fast|llm|llm_strong|tool_agent|fallback|skill)$",
+    )
     output_kind: str = Field(
         default="none",
         pattern="^(none|discovery|resume|cover_letter|critique)$",

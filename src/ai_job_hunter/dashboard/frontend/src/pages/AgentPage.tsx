@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import {
   addToQueue,
   agentChat,
+  checkAtsCritique,
   getArtifactPdfUrl,
   getJobArtifacts,
   getJobDetail,
@@ -1377,6 +1378,7 @@ export function AgentPage() {
                   tab={resumeTab}
                   onTabChange={setResumeTab}
                   storiesGrounded={resumeArtifact?.story_ids_used?.length ?? 0}
+                  onCheckAts={selected?.job_id && resumeDraft ? () => checkAtsCritique(selected.job_id, resumeDraft) : undefined}
                 />
               </motion.div>
             ) : null}

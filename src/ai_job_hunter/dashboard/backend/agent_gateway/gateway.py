@@ -6,6 +6,7 @@ from typing import Any
 from .core_access import CoreActionClient, CoreReadClient
 from .legacy_chat import build_agent_context, handle_freeform_chat
 from .skills import resolve_skill_invocation
+from .tool_agent import handle_tool_agent_chat
 
 
 def _compact_job_payload(item: dict[str, Any]) -> dict[str, Any]:
@@ -219,11 +220,20 @@ def handle_agent_chat(
 
     invocation = resolve_skill_invocation(messages, skill_invocation)
     if invocation is None:
-        legacy = handle_freeform_chat(messages, conn)
-        legacy.setdefault("output_kind", "none")
-        legacy.setdefault("output_payload", None)
-        legacy.setdefault("operation_id", None)
-        return legacy
+        # Fast path: keyword-matched responses skip the LLM entirely
+        from .legacy_chat import _try_fast_agent
+        fast = _try_fast_agent(messages, conn)
+        if fast is not None:
+            fast.setdefault("output_kind", "none")
+            fast.setdefault("output_payload", None)
+            fast.setdefault("operation_id", None)
+            return fast
+        # Full path: tool-use agent with fallback to plain LLM
+        result = handle_tool_agent_chat(messages, conn)
+        result.setdefault("output_kind", "none")
+        result.setdefault("output_payload", None)
+        result.setdefault("operation_id", None)
+        return result
 
     name = str(invocation.get("name") or "")
     arguments = str(invocation.get("arguments") or "")

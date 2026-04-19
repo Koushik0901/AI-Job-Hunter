@@ -660,6 +660,17 @@ export function triggerStoryEmbedding(): Promise<{ embedded: number }> {
   return request<{ embedded: number }>("/api/stories/embed", { method: "POST" });
 }
 
+export function checkAtsCritique(jobId: string, resumeMd: string): Promise<import("./types").AtsCritique> {
+  return request<import("./types").AtsCritique>(
+    `/api/jobs/${encodeURIComponent(jobId)}/artifacts/ats-critique`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resume_md: resumeMd }),
+    },
+  );
+}
+
 export function triggerJobEmbedding(limit = 200): Promise<{ embedded: number }> {
   return request<{ embedded: number }>(`/api/jobs/embed?limit=${limit}`, { method: "POST" });
 }

@@ -1,6 +1,7 @@
-import { useRef, memo } from "react";
+import { useRef, memo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { AtsCritique } from "../types";
 
 interface ArtifactEditorProps {
   label: "Resume" | "Cover Letter";
@@ -16,6 +17,7 @@ interface ArtifactEditorProps {
   tab: "edit" | "preview";
   onTabChange: (t: "edit" | "preview") => void;
   storiesGrounded?: number;
+  onCheckAts?: () => Promise<AtsCritique>;
 }
 
 export const ArtifactEditor = memo(function ArtifactEditor({
@@ -32,8 +34,29 @@ export const ArtifactEditor = memo(function ArtifactEditor({
   tab,
   onTabChange,
   storiesGrounded = 0,
+  onCheckAts,
 }: ArtifactEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [critiquing, setCritiquing] = useState(false);
+  const [critique, setCritique] = useState<AtsCritique | null>(null);
+
+  async function handleCheckAts() {
+    if (!onCheckAts || critiquing) return;
+    setCritiquing(true);
+    setCritique(null);
+    try {
+      const result = await onCheckAts();
+      setCritique(result);
+    } finally {
+      setCritiquing(false);
+    }
+  }
+
+  function handleApplyRevised() {
+    if (!critique?.revised_resume) return;
+    onChange(critique.revised_resume);
+    setCritique(null);
+  }
 
   function handleTextareaChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     onChange(e.target.value);
@@ -70,6 +93,20 @@ export const ArtifactEditor = memo(function ArtifactEditor({
               <>✨ Generate</>
             )}
           </button>
+          {onCheckAts && value && (
+            <button
+              className="artifact-btn artifact-btn--ats"
+              onClick={() => void handleCheckAts()}
+              disabled={critiquing || generating}
+              title="Check ATS pass likelihood and get suggestions"
+            >
+              {critiquing ? (
+                <><span className="artifact-spinner artifact-spinner--dark" /> Checking…</>
+              ) : (
+                <>⚡ Check ATS</>
+              )}
+            </button>
+          )}
           {artifactId !== null && (
             <button
               className="artifact-btn artifact-btn--download"
@@ -126,6 +163,61 @@ export const ArtifactEditor = memo(function ArtifactEditor({
               {saved ? "Saved ✓" : "Unsaved changes •"}
             </span>
           </div>
+
+          {critique && (
+            <div className="ats-critique">
+              <div className="ats-critique-header">
+                <div className="ats-critique-score-row">
+                  <span className="ats-critique-title">ATS Analysis</span>
+                  <span
+                    className={`ats-score-badge ${critique.pass_likelihood >= 75 ? "ats-score-badge--high" : critique.pass_likelihood >= 50 ? "ats-score-badge--mid" : "ats-score-badge--low"}`}
+                  >
+                    {critique.pass_likelihood}% pass likelihood
+                  </span>
+                </div>
+                <button className="ats-critique-dismiss" onClick={() => setCritique(null)} aria-label="Dismiss">✕</button>
+              </div>
+
+              {critique.missing_keywords.length > 0 && (
+                <div className="ats-critique-section">
+                  <p className="ats-critique-section-label">Missing keywords</p>
+                  <div className="ats-keyword-chips">
+                    {critique.missing_keywords.map((kw) => (
+                      <span key={kw} className="ats-keyword-chip">{kw}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {critique.weak_sections.length > 0 && (
+                <div className="ats-critique-section">
+                  <p className="ats-critique-section-label">Weak or missing sections</p>
+                  <div className="ats-keyword-chips">
+                    {critique.weak_sections.map((s) => (
+                      <span key={s} className="ats-weak-chip">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {critique.suggestions.length > 0 && (
+                <div className="ats-critique-section">
+                  <p className="ats-critique-section-label">Suggestions</p>
+                  <ul className="ats-suggestions">
+                    {critique.suggestions.map((s, i) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {critique.revised_resume && (
+                <button className="ats-apply-btn" onClick={handleApplyRevised}>
+                  Apply revised resume
+                </button>
+              )}
+            </div>
+          )}
         </>
       )}
 

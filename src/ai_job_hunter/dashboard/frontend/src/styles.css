@@ -10211,6 +10211,153 @@ button:focus:not(:focus-visible) {
 .artifact-btn--save:hover:not(:disabled) { color: var(--text-main); }
 .artifact-btn--save:disabled { opacity: 0.4; }
 
+.artifact-btn--ats {
+  background: color-mix(in oklab, #f59e0b 12%, var(--surface-1));
+  color: #92400e;
+  border-color: color-mix(in oklab, #f59e0b 30%, transparent);
+}
+.artifact-btn--ats:hover:not(:disabled) {
+  background: color-mix(in oklab, #f59e0b 20%, var(--surface-1));
+}
+
+.artifact-spinner--dark {
+  border-color: rgba(0,0,0,0.2);
+  border-top-color: #92400e;
+}
+
+/* ATS Critique panel */
+.ats-critique {
+  margin-top: 12px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in oklab, #f59e0b 30%, transparent);
+  background: color-mix(in oklab, #fffbeb 80%, var(--surface-1));
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ats-critique-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ats-critique-score-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ats-critique-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-main);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ats-score-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 999px;
+}
+.ats-score-badge--high {
+  background: color-mix(in oklab, #22c55e 15%, transparent);
+  color: #166534;
+}
+.ats-score-badge--mid {
+  background: color-mix(in oklab, #f59e0b 15%, transparent);
+  color: #92400e;
+}
+.ats-score-badge--low {
+  background: color-mix(in oklab, #ef4444 15%, transparent);
+  color: #991b1b;
+}
+
+.ats-critique-dismiss {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.ats-critique-dismiss:hover { color: var(--text-main); }
+
+.ats-critique-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ats-critique-section-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.ats-keyword-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.ats-keyword-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, #ef4444 12%, transparent);
+  color: #991b1b;
+}
+
+.ats-weak-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, #f59e0b 12%, transparent);
+  color: #92400e;
+}
+
+.ats-suggestions {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ats-suggestions li {
+  font-size: 0.8rem;
+  color: var(--text-main);
+  line-height: 1.5;
+}
+
+.ats-apply-btn {
+  align-self: flex-start;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, #f59e0b 15%, var(--surface-1));
+  border: 1px solid color-mix(in oklab, #f59e0b 35%, transparent);
+  color: #92400e;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms;
+}
+.ats-apply-btn:hover {
+  background: color-mix(in oklab, #f59e0b 25%, var(--surface-1));
+}
+
 .artifact-spinner {
   display: inline-block;
   width: 11px;

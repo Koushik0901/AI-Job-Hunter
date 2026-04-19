@@ -65,6 +65,8 @@ from ai_job_hunter.dashboard.backend.schemas import (
     TrackingPatchRequest,
     AddToQueueRequest,
     ArtifactsByUrlResponse,
+    AtsCritiqueRequest,
+    AtsCritiqueResponse,
     BaseDocument,
     BootstrapResponse,
     GenerateArtifactRequest,
@@ -1713,6 +1715,17 @@ def generate_cover_letter_artifact(
         body.base_doc_id,
     )
     return WorkspaceOperation(**operation)
+
+
+@app.post("/api/jobs/{job_id}/artifacts/ats-critique", response_model=AtsCritiqueResponse)
+def critique_ats(job_id: str, body: AtsCritiqueRequest, response: Response) -> AtsCritiqueResponse:
+    _set_no_store(response)
+    with _conn() as conn:
+        row = conn.execute("SELECT id FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Job not found")
+        critique = artifact_svc.critique_resume_for_ats(job_id, body.resume_md, conn)
+    return AtsCritiqueResponse(**critique)
 
 
 @app.put("/api/artifacts/{artifact_id}", response_model=JobArtifact)
