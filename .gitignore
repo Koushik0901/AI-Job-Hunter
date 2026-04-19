@@ -47,4 +47,4 @@ src/dashboard/backend/latex_templates/**/*.synctex.gz
 
 # Eval results (large JSON files, not tracked)
 eval/results/
-node_modules
+node_modules/
