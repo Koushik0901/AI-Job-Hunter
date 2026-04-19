@@ -10,6 +10,7 @@ import {
   getSkillAliases,
   getActionQueue,
   getJobsWithParams,
+  getStoryCount,
   subscribeToDashboardEvents,
 } from "../api";
 import {
@@ -22,6 +23,7 @@ import {
   ProfileInsightsResponse,
   JobAction,
   JobSummary,
+  StoryCount,
 } from "../types";
 
 
@@ -36,6 +38,7 @@ interface DashboardDataContextType {
   recommendedJobs: JobSummary[];
   skillAliases: Record<string, string>;
   actionQueue: JobAction[];
+  storyCount: StoryCount | null;
   loading: boolean;
   backgroundLoading: boolean;
   error: string | null;
@@ -55,6 +58,7 @@ export const DashboardDataProvider: React.FC<{ children: React.ReactNode }> = ({
   const [recommendedJobs, setRecommendedJobs] = useState<JobSummary[]>([]);
   const [skillAliases, setSkillAliases] = useState<Record<string, string>>({});
   const [actionQueue, setActionQueue] = useState<JobAction[]>([]);
+  const [storyCount, setStoryCount] = useState<StoryCount | null>(null);
   const [loading, setLoading] = useState(true);
   const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +87,7 @@ export const DashboardDataProvider: React.FC<{ children: React.ReactNode }> = ({
       initializedRef.current = true;
       setLoading(false);
 
-      const [db, conv, sq, pg, pi, aliases, aq, rj, freshStats] = await Promise.all([
+      const [db, conv, sq, pg, pi, aliases, aq, rj, freshStats, sc] = await Promise.all([
         getDailyBriefingLatest(),
         getConversion(),
         getSourceQuality(),
@@ -93,6 +97,7 @@ export const DashboardDataProvider: React.FC<{ children: React.ReactNode }> = ({
         getActionQueue({ force }),
         getJobsWithParams({ sort: "match_desc", limit: 200 }, { force }),
         getStats({ force }),
+        getStoryCount(),
       ]);
 
       setDailyBriefing(db);
@@ -104,6 +109,7 @@ export const DashboardDataProvider: React.FC<{ children: React.ReactNode }> = ({
       setActionQueue(aq.items);
       setRecommendedJobs(rj.items.length > 0 ? rj.items : bootstrap.recommended_jobs);
       setStats(freshStats);
+      setStoryCount(sc);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard data");
     } finally {
@@ -146,6 +152,7 @@ export const DashboardDataProvider: React.FC<{ children: React.ReactNode }> = ({
       recommendedJobs,
       skillAliases,
       actionQueue,
+      storyCount,
       loading,
       backgroundLoading,
       error,

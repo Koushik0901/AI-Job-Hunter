@@ -201,6 +201,7 @@ class JobArtifact(BaseModel):
     generated_by: str | None = None
     created_at: str
     updated_at: str
+    story_ids_used: list[int] = []
 
 
 class GenerateArtifactRequest(BaseModel):
@@ -445,6 +446,75 @@ class ProfileInsightsResponse(BaseModel):
     roles_you_should_target_more: list[str] = Field(default_factory=list)
     roles_you_should_target_less: list[str] = Field(default_factory=list)
     suggested_profile_updates: list[str] = Field(default_factory=list)
+
+
+class UserStory(BaseModel):
+    id: int
+    title: str
+    narrative: str
+    role_context: str | None = None
+    skills: list[str] = Field(default_factory=list)
+    outcomes: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    importance: int = 3
+    time_period: str | None = None
+    kind: str = "role"
+    source: str = "user"
+    draft: bool = False
+    created_at: str
+    updated_at: str
+
+
+class UserStoryCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    narrative: str = Field(default="", max_length=8000)
+    role_context: str | None = Field(default=None, max_length=200)
+    skills: list[str] = Field(default_factory=list)
+    outcomes: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    importance: int = Field(default=3, ge=1, le=5)
+    time_period: str | None = Field(default=None, max_length=100)
+    kind: str = Field(default="role", pattern="^(role|project|aspiration|strength)$")
+    source: str = Field(default="user", pattern="^(user|resume_extracted|wizard)$")
+    draft: bool = False
+
+
+class UserStoryUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=300)
+    narrative: str | None = Field(default=None, max_length=8000)
+    role_context: str | None = Field(default=None, max_length=200)
+    skills: list[str] | None = None
+    outcomes: list[str] | None = None
+    tags: list[str] | None = None
+    importance: int | None = Field(default=None, ge=1, le=5)
+    time_period: str | None = Field(default=None, max_length=100)
+    kind: str | None = Field(default=None, pattern="^(role|project|aspiration|strength)$")
+    draft: bool | None = None
+
+
+class ExtractedProfileDelta(BaseModel):
+    full_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    linkedin_url: str | None = None
+    portfolio_url: str | None = None
+    city: str | None = None
+    country: str | None = None
+    years_experience: int | None = None
+    skills: list[str] = Field(default_factory=list)
+    desired_job_titles: list[str] = Field(default_factory=list)
+    degree: str | None = None
+    degree_field: str | None = None
+
+
+class BulkAcceptStoriesRequest(BaseModel):
+    story_ids: list[int] = Field(min_length=1)
+    profile_delta: ExtractedProfileDelta | None = None
+
+
+class StoryExtractionResult(BaseModel):
+    profile_delta: ExtractedProfileDelta
+    stories: list[UserStoryCreate] = Field(default_factory=list)
 
 
 class DailyBriefingItem(BaseModel):

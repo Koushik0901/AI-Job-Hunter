@@ -92,6 +92,17 @@ export const RecommendJobCard = memo(function RecommendJobCard({
         </div>
       ) : null}
 
+      {(job.matched_story_titles?.length ?? 0) > 0 ? (
+        <div className="discover-card-stories">
+          <span className="discover-stories-label">From your story bank</span>
+          <div className="discover-stories-chips">
+            {(job.matched_story_titles ?? []).map((title) => (
+              <span key={title} className="discover-story-chip">{title}</span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {skills.length > 0 ? (
         <div className="discover-card-skills">
           {skills.map((skill) => {

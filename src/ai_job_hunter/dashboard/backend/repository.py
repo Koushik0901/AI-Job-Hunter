@@ -398,13 +398,17 @@ def _upsert_match_row(
     profile_version: int,
     match: dict[str, Any],
     source_hash: str,
+    semantic_score: float | None = None,
+    matched_story_ids: list[int] | None = None,
+    matched_story_titles: list[str] | None = None,
 ) -> str:
     computed_at = _now_iso()
     conn.execute(
         """
         INSERT OR REPLACE INTO job_match_scores
-        (job_id, url, profile_version, score, raw_score, band, breakdown_json, reasons_json, confidence, computed_at, source_hash)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (job_id, url, profile_version, score, raw_score, band, breakdown_json, reasons_json,
+         confidence, computed_at, source_hash, semantic_score, matched_story_ids, matched_story_titles)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             job_id,
@@ -418,6 +422,9 @@ def _upsert_match_row(
             str(match.get("confidence") or "low"),
             computed_at,
             source_hash,
+            semantic_score,
+            json.dumps(matched_story_ids or []),
+            json.dumps(matched_story_titles or []),
         ),
     )
     return computed_at
@@ -620,7 +627,10 @@ def _list_jobs_live(
             t.processing_message,
             t.processing_last_at,
             t.processing_last_error,
-            t.processing_retry_count
+            t.processing_retry_count,
+            ms.semantic_score,
+            ms.matched_story_ids,
+            ms.matched_story_titles
         FROM jobs j
         LEFT JOIN job_tracking t ON t.job_id = j.id
         LEFT JOIN job_enrichments e ON e.job_id = j.id
@@ -669,6 +679,20 @@ def _list_jobs_live(
         if score is None:
             missing_job_ids.append(str(row[35] or ""))
         staging = _staging_sla_fields(str(row[6] or ""), row[10], row[11])
+
+        # Parse semantic fields (rows 42-44)
+        semantic_score_val = row[42] if len(row) > 42 else None
+        matched_ids_raw = row[43] if len(row) > 43 else None
+        matched_titles_raw = row[44] if len(row) > 44 else None
+        try:
+            matched_story_ids = json.loads(matched_ids_raw) if matched_ids_raw else []
+        except Exception:
+            matched_story_ids = []
+        try:
+            matched_story_titles = json.loads(matched_titles_raw) if matched_titles_raw else []
+        except Exception:
+            matched_story_titles = []
+
         items.append(
             {
                 "id": str(row[35] or ""),
@@ -700,6 +724,9 @@ def _list_jobs_live(
                 "staging_due_at": staging["staging_due_at"],
                 "staging_overdue": bool(staging["staging_overdue"]),
                 "staging_age_hours": staging["staging_age_hours"],
+                "semantic_score": float(semantic_score_val) if semantic_score_val is not None else None,
+                "matched_story_ids": matched_story_ids,
+                "matched_story_titles": matched_story_titles,
                 "enrichment": enrichment,
             }
         )
@@ -2878,6 +2905,23 @@ def recompute_match_scores(
                 "enrichment": enrichment,
             }
         )
+    # Load story and job embeddings for semantic blending
+    try:
+        from ai_job_hunter.dashboard.backend.embeddings import (
+            blend_scores,
+            compute_semantic_match,
+            load_story_embeddings,
+        )
+        story_embeddings = load_story_embeddings(conn)
+        # Fetch job embeddings keyed by job_id
+        emb_rows = conn.execute(
+            "SELECT job_id, job_embedding FROM job_enrichments WHERE job_embedding IS NOT NULL"
+        ).fetchall()
+        job_blob_by_id: dict[str, bytes] = {str(r[0]): r[1] for r in emb_rows if r[1]}
+    except Exception:
+        story_embeddings = []
+        job_blob_by_id = {}
+
     cohort_inputs = [
         {
             **entry["match"],
@@ -2895,6 +2939,20 @@ def recompute_match_scores(
     processed = 0
     for entry in computed_rows:
         calibrated = calibrated_by_url.get(entry["url"], entry["match"])
+
+        # Blend semantic score when embeddings are available
+        semantic_score: float | None = None
+        matched_ids: list[int] = []
+        matched_titles: list[str] = []
+        if story_embeddings and entry["job_id"] in job_blob_by_id:
+            sem, matched_ids, matched_titles = compute_semantic_match(
+                job_blob_by_id[entry["job_id"]], story_embeddings
+            )
+            if sem > 0:
+                semantic_score = round(sem, 2)
+                blended = blend_scores(float(calibrated.get("score", 0) or 0), sem)
+                calibrated = {**calibrated, "score": int(round(blended))}
+
         source_hash = _hash_score_source(
             title=entry["title"],
             enrichment=entry["enrichment"],
@@ -2907,6 +2965,9 @@ def recompute_match_scores(
             profile_version=profile_version,
             match=calibrated,
             source_hash=source_hash,
+            semantic_score=semantic_score,
+            matched_story_ids=matched_ids,
+            matched_story_titles=matched_titles,
         )
         if not requested_urls or entry["url"] in requested_urls:
             processed += 1

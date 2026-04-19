@@ -194,17 +194,53 @@ const ColdStartBriefing = memo(function ColdStartBriefing({
   );
 });
 
+const STORY_NUDGE_KEY = "story_nudge_dismissed";
+
+function StoryNudge({ onDismiss }: { onDismiss: () => void }) {
+  const navigate = useNavigate();
+  return (
+    <motion.div className="story-nudge" variants={sectionRevealVariants}>
+      <div className="story-nudge-copy">
+        <strong>Build your story bank</strong>
+        <p>
+          Your story bank powers better job matching and tailored resumes. Add a few stories in Settings — takes about 60 seconds.
+        </p>
+      </div>
+      <div className="story-nudge-actions">
+        <button className="story-nudge-cta" onClick={() => navigate("/settings")}>
+          Go to Settings &#8594;
+        </button>
+        <button className="story-nudge-dismiss" onClick={onDismiss} aria-label="Dismiss">
+          &#x2715;
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
 export function TodayPage() {
   const navigate = useNavigate();
   const {
     dailyBriefing,
     actionQueue,
     profileInsights,
+    storyCount,
     stats,
     loading,
     error: dataError,
     refreshData,
   } = useDashboardData();
+
+  const [nudgeDismissed, setNudgeDismissed] = useState(() => {
+    try { return localStorage.getItem(STORY_NUDGE_KEY) === "1"; } catch { return false; }
+  });
+
+  function dismissNudge() {
+    try { localStorage.setItem(STORY_NUDGE_KEY, "1"); } catch { /* ignore */ }
+    setNudgeDismissed(true);
+  }
+
+  const showStoryNudge = !nudgeDismissed && !loading && (storyCount?.accepted ?? 0) < 3;
 
   const [error, setError] = useState<string | null>(null);
   const [busyActionId, setBusyActionId] = useState<number | null>(null);
@@ -326,6 +362,8 @@ export function TodayPage() {
           <Button type="button" variant="default" onClick={() => navigate("/board")}>Open board</Button>
         </div>
       </motion.section>
+
+      {showStoryNudge && <StoryNudge onDismiss={dismissNudge} />}
 
       {(error || dataError) ? <div className="error-banner">{error || dataError}</div> : null}
 

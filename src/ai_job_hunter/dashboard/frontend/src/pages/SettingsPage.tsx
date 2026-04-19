@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { putProfile, listBaseDocuments, uploadBaseDocument, deleteBaseDocument, setDefaultBaseDocument } from "../api";
 import { useDashboardData } from "../contexts/DashboardDataContext";
 import { Button } from "../components/ui/button";
+import { StoryBank } from "../components/StoryBank";
 import type { BaseDocument, CandidateProfile } from "../types";
 
 function listToText(items: string[] | null | undefined): string {
@@ -16,7 +17,7 @@ function textToList(value: string): string[] {
 }
 
 export function SettingsPage() {
-  const { profile, refreshData } = useDashboardData();
+  const { profile, refreshData, storyCount } = useDashboardData();
   const [profileDraft, setProfileDraft] = useState<Partial<CandidateProfile>>({});
   const [skillsText, setSkillsText] = useState("");
   const [titlesText, setTitlesText] = useState("");
@@ -150,6 +151,7 @@ export function SettingsPage() {
           </p>
         </div>
         <div className="page-rail-meta">
+          <span className="page-meta-pill">{storyCount?.accepted ?? 0} stories</span>
           <span className="page-meta-pill">{resumeDocs.length} resumes</span>
           <span className="page-meta-pill">{coverDocs.length} cover letters</span>
         </div>
@@ -237,6 +239,8 @@ export function SettingsPage() {
         </div>
 
         <div className="settings-side-column">
+          <StoryBank resumeDocs={resumeDocs} />
+
           <section className="settings-surface">
             <div className="settings-surface-head">
               <div>

@@ -1649,6 +1649,8 @@ async def _artifact_stream(artifact_type: str, job_id: str, base_doc_id: int):
         if not doc:
             yield f"event: error\ndata: {json.dumps({'detail': 'Base document not found'})}\n\n"
             return
+        # Load story context upfront so it can be saved with the artifact
+        story_context, story_ids = artifact_svc.load_story_context_for_generation(job_id, conn)
 
     chunks: list[str] = []
     try:
@@ -1658,14 +1660,17 @@ async def _artifact_stream(artifact_type: str, job_id: str, base_doc_id: int):
             stream = artifact_svc.generate_cover_letter_astream
 
         with _conn() as conn:
-            async for token in stream(job_id, base_doc_id, conn):
+            async for token in stream(job_id, base_doc_id, conn, story_context=story_context):
                 chunks.append(token)
                 yield f"event: chunk\ndata: {json.dumps(token, ensure_ascii=True)}\n\n"
 
         content_md = "".join(chunks).strip()
         model = (os.getenv("ARTIFACT_MODEL") or "openai/gpt-4o").strip()
         with _conn() as conn:
-            artifact = artifact_svc.save_artifact(job_id, artifact_type, content_md, base_doc_id, model, conn)
+            artifact = artifact_svc.save_artifact(
+                job_id, artifact_type, content_md, base_doc_id, model, conn,
+                story_ids_used=story_ids,
+            )
         _cache().invalidate_job_detail(job_id)
         _cache().publish_dashboard_event("refresh", "artifacts", job_id=job_id)
         yield f"event: artifact\ndata: {json.dumps(artifact, ensure_ascii=True)}\n\n"

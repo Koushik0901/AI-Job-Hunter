@@ -49,6 +49,9 @@ export interface JobSummary {
   guidance_reasons: string[];
   next_best_action: string | null;
   health_label: string | null;
+  semantic_score?: number | null;
+  matched_story_ids?: number[];
+  matched_story_titles?: string[];
 }
 
 export interface JobsListResponse {
@@ -134,6 +137,9 @@ export interface JobDetail {
   guidance_reasons: string[];
   next_best_action: string | null;
   health_label: string | null;
+  semantic_score?: number | null;
+  matched_story_ids?: number[];
+  matched_story_titles?: string[];
 }
 
 export interface CandidateProfile {
@@ -190,6 +196,7 @@ export interface JobArtifact {
   generated_by: string | null;
   created_at: string;
   updated_at: string;
+  story_ids_used: number[];
 }
 
 export interface AgentMessage {
@@ -408,4 +415,83 @@ export interface SuppressedJob {
   created_at: string;
   updated_at: string;
   created_by: string;
+}
+
+export type StoryKind = "role" | "project" | "aspiration" | "strength";
+export type StorySource = "user" | "resume_extracted" | "wizard";
+
+export interface UserStory {
+  id: number;
+  title: string;
+  narrative: string;
+  role_context: string | null;
+  skills: string[];
+  outcomes: string[];
+  tags: string[];
+  importance: number;
+  time_period: string | null;
+  kind: StoryKind;
+  source: StorySource;
+  draft: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserStoryCreate {
+  title: string;
+  narrative?: string;
+  role_context?: string | null;
+  skills?: string[];
+  outcomes?: string[];
+  tags?: string[];
+  importance?: number;
+  time_period?: string | null;
+  kind?: StoryKind;
+  source?: StorySource;
+  draft?: boolean;
+}
+
+export interface UserStoryUpdate {
+  title?: string;
+  narrative?: string;
+  role_context?: string | null;
+  skills?: string[];
+  outcomes?: string[];
+  tags?: string[];
+  importance?: number;
+  time_period?: string | null;
+  kind?: StoryKind;
+  draft?: boolean;
+}
+
+export interface ExtractedProfileDelta {
+  full_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  linkedin_url?: string | null;
+  portfolio_url?: string | null;
+  city?: string | null;
+  country?: string | null;
+  years_experience?: number | null;
+  skills?: string[];
+  desired_job_titles?: string[];
+  degree?: string | null;
+  degree_field?: string | null;
+}
+
+export interface StoryCount {
+  total: number;
+  accepted: number;
+  drafts: number;
+}
+
+export interface RelevantStory {
+  id: number;
+  title: string;
+  kind: StoryKind;
+  narrative: string;
+  role_context: string | null;
+  skills: string[];
+  importance: number;
+  similarity: number;
 }

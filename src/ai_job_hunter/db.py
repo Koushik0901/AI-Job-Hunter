@@ -262,6 +262,8 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
     _add_column_if_missing(conn, "job_enrichments", "job_id", "job_id TEXT")
     _add_column_if_missing(conn, "job_enrichments", "minimum_degree", "minimum_degree TEXT")
     _add_column_if_missing(conn, "job_enrichments", "formatted_description", "formatted_description TEXT")
+    _add_column_if_missing(conn, "job_enrichments", "job_embedding", "job_embedding BLOB")
+    _add_column_if_missing(conn, "job_enrichments", "job_embedded_at", "job_embedded_at TEXT")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS job_tracking (
             job_id               TEXT UNIQUE REFERENCES jobs(id),
@@ -395,6 +397,9 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
     """)
     _add_column_if_missing(conn, "job_match_scores", "job_id", "job_id TEXT")
     _add_column_if_missing(conn, "job_match_scores", "raw_score", "raw_score INTEGER NOT NULL DEFAULT 0")
+    _add_column_if_missing(conn, "job_match_scores", "semantic_score", "semantic_score REAL")
+    _add_column_if_missing(conn, "job_match_scores", "matched_story_ids", "matched_story_ids TEXT")
+    _add_column_if_missing(conn, "job_match_scores", "matched_story_titles", "matched_story_titles TEXT")
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_job_match_scores_job_id ON job_match_scores(job_id)"
     )
@@ -553,6 +558,7 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_job_artifacts_job_type ON job_artifacts(job_id, artifact_type)"
     )
+    _add_column_if_missing(conn, "job_artifacts", "story_ids_used", "story_ids_used TEXT")
     try:
         rows = conn.execute(
             "SELECT url FROM jobs WHERE id IS NULL OR trim(id) = ''"
@@ -625,6 +631,35 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
         )
     except Exception:
         pass
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS user_stories (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            title           TEXT NOT NULL,
+            narrative       TEXT NOT NULL DEFAULT '',
+            role_context    TEXT,
+            skills          TEXT NOT NULL DEFAULT '[]',
+            outcomes        TEXT NOT NULL DEFAULT '[]',
+            tags            TEXT NOT NULL DEFAULT '[]',
+            importance      INTEGER NOT NULL DEFAULT 3,
+            time_period     TEXT,
+            kind            TEXT NOT NULL DEFAULT 'role',
+            source          TEXT NOT NULL DEFAULT 'user',
+            draft           INTEGER NOT NULL DEFAULT 0,
+            embedding       BLOB,
+            embedding_model TEXT,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_stories_source ON user_stories(source)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_stories_draft ON user_stories(draft)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_stories_kind ON user_stories(kind)"
+    )
     conn.commit()
     return conn
 

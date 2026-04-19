@@ -15,6 +15,7 @@ interface ArtifactEditorProps {
   artifactId: number | null;
   tab: "edit" | "preview";
   onTabChange: (t: "edit" | "preview") => void;
+  storiesGrounded?: number;
 }
 
 export const ArtifactEditor = memo(function ArtifactEditor({
@@ -30,6 +31,7 @@ export const ArtifactEditor = memo(function ArtifactEditor({
   artifactId,
   tab,
   onTabChange,
+  storiesGrounded = 0,
 }: ArtifactEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -44,7 +46,17 @@ export const ArtifactEditor = memo(function ArtifactEditor({
   return (
     <div className="artifact-editor">
       <div className="artifact-editor-header">
-        <span className="artifact-editor-label">{label}</span>
+        <div className="artifact-editor-title">
+          <span className="artifact-editor-label">{label}</span>
+          {storiesGrounded > 0 && (
+            <span
+              className="artifact-grounded-badge"
+              title={`Generated using ${storiesGrounded} stor${storiesGrounded === 1 ? "y" : "ies"} from your story bank`}
+            >
+              {storiesGrounded} {storiesGrounded === 1 ? "story" : "stories"} used
+            </span>
+          )}
+        </div>
         <div className="artifact-editor-actions">
           <button
             className="artifact-btn artifact-btn--generate"

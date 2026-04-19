@@ -279,15 +279,16 @@ def reorder_queue(ids: list[int], conn: Any) -> None:
 # Job artifacts
 # ---------------------------------------------------------------------------
 
+_ARTIFACT_SELECT = """
+    SELECT id, job_id, artifact_type, content_md, base_doc_id, version,
+           is_active, generated_by, created_at, updated_at, story_ids_used
+    FROM job_artifacts
+"""
+
+
 def get_artifacts_for_job(job_id: str, conn: Any) -> list[dict]:
     rows = conn.execute(
-        """
-        SELECT id, job_id, artifact_type, content_md, base_doc_id, version,
-               is_active, generated_by, created_at, updated_at
-        FROM job_artifacts
-        WHERE job_id = ? AND is_active = 1
-        ORDER BY artifact_type, version DESC
-        """,
+        f"{_ARTIFACT_SELECT} WHERE job_id = ? AND is_active = 1 ORDER BY artifact_type, version DESC",
         (job_id,)
     ).fetchall()
     return [_artifact_row_to_dict(row) for row in rows]
@@ -295,17 +296,19 @@ def get_artifacts_for_job(job_id: str, conn: Any) -> list[dict]:
 
 def get_artifact(artifact_id: int, conn: Any) -> dict | None:
     row = conn.execute(
-        """
-        SELECT id, job_id, artifact_type, content_md, base_doc_id, version,
-               is_active, generated_by, created_at, updated_at
-        FROM job_artifacts WHERE id = ?
-        """,
+        f"{_ARTIFACT_SELECT} WHERE id = ?",
         (artifact_id,)
     ).fetchone()
     return _artifact_row_to_dict(row) if row else None
 
 
 def _artifact_row_to_dict(row: tuple) -> dict:
+    story_ids: list[int] = []
+    if len(row) > 10 and row[10]:
+        try:
+            story_ids = json.loads(row[10]) or []
+        except Exception:
+            story_ids = []
     return {
         "id": row[0],
         "job_id": row[1],
@@ -317,6 +320,7 @@ def _artifact_row_to_dict(row: tuple) -> dict:
         "generated_by": row[7],
         "created_at": row[8],
         "updated_at": row[9],
+        "story_ids_used": story_ids,
     }
 
 
@@ -327,6 +331,8 @@ def save_artifact(
     base_doc_id: int | None,
     generated_by: str | None,
     conn: Any,
+    *,
+    story_ids_used: list[int] | None = None,
 ) -> dict:
     # Archive previous active artifact of same type
     conn.execute(
@@ -342,18 +348,21 @@ def save_artifact(
     next_version = (ver_row[0] if ver_row else 0) + 1
 
     now = datetime.now(timezone.utc).isoformat()
+    story_ids_json = json.dumps(story_ids_used or [])
     conn.execute(
         """
         INSERT INTO job_artifacts
-            (job_id, artifact_type, content_md, base_doc_id, version, is_active, generated_by, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+            (job_id, artifact_type, content_md, base_doc_id, version, is_active,
+             generated_by, created_at, updated_at, story_ids_used)
+        VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
         """,
-        (job_id, artifact_type, content_md, base_doc_id, next_version, generated_by, now, now),
+        (job_id, artifact_type, content_md, base_doc_id, next_version,
+         generated_by, now, now, story_ids_json),
     )
     conn.commit()
 
     row = conn.execute(
-        "SELECT id, job_id, artifact_type, content_md, base_doc_id, version, is_active, generated_by, created_at, updated_at FROM job_artifacts WHERE job_id = ? AND artifact_type = ? AND is_active = 1",
+        f"{_ARTIFACT_SELECT} WHERE job_id = ? AND artifact_type = ? AND is_active = 1",
         (job_id, artifact_type)
     ).fetchone()
     return _artifact_row_to_dict(row)
@@ -366,10 +375,7 @@ def update_artifact(artifact_id: int, content_md: str, conn: Any) -> dict:
         (content_md, now, artifact_id),
     )
     conn.commit()
-    row = conn.execute(
-        "SELECT id, job_id, artifact_type, content_md, base_doc_id, version, is_active, generated_by, created_at, updated_at FROM job_artifacts WHERE id = ?",
-        (artifact_id,)
-    ).fetchone()
+    row = conn.execute(f"{_ARTIFACT_SELECT} WHERE id = ?", (artifact_id,)).fetchone()
     return _artifact_row_to_dict(row) if row else {}
 
 
@@ -452,6 +458,78 @@ def _load_profile_context(conn: Any) -> dict:
     }
 
 
+def load_story_context_for_generation(job_id: str, conn: Any) -> tuple[str, list[int]]:
+    """
+    Return (story_block_text, story_ids) for grounding artifact generation.
+
+    Tries semantic similarity first (via embeddings). Falls back to top accepted
+    stories by importance when embeddings are unavailable.
+    """
+    # Try semantic path
+    try:
+        from ai_job_hunter.dashboard.backend.embeddings import get_relevant_stories_for_job
+        stories = get_relevant_stories_for_job(job_id, conn, top_k=5)
+    except Exception:
+        stories = []
+
+    # Fallback: top accepted stories by importance
+    if not stories:
+        rows = conn.execute(
+            """
+            SELECT id, title, kind, narrative, role_context, skills, outcomes, importance
+            FROM user_stories
+            WHERE draft = 0
+            ORDER BY importance DESC, created_at DESC
+            LIMIT 5
+            """
+        ).fetchall()
+        for r in rows:
+            skills_list: list[str] = []
+            outcomes_list: list[str] = []
+            try:
+                skills_list = json.loads(r[5] or "[]") or []
+            except Exception:
+                pass
+            try:
+                outcomes_list = json.loads(r[6] or "[]") or []
+            except Exception:
+                pass
+            stories.append({
+                "id": r[0],
+                "title": r[1],
+                "kind": r[2],
+                "narrative": r[3],
+                "role_context": r[4],
+                "skills": skills_list,
+                "outcomes": outcomes_list,
+                "importance": r[7],
+            })
+
+    if not stories:
+        return "", []
+
+    story_ids = [int(s["id"]) for s in stories]
+    lines = [
+        "STORY BANK — YOUR VERIFIED REAL EXPERIENCES:",
+        "Every achievement, metric, and claim in the generated document MUST come",
+        "from these stories or the Base Resume. Do NOT invent or embellish.",
+        "",
+    ]
+    for i, s in enumerate(stories, 1):
+        lines.append(f"--- [{i}] {s['title']} ({s['kind']}) ---")
+        if s.get("role_context"):
+            lines.append(f"Context: {s['role_context']}")
+        if s.get("narrative"):
+            lines.append(f"Your experience: {str(s['narrative'])[:800]}")
+        if s.get("skills"):
+            lines.append("Skills demonstrated: " + ", ".join(str(x) for x in s["skills"][:12]))
+        if s.get("outcomes"):
+            lines.append("Key outcomes: " + " | ".join(str(x) for x in s["outcomes"][:5]))
+        lines.append("")
+
+    return "\n".join(lines), story_ids
+
+
 def _build_llm() -> Any:
     api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
     if not api_key:
@@ -493,12 +571,25 @@ async def _call_llm_astream(prompt: str, system: str):
             yield token
 
 
-def generate_tailored_resume(job_id: str, base_doc_id: int, conn: Any) -> str:
+def generate_tailored_resume(
+    job_id: str,
+    base_doc_id: int,
+    conn: Any,
+    *,
+    story_context: str = "",
+    story_ids_used: list[int] | None = None,
+) -> tuple[str, list[int]]:
+    """Returns (content_md, story_ids_used)."""
     job = _load_job_context(job_id, conn)
     profile = _load_profile_context(conn)
     base_doc = get_base_document(base_doc_id, conn)
     if not base_doc:
         raise ValueError(f"Base document {base_doc_id} not found")
+
+    # Load story context if not pre-loaded
+    _story_ids = story_ids_used or []
+    if not story_context:
+        story_context, _story_ids = load_story_context_for_generation(job_id, conn)
 
     req_skills = ", ".join(job["required_skills"][:10]) if job["required_skills"] else "Not specified"
     pref_skills = ", ".join(job["preferred_skills"][:10]) if job["preferred_skills"] else "Not specified"
@@ -508,7 +599,7 @@ def generate_tailored_resume(job_id: str, base_doc_id: int, conn: Any) -> str:
     if job["years_exp_min"] is not None:
         years_range = f"{job['years_exp_min']}"
         if job["years_exp_max"] is not None:
-            years_range += f"–{job['years_exp_max']}"
+            years_range += f"-{job['years_exp_max']}"
         years_range += " years"
 
     system = (
@@ -516,6 +607,16 @@ def generate_tailored_resume(job_id: str, base_doc_id: int, conn: Any) -> str:
         "Output ONLY the resume in clean Markdown format. Use ## for section headers, **bold** for job titles/companies. "
         "Do not add any explanations, preamble, or commentary. Start directly with the candidate's name."
     )
+
+    story_section = f"\n{story_context}\n" if story_context else ""
+    grounding_rules = """
+GROUNDING RULES (CRITICAL):
+- All achievements, metrics, and outcomes must come verbatim or paraphrased from the Story Bank or Base Resume above
+- Do not invent numbers, percentages, technologies, or roles not present in the provided materials
+- For each work experience, use the narrative and outcomes from the matching story in the Story Bank
+- If a job requirement is not in the Story Bank, include it only if it appears in the Base Resume
+- The result must be a resume the candidate can confidently defend in an interview
+""" if story_context else ""
 
     prompt = f"""Tailor this resume for the following job application.
 
@@ -530,8 +631,8 @@ JOB DETAILS:
 - Years experience required: {years_range or 'Not specified'}
 
 JOB DESCRIPTION EXCERPT:
-{job['description'][:3000]}
-
+{job['description'][:2500]}
+{story_section}
 CANDIDATE PROFILE:
 - Name: {profile.get('full_name', '')}
 - Email: {profile.get('email', '')}
@@ -542,25 +643,37 @@ CANDIDATE PROFILE:
 - Skills: {profile_skills}
 
 BASE RESUME (tailor this):
-{base_doc['content_md']}
-
+{base_doc['content_md'][:3000]}
+{grounding_rules}
 Instructions:
-1. Keep all factual information accurate — do not invent experience or skills
-2. Reorder and emphasize experiences/skills that best match the job requirements
-3. Use keywords from the job description naturally
-4. Keep the resume to a reasonable length (1-2 pages worth of content)
-5. Ensure contact info is at the top
-6. Output clean Markdown only"""
+1. Reorder and emphasize experiences/skills that best match the job requirements
+2. Use keywords from the job description naturally
+3. Keep the resume to 1-2 pages worth of content
+4. Ensure contact info is at the top
+5. Output clean Markdown only"""
 
-    return _call_llm(prompt, system)
+    content_md = _call_llm(prompt, system)
+    return content_md, _story_ids
 
 
-def generate_cover_letter(job_id: str, base_doc_id: int, conn: Any) -> str:
+def generate_cover_letter(
+    job_id: str,
+    base_doc_id: int,
+    conn: Any,
+    *,
+    story_context: str = "",
+    story_ids_used: list[int] | None = None,
+) -> tuple[str, list[int]]:
+    """Returns (content_md, story_ids_used)."""
     job = _load_job_context(job_id, conn)
     profile = _load_profile_context(conn)
     base_doc = get_base_document(base_doc_id, conn)
     if not base_doc:
         raise ValueError(f"Base document {base_doc_id} not found")
+
+    _story_ids = story_ids_used or []
+    if not story_context:
+        story_context, _story_ids = load_story_context_for_generation(job_id, conn)
 
     req_skills = ", ".join(job["required_skills"][:8]) if job["required_skills"] else "Not specified"
     profile_skills = ", ".join(profile.get("skills", [])[:15]) if profile.get("skills") else "Not specified"
@@ -572,6 +685,14 @@ def generate_cover_letter(job_id: str, base_doc_id: int, conn: Any) -> str:
         "Start with the date and address block."
     )
 
+    story_section = f"\n{story_context}\n" if story_context else ""
+    grounding_rules = """
+GROUNDING RULES (CRITICAL):
+- The body paragraphs must be grounded in the 2-3 most relevant stories from the Story Bank
+- Quote or paraphrase actual outcomes and metrics from the stories — do not invent achievements
+- The result should be a cover letter the hiring manager could fact-check against the candidate's resume
+""" if story_context else ""
+
     prompt = f"""Write a tailored cover letter for this job application.
 
 JOB DETAILS:
@@ -581,10 +702,10 @@ JOB DETAILS:
 - Required skills: {req_skills}
 
 JOB DESCRIPTION EXCERPT:
-{job['description'][:2000]}
-
+{job['description'][:1800]}
+{story_section}
 CANDIDATE PROFILE:
-- Name: {profile.get('full_name', 'Hiring Manager')}
+- Name: {profile.get('full_name', '')}
 - Email: {profile.get('email', '')}
 - Phone: {profile.get('phone', '')}
 - LinkedIn: {profile.get('linkedin_url', '')}
@@ -592,20 +713,27 @@ CANDIDATE PROFILE:
 - Years of experience: {profile.get('years_experience', 0)}
 - Skills: {profile_skills}
 
-BASE RESUME (for reference — use actual experience from here):
-{base_doc['content_md'][:2000]}
-
+BASE RESUME (for additional context):
+{base_doc['content_md'][:1500]}
+{grounding_rules}
 Instructions:
-1. 3-4 paragraphs: opening hook, relevant experience, why this company/role, closing
-2. Reference specific skills and requirements from the job description
-3. Keep it concise — no longer than 350 words
-4. Professional, enthusiastic but not over-the-top tone
+1. 3-4 paragraphs: opening hook, 1-2 paragraphs on specific relevant stories, why this company/role, closing
+2. Each body paragraph should cite a real outcome or project from the Story Bank
+3. Keep it concise — no longer than 380 words
+4. Professional, direct tone
 5. Output clean Markdown only"""
 
-    return _call_llm(prompt, system)
+    content_md = _call_llm(prompt, system)
+    return content_md, _story_ids
 
 
-async def generate_tailored_resume_astream(job_id: str, base_doc_id: int, conn: Any):
+async def generate_tailored_resume_astream(
+    job_id: str,
+    base_doc_id: int,
+    conn: Any,
+    *,
+    story_context: str = "",
+):
     """Async generator yielding resume token chunks."""
     job = _load_job_context(job_id, conn)
     profile = _load_profile_context(conn)
@@ -624,6 +752,13 @@ async def generate_tailored_resume_astream(job_id: str, base_doc_id: int, conn: 
             years_range += f"-{job['years_exp_max']}"
         years_range += " years"
 
+    story_section = f"\n{story_context}\n" if story_context else ""
+    grounding_rules = (
+        "\nGROUNDING RULES (CRITICAL):\n"
+        "- All achievements, metrics, and outcomes must come from the Story Bank or Base Resume\n"
+        "- Do not invent numbers, percentages, technologies, or roles not present in the materials\n"
+    ) if story_context else ""
+
     system = (
         "You are an expert resume writer specializing in tailoring resumes for specific job applications. "
         "Output ONLY the resume in clean Markdown format. Use ## for section headers, **bold** for job titles/companies. "
@@ -642,8 +777,8 @@ JOB DETAILS:
 - Years experience required: {years_range or 'Not specified'}
 
 JOB DESCRIPTION EXCERPT:
-{job['description'][:3000]}
-
+{job['description'][:2500]}
+{story_section}
 CANDIDATE PROFILE:
 - Name: {profile.get('full_name', '')}
 - Email: {profile.get('email', '')}
@@ -654,21 +789,26 @@ CANDIDATE PROFILE:
 - Skills: {profile_skills}
 
 BASE RESUME (tailor this):
-{base_doc['content_md']}
-
+{base_doc['content_md'][:3000]}
+{grounding_rules}
 Instructions:
-1. Keep all factual information accurate - do not invent experience or skills
-2. Reorder and emphasize experiences/skills that best match the job requirements
-3. Use keywords from the job description naturally
-4. Keep the resume to a reasonable length (1-2 pages worth of content)
-5. Ensure contact info is at the top
-6. Output clean Markdown only"""
+1. Reorder and emphasize experiences/skills that best match the job requirements
+2. Use keywords from the job description naturally
+3. Keep the resume to 1-2 pages worth of content
+4. Ensure contact info is at the top
+5. Output clean Markdown only"""
 
     async for token in _call_llm_astream(prompt, system):
         yield token
 
 
-async def generate_cover_letter_astream(job_id: str, base_doc_id: int, conn: Any):
+async def generate_cover_letter_astream(
+    job_id: str,
+    base_doc_id: int,
+    conn: Any,
+    *,
+    story_context: str = "",
+):
     """Async generator yielding cover letter token chunks."""
     job = _load_job_context(job_id, conn)
     profile = _load_profile_context(conn)
@@ -678,6 +818,13 @@ async def generate_cover_letter_astream(job_id: str, base_doc_id: int, conn: Any
 
     req_skills = ", ".join(job["required_skills"][:8]) if job["required_skills"] else "Not specified"
     profile_skills = ", ".join(profile.get("skills", [])[:15]) if profile.get("skills") else "Not specified"
+
+    story_section = f"\n{story_context}\n" if story_context else ""
+    grounding_rules = (
+        "\nGROUNDING RULES (CRITICAL):\n"
+        "- Body paragraphs must be grounded in the most relevant stories from the Story Bank\n"
+        "- Quote or paraphrase actual outcomes and metrics — do not invent achievements\n"
+    ) if story_context else ""
 
     system = (
         "You are an expert cover letter writer. "
@@ -694,10 +841,10 @@ JOB DETAILS:
 - Required skills: {req_skills}
 
 JOB DESCRIPTION EXCERPT:
-{job['description'][:2000]}
-
+{job['description'][:1800]}
+{story_section}
 CANDIDATE PROFILE:
-- Name: {profile.get('full_name', 'Hiring Manager')}
+- Name: {profile.get('full_name', '')}
 - Email: {profile.get('email', '')}
 - Phone: {profile.get('phone', '')}
 - LinkedIn: {profile.get('linkedin_url', '')}
@@ -705,15 +852,14 @@ CANDIDATE PROFILE:
 - Years of experience: {profile.get('years_experience', 0)}
 - Skills: {profile_skills}
 
-BASE RESUME (for reference - use actual experience from here):
-{base_doc['content_md'][:2000]}
-
+BASE RESUME (for additional context):
+{base_doc['content_md'][:1500]}
+{grounding_rules}
 Instructions:
-1. 3-4 paragraphs: opening hook, relevant experience, why this company/role, closing
-2. Reference specific skills and requirements from the job description
-3. Keep it concise - no longer than 350 words
-4. Professional, enthusiastic but not over-the-top tone
-5. Output clean Markdown only"""
+1. 3-4 paragraphs: opening hook, 1-2 paragraphs grounded in specific stories, why this role, closing
+2. Keep it concise - no longer than 380 words
+3. Professional, direct tone
+4. Output clean Markdown only"""
 
     async for token in _call_llm_astream(prompt, system):
         yield token

@@ -885,6 +885,17 @@ export function DetailDrawer({
                       </p>
                     ) : null}
 
+                    {(job.matched_story_titles?.length ?? 0) > 0 ? (
+                      <div className="detail-story-match">
+                        <p className="detail-story-match-label">Matched from your story bank</p>
+                        <div className="detail-story-chips">
+                          {(job.matched_story_titles ?? []).map((title) => (
+                            <span key={title} className="detail-story-chip">{title}</span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
                     {onSaveDecision ? (
                       <div className="assistant-chip-list">
                         {(["apply_now", "review_manually", "hold", "archive"] as Recommendation[]).map((option) => (

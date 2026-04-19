@@ -1376,6 +1376,7 @@ export function AgentPage() {
                   artifactId={resumeArtifact?.id ?? null}
                   tab={resumeTab}
                   onTabChange={setResumeTab}
+                  storiesGrounded={resumeArtifact?.story_ids_used?.length ?? 0}
                 />
               </motion.div>
             ) : null}
@@ -1405,6 +1406,7 @@ export function AgentPage() {
                   artifactId={coverLetterArtifact?.id ?? null}
                   tab={clTab}
                   onTabChange={setClTab}
+                  storiesGrounded={coverLetterArtifact?.story_ids_used?.length ?? 0}
                 />
               </motion.div>
             ) : null}
