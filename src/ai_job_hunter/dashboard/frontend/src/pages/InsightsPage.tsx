@@ -323,6 +323,7 @@ export function InsightsPage() {
     conversion,
     sourceQuality,
     profileGaps,
+    profileInsights,
     loading: contextLoading,
     error: dataError,
   } = useDashboardData();
@@ -564,15 +565,60 @@ export function InsightsPage() {
                 {(profileGaps?.items.length ?? 0) > 0 ? (
                   <div className="strategy-chip-stack">
                     {profileGaps?.items.slice(0, 6).map((gap) => (
-                      <div key={`${gap.kind}-${gap.label}`} className="strategy-chip-card">
+                      <a
+                        key={`${gap.kind}-${gap.label}`}
+                        href={`/board?q=${encodeURIComponent(gap.label)}`}
+                        className="strategy-chip-card strategy-chip-card--link"
+                      >
                         <span>{gap.kind === "skill_gap" ? "Skill" : "Signal"}</span>
                         <strong>{gap.label}</strong>
-                        <small>{gap.count} jobs</small>
-                      </div>
+                        <small>{gap.count} jobs · view in board</small>
+                      </a>
                     ))}
                   </div>
                 ) : (
                   <p className="strategy-copy-soft">No clear blockers are dominating your strongest roles right now.</p>
+                )}
+              </article>
+
+              <article className="strategy-surface">
+                <div className="strategy-surface-head">
+                  <div>
+                    <p className="page-kicker">Targeting signals</p>
+                    <h3>Where to shift your focus</h3>
+                  </div>
+                </div>
+                {(profileInsights?.roles_you_should_target_more?.length ?? 0) > 0 ? (
+                  <div className="strategy-targeting-group">
+                    <p className="strategy-targeting-label strategy-targeting-label--more">Target more</p>
+                    <div className="strategy-targeting-chips">
+                      {profileInsights!.roles_you_should_target_more.map((role) => (
+                        <a key={role} href={`/board?q=${encodeURIComponent(role)}`} className="strategy-targeting-chip strategy-targeting-chip--more">{role}</a>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {(profileInsights?.roles_you_should_target_less?.length ?? 0) > 0 ? (
+                  <div className="strategy-targeting-group">
+                    <p className="strategy-targeting-label strategy-targeting-label--less">Reduce focus</p>
+                    <div className="strategy-targeting-chips">
+                      {profileInsights!.roles_you_should_target_less.map((role) => (
+                        <span key={role} className="strategy-targeting-chip strategy-targeting-chip--less">{role}</span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {(profileInsights?.suggested_profile_updates?.length ?? 0) > 0 ? (
+                  <div className="strategy-targeting-group">
+                    <p className="strategy-targeting-label">Suggested updates</p>
+                    <ul className="strategy-update-list">
+                      {profileInsights!.suggested_profile_updates.map((upd, i) => (
+                        <li key={i} className="strategy-note-item">• {upd}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="strategy-copy-soft">Targeting signals will appear once there is enough conversion data.</p>
                 )}
               </article>
 

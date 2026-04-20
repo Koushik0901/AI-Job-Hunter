@@ -12224,6 +12224,71 @@ button:focus:not(:focus-visible) {
   font-size: 0.9rem;
 }
 
+.strategy-chip-card--link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+.strategy-chip-card--link:hover {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 40%, transparent), 0 4px 12px rgba(99,14,212,0.08);
+}
+
+.strategy-targeting-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+}
+.strategy-targeting-group:first-child {
+  padding-top: 0;
+}
+
+.strategy-targeting-label {
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-soft);
+}
+.strategy-targeting-label--more { color: #16a34a; }
+.strategy-targeting-label--less { color: #f97316; }
+
+.strategy-targeting-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.strategy-targeting-chip {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+.strategy-targeting-chip--more {
+  background: color-mix(in oklab, #16a34a 12%, transparent);
+  color: #16a34a;
+}
+.strategy-targeting-chip--more:hover {
+  background: color-mix(in oklab, #16a34a 20%, transparent);
+}
+.strategy-targeting-chip--less {
+  background: color-mix(in oklab, #f97316 12%, transparent);
+  color: #f97316;
+}
+
+.strategy-update-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .insights-donut-svg {
   width: 164px;
   height: 164px;

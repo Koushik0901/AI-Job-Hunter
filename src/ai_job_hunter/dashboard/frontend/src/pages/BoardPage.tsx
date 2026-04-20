@@ -594,7 +594,8 @@ export function BoardPage() {
     status: "staging",
     description: "",
   });
-  const [searchQuery, setSearchQuery] = useState(() => (hasFreshCache ? boardPageCache?.searchQuery ?? "" : ""));
+  const initialSearchQuery = (searchParams.get("q") ?? "").trim();
+  const [searchQuery, setSearchQuery] = useState(() => (initialSearchQuery ? initialSearchQuery : (hasFreshCache ? boardPageCache?.searchQuery ?? "" : "")));
   const [viewMode, setViewMode] = useState<BoardView>(() => (hasFreshCache ? boardPageCache?.viewMode ?? "kanban" : "kanban"));
   const [columnSorts, setColumnSorts] = useState<Record<TrackingStatus, ColumnSortOption>>(() => initialColumnSorts);
   const [focusMode, setFocusMode] = useState<FocusMode>(() => (hasFreshCache ? boardPageCache?.focusMode ?? "all" : "all"));
