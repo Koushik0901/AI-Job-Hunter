@@ -33,6 +33,10 @@ tmp-test-startprocess.txt
 .pytest_cache/
 .ruff_cache/
 
+.claude/
+.vscode/
+.playwright-mcp/
+
 # Generated LaTeX build artifacts
 src/dashboard/backend/latex_templates/**/*.aux
 src/dashboard/backend/latex_templates/**/*.fdb_latexmk
