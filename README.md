@@ -317,7 +317,8 @@ Important keys:
 
 - `DB_PATH`, `TURSO_URL`, `TURSO_AUTH_TOKEN`
 - `REDIS_URL`
-- `AGENT_MODEL`
+- `AGENT_MODEL` — fast/SLM for simple queries (default `openai/gpt-4o-mini`)
+- `AGENT_STRONG_MODEL` — strong model for generation/analysis/long messages (default `openai/gpt-4o`)
 - `DASHBOARD_CACHE_TTL_SHORT`, `DASHBOARD_CACHE_TTL_LONG`
 - `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`
 - `JOB_HUNTER_TIMEZONE`

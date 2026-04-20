@@ -9,6 +9,17 @@ logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 _DEFAULT_AGENT_MODEL = "openai/gpt-4o-mini"
+_DEFAULT_AGENT_STRONG_MODEL = "openai/gpt-4o"
+
+_STRONG_KEYWORDS = frozenset(
+    [
+        "generate", "write", "create", "draft", "tailor", "rewrite", "revise",
+        "analyze", "analyse", "compare", "critique", "review", "evaluate", "assess",
+        "explain why", "explain how", "pros and cons", "tradeoffs", "trade-offs",
+        "strategy", "advice", "recommend", "suggest", "improve", "optimize",
+        "help me", "cover letter", "resume", "letter of intent",
+    ]
+)
 
 _SYSTEM_TEMPLATE = """\
 You are an AI job search assistant embedded in a personal job search dashboard called "AI Job Hunter".
@@ -235,6 +246,15 @@ def _pipeline_triage(conn: Any, limit: int = 5) -> list[str]:
     ]
 
 
+def _route_message(prompt: str) -> str:
+    """Return the model name to use for a freeform LLM call based on message complexity."""
+    lower = prompt.casefold()
+    word_count = len(prompt.split())
+    if word_count > 100 or any(kw in lower for kw in _STRONG_KEYWORDS):
+        return (os.getenv("AGENT_STRONG_MODEL") or _DEFAULT_AGENT_STRONG_MODEL).strip()
+    return (os.getenv("AGENT_MODEL") or _DEFAULT_AGENT_MODEL).strip()
+
+
 def _try_fast_agent(messages: list[dict[str, str]], conn: Any) -> dict[str, str] | None:
     prompt = _latest_user_message(messages).casefold()
     if not prompt:
@@ -300,7 +320,10 @@ def handle_freeform_chat(messages: list[dict[str, str]], conn: Any) -> dict[str,
             "response_mode": "fallback",
         }
 
-    model = (os.getenv("AGENT_MODEL") or _DEFAULT_AGENT_MODEL).strip()
+    latest_prompt = _latest_user_message(messages)
+    model = _route_message(latest_prompt)
+    strong_default = (os.getenv("AGENT_STRONG_MODEL") or _DEFAULT_AGENT_STRONG_MODEL).strip()
+    response_mode = "llm_strong" if model == strong_default else "llm"
 
     try:
         from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -332,6 +355,8 @@ def handle_freeform_chat(messages: list[dict[str, str]], conn: Any) -> dict[str,
         max_tokens=1200,
     )
 
+    logger.debug("Agent routing: model=%s mode=%s words=%d", model, response_mode, len(latest_prompt.split()))
+
     try:
         response = llm.invoke(lc_messages)
         reply = str(getattr(response, "content", "") or "")
@@ -339,4 +364,4 @@ def handle_freeform_chat(messages: list[dict[str, str]], conn: Any) -> dict[str,
         logger.exception("Agent LLM call failed")
         reply = f"The agent encountered an error: {exc}"
 
-    return {"reply": reply, "context_snapshot": context, "response_mode": "llm"}
+    return {"reply": reply, "context_snapshot": context, "response_mode": response_mode}

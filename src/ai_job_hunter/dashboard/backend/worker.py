@@ -3,6 +3,10 @@ from __future__ import annotations
 import logging
 import time
 
+from ai_job_hunter.env_utils import load_dotenv
+
+load_dotenv()
+
 from ai_job_hunter.dashboard.backend.task_handlers import run_operation
 from ai_job_hunter.dashboard.backend.task_queue import get_dashboard_task_queue
 

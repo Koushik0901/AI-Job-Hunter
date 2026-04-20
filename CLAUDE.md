@@ -107,7 +107,7 @@ Copy `.env.example` → `.env`. Critical vars:
 | `DB_PATH` | Local SQLite fallback (default `jobs.db` in cwd) |
 | `REDIS_URL` | Dashboard cache; auto-starts a Docker Redis when pointing to localhost |
 | `OPENROUTER_API_KEY` | LLM enrichment + agent + artifacts |
-| `ENRICHMENT_MODEL` (`openai/gpt-oss-120b`), `DESCRIPTION_FORMAT_MODEL`, `AGENT_MODEL` (`openai/gpt-4o-mini`), `ARTIFACT_MODEL` (`openai/gpt-4o`) | Per-pipeline model overrides |
+| `ENRICHMENT_MODEL` (`openai/gpt-oss-120b`), `DESCRIPTION_FORMAT_MODEL`, `AGENT_MODEL` (`openai/gpt-4o-mini`), `AGENT_STRONG_MODEL` (`openai/gpt-4o`), `ARTIFACT_MODEL` (`openai/gpt-4o`) | Per-pipeline model overrides. Agent auto-routes: simple queries use `AGENT_MODEL` (SLM); generation/analysis/long messages use `AGENT_STRONG_MODEL`. |
 | `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID` | Notifications |
 | `JOB_HUNTER_TIMEZONE` | Default `America/Edmonton` |
 | `DASHBOARD_CACHE_TTL_*` | Per-endpoint Redis TTLs (seconds) |

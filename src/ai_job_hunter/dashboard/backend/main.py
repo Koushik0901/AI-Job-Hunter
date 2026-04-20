@@ -1720,12 +1720,20 @@ def generate_cover_letter_artifact(
 @app.post("/api/jobs/{job_id}/artifacts/ats-critique", response_model=AtsCritiqueResponse)
 def critique_ats(job_id: str, body: AtsCritiqueRequest, response: Response) -> AtsCritiqueResponse:
     _set_no_store(response)
+    critique: dict | None = None
+    llm_error: str | None = None
     with _conn() as conn:
         row = conn.execute("SELECT id FROM jobs WHERE id = ?", (job_id,)).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Job not found")
-        critique = artifact_svc.critique_resume_for_ats(job_id, body.resume_md, conn)
-    return AtsCritiqueResponse(**critique)
+        try:
+            critique = artifact_svc.critique_resume_for_ats(job_id, body.resume_md, conn)
+        except Exception as exc:
+            logger.exception("ATS critique failed for job %s", job_id)
+            llm_error = str(exc)
+    if llm_error:
+        raise HTTPException(status_code=503, detail=f"LLM critique failed: {llm_error}")
+    return AtsCritiqueResponse(**(critique or {}))
 
 
 @app.put("/api/artifacts/{artifact_id}", response_model=JobArtifact)

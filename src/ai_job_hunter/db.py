@@ -541,6 +541,14 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_application_queue_job_id ON application_queue(job_id)"
     )
+    # If job_artifacts exists but uses the old pointer schema (has job_url / no content_md),
+    # rename it so we can recreate with the current markdown-content schema.
+    try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(job_artifacts)").fetchall()}
+        if cols and "content_md" not in cols:
+            conn.execute("ALTER TABLE job_artifacts RENAME TO job_artifacts_v1")
+    except Exception:
+        pass
     conn.execute("""
         CREATE TABLE IF NOT EXISTS job_artifacts (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
