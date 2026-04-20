@@ -97,12 +97,13 @@ The pipeline workspace.
 
 The search review page.
 
-- pipeline health
+- pipeline health and conversion funnel
 - pipeline mix visualization
 - opportunity quality visualization
-- source performance
-- profile blockers
+- source performance bars
+- profile blockers (linked to board search)
 - role family response patterns
+- targeting signals: where to shift focus
 - AI strategy notes
 
     </td>
@@ -132,7 +133,8 @@ The chat-first application studio.
 - compact queued-role context
 - slash-skill commands for `/discover`, `/resume`, `/cover-letter`, and `/critique`
 - persistent action canvas for discovery results, tailored documents, and critiques
-- artifact editing and PDF export without leaving the workflow
+- artifact editing with streaming generation and PDF export without leaving the workflow
+- ATS critique panel: keyword gap analysis with one-click revised resume apply
 
     </td>
     <td valign="top" width="33%">
@@ -237,6 +239,7 @@ The dashboard now uses a fast read path plus background work:
 - `ETag`-based HTTP revalidation and Redis-backed server-side caching
 - `stale-while-revalidate` reads plus live SSE invalidation for background updates
 - deterministic fast-agent replies for common prompts before LLM fallback
+- smart model routing: simple queries use a fast SLM; generation, analysis, and long messages auto-route to the strong model
 
 ### Design system
 
@@ -266,21 +269,21 @@ The dashboard uses a formal design system called **The Navigator**:
 ### Backend
 
 ```bash
-uv run python src/dashboard/backend/main.py
+uv run ai-job-hunter-backend              # FastAPI dashboard (default :8000)
 ```
 
 ### Background worker
 
 ```bash
-uv run python src/dashboard/backend/worker.py
+uv run ai-job-hunter-worker
 ```
 
 ### Frontend
 
 ```bash
-cd src/dashboard/frontend
+cd src/ai_job_hunter/dashboard/frontend
 npm install
-npm run dev
+npm run dev                               # Vite dev server at :5173
 ```
 
 ### Chrome Extension
@@ -295,18 +298,18 @@ npm run build
 ### CLI
 
 ```bash
-uv run python src/cli.py --help
+uv run ai-job-hunter --help
 ```
 
 Useful commands:
 
 ```bash
-uv run python src/cli.py scrape
-uv run python src/cli.py sources list
-uv run python src/cli.py sources check example-company
-uv run python src/cli.py daily-briefing
-uv run python src/cli.py daily-briefing --refresh-only
-uv run python src/cli.py daily-briefing --send-now
+uv run ai-job-hunter scrape
+uv run ai-job-hunter sources list
+uv run ai-job-hunter sources check example-company
+uv run ai-job-hunter daily-briefing
+uv run ai-job-hunter daily-briefing --refresh-only
+uv run ai-job-hunter daily-briefing --send-now
 ```
 
 ## Configuration
@@ -331,4 +334,4 @@ Important keys:
 
 - outbound recruiter messaging workflows are not built into the product yet
 - smart manual-add parsing from pasted job-board URLs is still future work
-- LLM-heavy enrichment and artifact generation still depend on external model latency, even though the dashboard no longer blocks on them
+- LLM enrichment and artifact generation still depend on external model latency; artifact generation streams progressively so the UI is non-blocking, but total wall-clock time is bounded by the model

@@ -88,6 +88,7 @@ uv run ruff format src/ tests/
 - `src/ai_job_hunter/enrich.py`, `prompts/*.yaml` — LLM enrichment + reformatter prompts
 - `src/ai_job_hunter/match_score.py` — scoring + `SKILL_ALIASES`
 - `src/ai_job_hunter/dashboard/backend/{main,repository,service,advisor,agent,artifacts,cache,task_queue,worker}.py`
+- `src/ai_job_hunter/dashboard/backend/agent_gateway/{gateway,legacy_chat,tool_agent,agent_tools,skills,core_access}.py` — agent routing, LangChain ReAct tool-use, slash-skill handlers
 - `src/dashboard/frontend/src/{App.tsx, api.ts, contexts/DashboardDataContext.tsx, pages/*, components/{JobCard,RecommendJobCard,DetailDrawer,ArtifactEditor}.tsx}`
 - `src/chrome-extension/src/{background,content/index,content/utils,content/<ats>,popup/Popup,sidepanel/SidePanel}.ts(x)`
 - `companies.yaml` — ATS configs (source of truth)
@@ -130,8 +131,8 @@ Copy `.env.example` → `.env`. Critical vars:
 
 ## Known gaps
 
-- Artifact generation endpoints are async via task queue, but the underlying LLM call itself is synchronous (10–25 s) — no streaming to the frontend yet.
 - `types.generated.ts` does not exist until you run `npm run generate:types` against a live backend. The frontend compiles without it; hand-maintained `types.ts` covers all current shapes.
+- Artifact generation streams tokens via SSE, but the underlying LLM call is still a single blocking call on the worker — no true parallel/chunked generation yet.
 
 ## Design system ("The Navigator")
 

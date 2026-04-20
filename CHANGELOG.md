@@ -1,5 +1,59 @@
 # Changelog
 
+## 2026-04-19 — Insights Page Completion
+
+### Changed
+- **Profile Blockers**: gap chips now link to `/board?q=<skill>` for one-click drill-down into matching jobs.
+- **Targeting Signals**: new sidebar card on Insights consumes `profileInsights` to surface target-more roles (linked to board search), reduce-focus roles, and suggested profile updates derived from the AI profile analysis.
+- **Role family trends**: "Where replies are actually showing up" chart now renders live data from `conversion.by_role_family` with applied vs. reply bars per family — no longer a stub.
+- **Board `?q=` param**: navigating to `/board?q=Azure` pre-populates the search field, so gap and targeting chip links land with the filter active. URL param takes priority over page cache.
+
+### Verified
+- `npm run build`
+- Manual review of InsightsPage and BoardPage changes.
+
+---
+
+## 2026-04-19 — Worker Reliability, ATS Critique Error Fix, and Agent Smart Routing
+
+### Fixed
+- **Worker `load_dotenv`**: `worker.py` was loading the task queue module before env vars were read from `.env`, causing `REDIS_URL` to always be empty and the worker to fail at startup with "Redis task queue is not available". Added `load_dotenv()` before any module-level import that reads env.
+- **ATS critique 503**: `HTTPException` was raised inside the `with _conn()` context block, which caused the `anyio` thread-pool to swallow it as a 500. Moved the raise outside the block so FastAPI handles it correctly and returns a structured 503 with the LLM error detail.
+
+### Changed
+- **Agent model routing**: `agent_gateway/legacy_chat.py` now routes to `AGENT_STRONG_MODEL` for generation, analysis, and long messages (>100 words or keyword trigger) and `AGENT_MODEL` for simple queries. `response_mode` reflects the chosen route as `"llm_strong"` or `"llm"`.
+
+---
+
+## 2026-04-17 — ATS Critique Loop and Real Agent Tool-Use
+
+### Added
+- **ATS critique endpoint**: `POST /api/jobs/{job_id}/artifacts/ats-critique` runs a structured LLM pass over the active resume and job description to flag ATS keyword gaps, missing signals, and rewrite suggestions.
+- **Critique UI**: "Check ATS" button in `ArtifactEditor` opens an inline critique panel with keyword gaps, a rewrite suggestion, and a one-click "Apply revised resume" action that replaces the active artifact without leaving the editor.
+- **Real tool-use agent**: agent `response_mode: "tool_agent"` routes through a LangChain ReAct agent (`agent_gateway/tool_agent.py`) with registered tools for job search, profile read, and queue management. Simple queries continue to use the fast deterministic path.
+
+---
+
+## 2026-04-15 — Streaming Artifact Generation
+
+### Changed
+- **Artifact streaming**: resume and cover letter generation now streams tokens to the frontend via SSE, eliminating the previous 10–25 s blocking wait and showing progressive output in `ArtifactEditor`.
+- **Operation delta events**: artifact operations emit incremental `delta` events through `GET /api/operations/{id}/events` so the editor renders token-by-token without polling.
+
+### Fixed
+- Resolved the known gap: artifact generation is no longer synchronous from the frontend's perspective.
+
+---
+
+## 2026-04-15 — Story Bank, Semantic Ranking, and Grounded Artifact Generation
+
+### Added
+- **Story bank**: structured evidence store extracted from the candidate profile and base documents, used to ground resume and cover letter generation in real accomplishments instead of hallucinated filler.
+- **Semantic ranking**: recommendation ranking now incorporates semantic similarity between role requirements and profile content, supplementing the numeric `rank_score`.
+- **Grounded artifacts**: resume and cover letter LLM calls receive story-bank context in the system prompt, producing output anchored in real project impact data.
+
+---
+
 ## 2026-04-14 — Apply Studio Correction
 
 ### Changed
