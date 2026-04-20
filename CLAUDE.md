@@ -120,6 +120,7 @@ Copy `.env.example` → `.env`. Critical vars:
 - **Path resolution** uses `Path.cwd()` for `.env`, `companies.yaml`, `jobs.db`. Always run from repo root.
 - **React-controlled inputs.** In the Chrome extension, `fillField()` in `src/chrome-extension/src/content/utils.ts` uses the native React property setter (`Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set`) + dispatches `input`/`change`/`blur`. Plain `.value =` does **not** work on React-controlled inputs.
 - **Enqueue, don't block.** Dashboard request handlers must not run scraping, enrichment, PDF export, or artifact LLM calls inline — use `task_queue` / `workspace_operation_service` and return an operation id.
+- **HTTPException inside `with _conn()`**. The anyio threadpool swallows FastAPI's `HTTPException` if it is raised inside the `with _conn() as conn:` block — it arrives at the client as a 500. Pattern: capture the error as a local variable inside the block, then raise the `HTTPException` after the `with` block exits.
 - **Profile version invalidates scores.** Bump `candidate_profile.score_version` on any profile mutation that should change ranking; `repository.recompute_match_scores()` gates on it.
 - **Snapshots, not joins.** Prefer `job_dashboard_snapshots` for list/detail reads. Inline re-joins are slow and fight the cache.
 - **Recommend page** only shows `not_applied` jobs (`RecommendPage.tsx`). Don't accidentally broaden.
