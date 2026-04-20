@@ -13,7 +13,7 @@ Stack: Python (FastAPI, LangChain, OpenRouter), React/Vite/TypeScript, Redis cac
 ```bash
 uv sync                                  # install Python deps (pyproject.toml + uv.lock)
 cp .env.example .env                     # then fill in OPENROUTER_API_KEY, TURSO_*, TELEGRAM_*, etc.
-cd src/dashboard/frontend && npm install && cd -
+cd src/ai_job_hunter/dashboard/frontend && npm install && cd -
 cd src/chrome-extension && npm install && cd -
 ```
 
@@ -27,7 +27,7 @@ Run everything from the repo root unless noted. Python tooling is managed by `uv
 ```bash
 uv run ai-job-hunter-backend              # FastAPI dashboard (default :8000)
 uv run ai-job-hunter-worker            # Background task worker
-cd src/dashboard/frontend && npm install && npm run dev  # React SPA (Vite, :5173)
+cd src/ai_job_hunter/dashboard/frontend && npm install && npm run dev  # React SPA (Vite, :5173)
 cd src/chrome-extension && npm install && npm run build  # MV3 extension → dist/; npm run dev for watch
 uv run ai-job-hunter --help
 ```
@@ -77,6 +77,8 @@ uv run ruff format src/ tests/
 
 **Chrome extension autofill.** Two flows — popup (`AUTOFILL_PAGE`) and side panel (`SIDEPANEL_AUTOFILL` with artifact IDs) — both relay through `background.ts` as `DO_AUTOFILL` to a content script that dispatches to a per-ATS module (`greenhouse/lever/ashby/workable/smartrecruiters/generic`). Side panel additionally uploads resume/cover-letter PDFs via `DataTransfer` into `<input type="file">` elements. Profile cached 5 min in `chrome.storage.session`. Artifact lookup by current tab URL: `GET /api/artifacts/by-url?url=...`.
 
+**Agent gateway.** `agent_gateway/gateway.py` dispatches chat requests by `response_mode`: `"fast"` (deterministic), `"llm"` / `"llm_strong"` (OpenRouter, model auto-selected by complexity), or `"tool_agent"` (LangChain ReAct loop via `tool_agent.py`). `legacy_chat.py` handles routing logic; `skills.py` registers slash-skill handlers.
+
 **CORS.** Backend allows `localhost`/`127.0.0.1`/`host.docker.internal` any port plus `chrome-extension://*` via `allow_origin_regex`.
 
 ## Key files
@@ -89,7 +91,7 @@ uv run ruff format src/ tests/
 - `src/ai_job_hunter/match_score.py` — scoring + `SKILL_ALIASES`
 - `src/ai_job_hunter/dashboard/backend/{main,repository,service,advisor,agent,artifacts,cache,task_queue,worker}.py`
 - `src/ai_job_hunter/dashboard/backend/agent_gateway/{gateway,legacy_chat,tool_agent,agent_tools,skills,core_access}.py` — agent routing, LangChain ReAct tool-use, slash-skill handlers
-- `src/dashboard/frontend/src/{App.tsx, api.ts, contexts/DashboardDataContext.tsx, pages/*, components/{JobCard,RecommendJobCard,DetailDrawer,ArtifactEditor}.tsx}`
+- `src/ai_job_hunter/dashboard/frontend/src/{App.tsx, api.ts, contexts/DashboardDataContext.tsx, pages/*, components/{JobCard,RecommendJobCard,DetailDrawer,ArtifactEditor}.tsx}`
 - `src/chrome-extension/src/{background,content/index,content/utils,content/<ats>,popup/Popup,sidepanel/SidePanel}.ts(x)`
 - `companies.yaml` — ATS configs (source of truth)
 - `.impeccable.md` — formal design system reference ("The Navigator")
