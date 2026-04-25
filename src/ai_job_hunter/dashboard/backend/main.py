@@ -8,9 +8,13 @@ import threading
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
 
+import yaml
+
+import pydantic
 from fastapi.encoders import jsonable_encoder
 from fastapi import (
     BackgroundTasks,
@@ -69,6 +73,7 @@ from ai_job_hunter.dashboard.backend.schemas import (
     AtsCritiqueResponse,
     BaseDocument,
     BootstrapResponse,
+    ApplyOrchestrateRequest,
     GenerateArtifactRequest,
     JobArtifact,
     QueueItem,
@@ -78,6 +83,12 @@ from ai_job_hunter.dashboard.backend.schemas import (
     UserStory,
     UserStoryCreate,
     UserStoryUpdate,
+    InterviewNextRequest,
+    InterviewNextResponse,
+    InterviewFinishRequest,
+    InterviewFinishResponse,
+    InterviewStoryDraft,
+    InterviewProfilePatch,
     WorkspaceOperation,
 )
 from ai_job_hunter.dashboard.backend.agent_gateway import handle_agent_chat
@@ -331,7 +342,7 @@ def _background_finalize_manual_job(job_id: str, url: str) -> None:
                     openrouter_api_key,
                     _env_or_default("ENRICHMENT_MODEL", "openai/gpt-oss-120b"),
                     _env_or_default(
-                        "DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-20b:paid"
+                        "DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-120b"
                     ),
                     None,
                 )
@@ -346,6 +357,11 @@ def _background_finalize_manual_job(job_id: str, url: str) -> None:
             last_processed_at=now_iso(),
             last_error=None,
         )
+        # Re-snapshot post-enrichment so the card reflects real match score / blurb.
+        try:
+            repository.refresh_dashboard_snapshots(conn, job_ids=[job_id])
+        except Exception:
+            logger.warning("Failed to refresh snapshot after manual-job enrichment.", exc_info=True)
         _invalidate_job_collections()
         _invalidate_job_detail(job_id)
         _invalidate_assistant_views()
@@ -821,12 +837,21 @@ def create_manual_job(
             raise HTTPException(status_code=400, detail=str(error)) from error
         duplicate_detected = bool(item.get("duplicate_detected"))
         if not duplicate_detected:
+            new_job_id = str(item.get("id") or "")
+            # Manual jobs must hit job_dashboard_snapshots immediately, otherwise
+            # the kanban (which reads the snapshot fast path) won't show the card
+            # until the next snapshot refresh — see CLAUDE.md "Snapshots, not joins".
+            if new_job_id:
+                try:
+                    repository.refresh_dashboard_snapshots(conn, job_ids=[new_job_id])
+                except Exception:
+                    logger.warning("Failed to refresh snapshot for manual job.", exc_info=True)
             _invalidate_job_collections()
-            _invalidate_job_detail(str(item.get("id") or ""))
+            _invalidate_job_detail(new_job_id)
             _invalidate_assistant_views()
             background_tasks.add_task(
                 _background_finalize_manual_job,
-                str(item.get("id") or ""),
+                new_job_id,
                 str(item.get("url") or ""),
             )
         return ManualJobCreateResponse(**item)
@@ -853,6 +878,15 @@ def put_profile(payload: CandidateProfile, response: Response) -> CandidateProfi
             conn, payload.model_dump(exclude={"updated_at", "score_version"})
         )
         repository.bump_profile_score_version(conn)
+        # Refresh narrative-intent embedding whenever the profile changes.
+        # No-ops if the intent text hasn't changed or embeddings aren't configured.
+        try:
+            from ai_job_hunter.dashboard.backend.embeddings import (
+                ensure_narrative_intent_embedding,
+            )
+            ensure_narrative_intent_embedding(conn)
+        except Exception:
+            logger.warning("narrative_intent embedding refresh failed", exc_info=True)
         _invalidate_profile_views()
         _refresh_daily_briefing_best_effort(conn)
         return CandidateProfile(**repository.get_profile(conn))
@@ -891,10 +925,17 @@ def get_autofill_export(response: Response) -> dict:
     conn = _conn()
     try:
         profile = repository.get_profile(conn)
+        # Prefer explicit first/last; fall back to splitting full_name
         full_name = str(profile.get("full_name") or "")
-        name_parts = full_name.strip().split(None, 1)
-        first_name = name_parts[0] if name_parts else ""
-        last_name = name_parts[1] if len(name_parts) > 1 else ""
+        first_name = profile.get("first_name") or None
+        last_name = profile.get("last_name") or None
+        if not first_name and not last_name and full_name.strip():
+            parts = full_name.strip().split(None, 1)
+            first_name = parts[0] if parts else None
+            last_name = parts[1] if len(parts) > 1 else None
+        # Derive full_name from first+last if full_name is missing
+        if not full_name.strip() and (first_name or last_name):
+            full_name = " ".join(filter(None, [first_name, last_name]))
         education = profile.get("education") or []
         degree = ""
         degree_field = ""
@@ -902,21 +943,28 @@ def get_autofill_export(response: Response) -> dict:
             degree = str(education[0].get("degree") or "")
             degree_field = str(education[0].get("field") or "")
         return {
-            "first_name": first_name or None,
-            "last_name": last_name or None,
+            "first_name": first_name,
+            "last_name": last_name,
             "full_name": full_name or None,
             "email": profile.get("email"),
             "phone": profile.get("phone"),
             "linkedin_url": profile.get("linkedin_url"),
             "portfolio_url": profile.get("portfolio_url"),
+            "github_url": profile.get("github_url"),
             "city": profile.get("city"),
+            "state_province": profile.get("state_province"),
+            "postal_code": profile.get("postal_code"),
             "country": profile.get("country"),
+            "street_address": profile.get("street_address"),
+            "address_line2": profile.get("address_line2"),
             "years_experience": profile.get("years_experience"),
             "degree": degree or None,
             "degree_field": degree_field or None,
-            "requires_visa_sponsorship": profile.get(
-                "requires_visa_sponsorship", False
-            ),
+            "requires_visa_sponsorship": profile.get("requires_visa_sponsorship", False),
+            "willing_to_relocate": profile.get("willing_to_relocate", False),
+            "desired_salary": profile.get("desired_salary"),
+            "work_authorization": profile.get("work_authorization"),
+            "pronouns": profile.get("pronouns"),
         }
     finally:
         conn.close()
@@ -1186,6 +1234,28 @@ def unsuppress_job(job_id: str, response: Response) -> dict[str, int]:
         _invalidate_assistant_views()
         _refresh_daily_briefing_best_effort(conn)
         return {"unsuppressed": changed}
+    finally:
+        conn.close()
+
+
+@app.post("/api/jobs/{job_id}/regenerate-blurb")
+def regenerate_job_blurb(job_id: str, response: Response) -> dict[str, Any]:
+    """Force regenerate the LLM 'Kenji's read' blurb for a single job."""
+    _set_no_store(response)
+    from ai_job_hunter.dashboard.backend import reasoning_blurb as _blurb_mod
+    conn = _conn()
+    try:
+        written = _blurb_mod.generate_blurbs(conn, job_ids=[job_id], force=True)
+        blurb = written.get(job_id)
+        # Refresh the snapshot row so the new blurb shows up immediately.
+        if blurb:
+            try:
+                repository.refresh_dashboard_snapshots(conn, job_ids=[job_id])
+            except Exception:
+                pass
+        _invalidate_job_collections()
+        _invalidate_job_detail(job_id)
+        return {"job_id": job_id, "blurb": blurb, "generated": bool(blurb)}
     finally:
         conn.close()
 
@@ -1667,7 +1737,7 @@ async def _artifact_stream(artifact_type: str, job_id: str, base_doc_id: int):
                 yield f"event: chunk\ndata: {json.dumps(token, ensure_ascii=True)}\n\n"
 
         content_md = "".join(chunks).strip()
-        model = (os.getenv("ARTIFACT_MODEL") or "openai/gpt-4o").strip()
+        model = (os.getenv("LLM_MODEL") or "z-ai/glm-5.1").strip()
         with _conn() as conn:
             artifact = artifact_svc.save_artifact(
                 job_id, artifact_type, content_md, base_doc_id, model, conn,
@@ -1713,6 +1783,34 @@ def generate_cover_letter_artifact(
         job_id,
         "cover_letter",
         body.base_doc_id,
+    )
+    return WorkspaceOperation(**operation)
+
+
+@app.post("/api/jobs/{job_id}/apply", response_model=WorkspaceOperation)
+def apply_orchestrate(
+    job_id: str, body: ApplyOrchestrateRequest, response: Response
+) -> WorkspaceOperation:
+    """
+    Kick off the Loop B /apply orchestrator: draft resume → score ATS →
+    refine (max 3 iterations) → draft cover letter. Returns a WorkspaceOperation
+    the frontend streams via /api/operations/{id}/events.
+    """
+    _set_no_store(response)
+    missing: str | None = None
+    with _conn() as conn:
+        row = conn.execute("SELECT id FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        if not row:
+            missing = "Job not found"
+    if missing:
+        raise HTTPException(status_code=404, detail=missing)
+    operation = enqueue_operation(
+        "apply_orchestrate",
+        {
+            "job_id": job_id,
+            "resume_base_doc_id": body.resume_base_doc_id,
+            "cover_letter_base_doc_id": body.cover_letter_base_doc_id,
+        },
     )
     return WorkspaceOperation(**operation)
 
@@ -1925,6 +2023,220 @@ def trigger_story_embedding() -> dict:
         except RuntimeError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"embedded": count}
+
+
+_INTERVIEW_OPENER = (
+    "What kind of role are you looking for next — and what's drawing you toward it?"
+)
+
+_INTERVIEW_PROMPTS_DIR = Path(__file__).resolve().parents[3].parent / "prompts"
+
+
+@lru_cache(maxsize=1)
+def _load_interview_prompts() -> dict:
+    path = _INTERVIEW_PROMPTS_DIR / "interview_flow.yaml"
+    if not path.exists():
+        raise FileNotFoundError(f"Interview prompt file not found: {path}")
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return data.get("interview") or {}
+
+
+def _interview_cfg() -> dict:
+    return _load_interview_prompts()
+
+
+_INTERVIEW_OPENER = _interview_cfg().get(
+    "opener", "What kind of role are you looking for next — and what's drawing you toward it?"
+)
+_INTERVIEW_AREAS: list[str] = _interview_cfg().get(
+    "areas", ["IMPACT", "SKILLS", "ROLE_TARGET", "WORK_STYLE", "MOTIVATION", "SENIORITY"]
+)
+_INTERVIEW_NEXT_SYSTEM: str = _interview_cfg().get("next_system", "").strip()
+_INTERVIEW_FINISH_SYSTEM: str = _interview_cfg().get("finish_system", "").strip()
+
+
+# ── Pydantic output models for structured interview calls ────────────────────
+
+class _InterviewNextOutput(pydantic.BaseModel):
+    """Structured output for the interview next-question endpoint."""
+    next_question: str | None = pydantic.Field(
+        description="The single next interview question to ask, phrased conversationally and profession-agnostic. null when the interview is done."
+    )
+    done: bool = pydantic.Field(
+        description="True when all coverage areas are addressed or no questions remain. False otherwise."
+    )
+    covered_areas: list[str] = pydantic.Field(
+        description="All coverage areas meaningfully addressed so far. Valid values: IMPACT, SKILLS, ROLE_TARGET, WORK_STYLE, MOTIVATION, SENIORITY."
+    )
+
+
+class _InterviewStoryOutput(pydantic.BaseModel):
+    """A single structured career story extracted from the interview."""
+    title: str = pydantic.Field(description="Short action-phrase title (e.g. 'Led migration of monolith to microservices').")
+    narrative: str = pydantic.Field(description="2-4 sentences in the candidate's own voice describing what they did and what changed.")
+    kind: str = pydantic.Field(description="role=work experience, project=specific build, aspiration=career goal, strength=personal trait.")
+    skills: list[str] = pydantic.Field(description="Specific skills, tools, or technologies mentioned in this story.")
+    outcomes: list[str] = pydantic.Field(description="Concrete, quantified outcomes from this story where available.")
+    tags: list[str] = pydantic.Field(description="Short category tags (e.g. 'leadership', 'ml', 'growth').")
+    time_period: str | None = pydantic.Field(description="Approximate time period if mentioned (e.g. '2022-2024'). null if unknown.")
+
+
+class _InterviewProfilePatchOutput(pydantic.BaseModel):
+    """Profile fields to update based only on what the candidate explicitly stated."""
+    skills: list[str] = pydantic.Field(description="Union of all skills and tools mentioned across all answers.")
+    desired_job_titles: list[str] = pydantic.Field(description="Job titles the candidate expressed interest in.")
+    preferred_work_mode: str | None = pydantic.Field(description="Work mode preference if explicitly stated: remote, hybrid, or onsite. null if not mentioned.")
+    narrative_intent: str | None = pydantic.Field(description="1-2 sentence summary of the candidate's career intent and direction. null if unclear.")
+
+
+class _InterviewFinishOutput(pydantic.BaseModel):
+    """Full extraction result from the completed interview transcript."""
+    stories: list[_InterviewStoryOutput] = pydantic.Field(description="One story per distinct accomplishment, project, or experience mentioned.")
+    profile_patch: _InterviewProfilePatchOutput = pydantic.Field(description="Profile signals to merge into the candidate's profile.")
+
+
+_INTERVIEW_PLUGINS = [{"id": "response-healing"}]
+_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+
+def _interview_call_llm(system: str, prompt: str) -> _InterviewNextOutput:
+    import os
+    api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    if not api_key:
+        raise RuntimeError("OPENROUTER_API_KEY not set")
+    model = (os.getenv("SLM_MODEL") or "google/gemma-4-31b-it").strip()
+    try:
+        from langchain_openai import ChatOpenAI
+        from langchain_core.messages import HumanMessage, SystemMessage
+    except ImportError:
+        raise RuntimeError("langchain-openai is required: uv add langchain-openai")
+    llm = ChatOpenAI(
+        model=model,
+        api_key=api_key,
+        base_url=_OPENROUTER_BASE_URL,
+        temperature=0.4,
+        max_tokens=1500,
+        extra_body={"plugins": _INTERVIEW_PLUGINS},
+    )
+    structured = llm.with_structured_output(_InterviewNextOutput, method="json_schema", strict=True)
+    return structured.invoke([SystemMessage(content=system), HumanMessage(content=prompt)])
+
+
+def _interview_call_llm_strong(system: str, prompt: str) -> _InterviewFinishOutput:
+    import os
+    api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    if not api_key:
+        raise RuntimeError("OPENROUTER_API_KEY not set")
+    model = (os.getenv("LLM_MODEL") or "z-ai/glm-5.1").strip()
+    try:
+        from langchain_openai import ChatOpenAI
+        from langchain_core.messages import HumanMessage, SystemMessage
+    except ImportError:
+        raise RuntimeError("langchain-openai is required: uv add langchain-openai")
+    # Note: no response-healing plugin — it can rewrite `$N` sequences as regex backreferences,
+    # which would drop dollar amounts like "$2M" → "M". json_schema strict mode already guarantees
+    # valid JSON without healing.
+    llm = ChatOpenAI(
+        model=model,
+        api_key=api_key,
+        base_url=_OPENROUTER_BASE_URL,
+        temperature=0.3,
+        max_tokens=3000,
+    )
+    structured = llm.with_structured_output(_InterviewFinishOutput, method="json_schema", strict=True)
+    return structured.invoke([SystemMessage(content=system), HumanMessage(content=prompt)])
+
+
+@app.post("/api/stories/interview/next", response_model=InterviewNextResponse)
+def interview_next(body: InterviewNextRequest) -> InterviewNextResponse:
+    conversation = body.conversation
+
+    # First question — no LLM needed, return opener instantly
+    if not conversation:
+        return InterviewNextResponse(
+            next_question=_INTERVIEW_OPENER,
+            done=False,
+            covered=[],
+            question_index=0,
+        )
+
+    # Hard cap
+    if len(conversation) >= 8:
+        return InterviewNextResponse(next_question=None, done=True, covered=_INTERVIEW_AREAS, question_index=len(conversation))
+
+    questions_remaining = 8 - len(conversation)
+    transcript = "\n\n".join(
+        f"Q{i+1}: {t.question}\nA{i+1}: {t.answer}"
+        for i, t in enumerate(conversation)
+    )
+    prompt = f"Questions remaining: {questions_remaining}\n\nTranscript so far:\n{transcript}"
+
+    try:
+        result = _interview_call_llm(_INTERVIEW_NEXT_SYSTEM, prompt)
+    except Exception:
+        logger.warning("interview/next: LLM call failed", exc_info=True)
+        # Fallback: don't crash the interview, just continue
+        return InterviewNextResponse(
+            next_question="Tell me more about the skills and tools you use most in your work.",
+            done=False,
+            covered=[],
+            question_index=len(conversation),
+        )
+
+    covered = [a for a in (result.covered_areas or []) if a in _INTERVIEW_AREAS]
+    done = result.done or not result.next_question
+
+    return InterviewNextResponse(
+        next_question=result.next_question or None,
+        done=done,
+        covered=covered,
+        question_index=len(conversation),
+    )
+
+
+@app.post("/api/stories/interview/finish", response_model=InterviewFinishResponse)
+def interview_finish(body: InterviewFinishRequest) -> InterviewFinishResponse:
+    if not body.conversation:
+        return InterviewFinishResponse()
+
+    transcript = "\n\n".join(
+        f"Q{i+1}: {t.question}\nA{i+1}: {t.answer}"
+        for i, t in enumerate(body.conversation)
+    )
+    try:
+        result = _interview_call_llm_strong(_INTERVIEW_FINISH_SYSTEM, f"Interview transcript:\n\n{transcript}")
+    except Exception:
+        logger.warning("interview/finish: LLM call failed", exc_info=True)
+        raise HTTPException(status_code=502, detail="Story extraction failed — the model returned an error. Please try again.")
+
+    stories: list[InterviewStoryDraft] = []
+    for s in (result.stories or []):
+        title = (s.title or "").strip()
+        narrative = (s.narrative or "").strip()
+        if not title or not narrative:
+            continue
+        kind = s.kind or "role"
+        if kind not in ("role", "project", "aspiration", "strength"):
+            kind = "role"
+        stories.append(InterviewStoryDraft(
+            title=title,
+            narrative=narrative,
+            kind=kind,
+            skills=[str(x) for x in (s.skills or []) if x],
+            outcomes=[str(x) for x in (s.outcomes or []) if x],
+            tags=[str(x) for x in (s.tags or []) if x],
+            time_period=s.time_period or None,
+        ))
+
+    patch_raw = result.profile_patch
+    patch = InterviewProfilePatch(
+        skills=[str(x) for x in (patch_raw.skills or []) if x],
+        desired_job_titles=[str(x) for x in (patch_raw.desired_job_titles or []) if x],
+        preferred_work_mode=patch_raw.preferred_work_mode or None,
+        narrative_intent=patch_raw.narrative_intent or None,
+    )
+
+    return InterviewFinishResponse(stories=stories, profile_patch=patch)
 
 
 @app.post("/api/jobs/embed")

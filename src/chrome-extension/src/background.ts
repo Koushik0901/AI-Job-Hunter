@@ -27,9 +27,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  const isAutofill =
-    message.type === "AUTOFILL_PAGE" || message.type === "SIDEPANEL_AUTOFILL";
-  if (!isAutofill) return;
+  const RELAYED = new Set(["AUTOFILL_PAGE", "SIDEPANEL_AUTOFILL", "SCAN_FIELDS", "DO_FILL_FIELDS"]);
+  if (!RELAYED.has(message.type)) return;
 
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const tab = tabs[0];
@@ -37,21 +36,32 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ ok: false, error: "No active tab" });
       return;
     }
-    chrome.tabs.sendMessage(
-      tab.id,
-      {
+
+    let contentMessage: Record<string, unknown>;
+    if (message.type === "SCAN_FIELDS") {
+      contentMessage = { type: "SCAN_FIELDS" };
+    } else if (message.type === "DO_FILL_FIELDS") {
+      contentMessage = {
+        type: "DO_FILL_FIELDS",
+        confirmedValues: message.confirmedValues ?? {},
+        resumeArtifactId: message.resumeArtifactId ?? null,
+        coverLetterArtifactId: message.coverLetterArtifactId ?? null,
+      };
+    } else {
+      contentMessage = {
         type: "DO_AUTOFILL",
         resumeArtifactId: message.resumeArtifactId ?? null,
         coverLetterArtifactId: message.coverLetterArtifactId ?? null,
-      },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          sendResponse({ ok: false, error: chrome.runtime.lastError.message });
-        } else {
-          sendResponse(response);
-        }
+      };
+    }
+
+    chrome.tabs.sendMessage(tab.id, contentMessage, (response) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+      } else {
+        sendResponse(response);
       }
-    );
+    });
   });
   return true; // keep channel open for async response
 });

@@ -8,6 +8,24 @@ AI Job Hunter is a daily ML/AI/DS job-search workflow system. It scrapes 100+ co
 
 Stack: Python (FastAPI, LangChain, OpenRouter), React/Vite/TypeScript, Redis cache, SQLite or Turso (libsql cloud), Telegram for notifications, Chrome Manifest V3. See Architecture below for the three surfaces that share the DB.
 
+## Verification After Changes
+- After UI/frontend changes, explicitly confirm the change is visible on the running site (HMR/deployment check) before declaring done
+- After backend changes, run relevant tests and report pass/fail counts
+- When fixing data flow bugs, trace BOTH the live path AND the snapshot/cache path to ensure consistency
+
+## Output Discipline
+- When user requests 'silent' or 'quiet' monitoring, suppress ALL progress output and tool-notification echoes until completion or error
+- Do not echo background task XML notifications back to the user
+- Only surface: final status, errors, and explicitly requested checkpoints
+
+## Task Tracking
+- Proactively update tasks.md / TODO.md to mark features complete as they ship, without waiting to be asked
+- Before proposing 'remaining work', re-read the task list to confirm what's actually outstanding
+
+## Writing Voice
+- Reflections, writeups, and human-facing prose must avoid AI tells: parallel structures, semicolon abuse, abstract nominalizations, tricolons
+- Write in first person with concrete specifics, not abstract generalizations
+
 ## First-time setup
 
 ```bash
@@ -59,7 +77,7 @@ uv run ruff format src/ tests/
 **Three surfaces over one DB:**
 
 1. **Scraper/CLI** → fetches Greenhouse/Lever/Ashby/Workable/SmartRecruiters/Recruitee/Teamtailor + HN "Who is Hiring?", enriches via OpenRouter, notifies via Telegram. Scheduled by GitHub Actions (`.github/workflows/daily_scrape.yml` at 17:00 UTC, `enrichment.yml` 30 min later).
-2. **Dashboard** — FastAPI backend (`src/ai_job_hunter/dashboard/backend/`) + React/Vite SPA (`src/dashboard/frontend/`). Six pages: Today, Board, Insights, Recommend, Agent, Settings.
+2. **Dashboard** — FastAPI backend (`src/ai_job_hunter/dashboard/backend/`) + React/Vite SPA (`src/ai_job_hunter/dashboard/frontend/`). Seven screens (state-routed, persisted in localStorage) live in `src/kenji/`: Discover, Command, Pipeline, Resume Lab, Stories, Insights, Profile.
 3. **Chrome extension** (`src/chrome-extension/`) — MV3 autofill + side panel for ATS forms.
 
 **Python layout.** Package lives at `src/ai_job_hunter/` and is installed (editable) by `uv sync` via `pyproject.toml`. Entry points: `ai-job-hunter` (CLI), `ai-job-hunter-backend`, `ai-job-hunter-worker`. Tests add `src/` to `sys.path` via `tests/conftest.py`.
@@ -69,11 +87,11 @@ uv run ruff format src/ tests/
 
 **Dashboard read path (fast path).** Request → `main.py` route → `repository.py` reads from `job_dashboard_snapshots` (denormalized projection) preferentially → Redis cache (`cache.py`, namespace `dashboard:v3`) wraps response with ETag + `stale-while-revalidate=30`. Writes go through `service.py` and enqueue snapshot refresh via `task_queue.py` rather than rebuilding inline. Request handlers should **never** run heavy work inline — enqueue through `task_queue` / `workspace_operation_service` and return a `WorkspaceOperation` id; the frontend streams status via `GET /api/operations/{id}/events` (SSE) and dashboard-wide invalidations via `GET /api/events/stream`.
 
-**Scoring.** `match_score.py` separates `raw_fit` (content alignment) from cohort-calibrated `rank_score` (stored as `score`). `SKILL_ALIASES` + `normalize_skill()` in `match_score.py` are the single source of truth. Backend exposes the alias dict via `GET /api/meta/skill-aliases`; frontend fetches once via `DashboardDataContext` and threads `skillAliases` into `skillUtils.ts` helpers (`normalizeSkill`, `fuzzySkillsMatch`, etc.) so all surfaces share the same canonical table.
+**Scoring.** `match_score.py` separates `raw_fit` (content alignment) from cohort-calibrated `rank_score` (stored as `score`). `SKILL_ALIASES` + `normalize_skill()` in `match_score.py` are the single source of truth and are imported by `advisor.py` and `ats/keyword_scorer.py`. Backend exposes the alias dict via `GET /api/meta/skill-aliases`; no frontend consumer exists yet — if you add fuzzy-skill UI, fetch from that endpoint rather than hardcoding a table.
 
 **Shared env + timezone helpers.** `src/ai_job_hunter/env_utils.py` is the single source for `load_dotenv()`, `local_timezone()`, `local_timezone_name()`, `local_today()`, `now_iso()`. `src/ai_job_hunter/notify.py` and `src/ai_job_hunter/dashboard/backend/utils.py` re-export via thin wrappers. Default timezone fallback is `UTC`; user supplies `JOB_HUNTER_TIMEZONE` in `.env`.
 
-**Frontend type generation.** `src/dashboard/frontend/package.json` exposes `npm run generate:types` which runs `openapi-typescript` against a live backend at `http://localhost:8000/openapi.json` and writes `src/types.generated.ts`. The hand-maintained `src/types.ts` retains UI-only types and re-exports what's needed. Regenerate after backend schema changes; not CI-enforced.
+**Frontend type generation.** `src/ai_job_hunter/dashboard/frontend/package.json` exposes `npm run generate:types` which runs `openapi-typescript` against a live backend at `http://localhost:8000/openapi.json` and writes `src/types.generated.ts`. The hand-maintained `src/types.ts` retains UI-only types and re-exports what's needed. Regenerate after backend schema changes; not CI-enforced.
 
 **Chrome extension autofill.** Two flows — popup (`AUTOFILL_PAGE`) and side panel (`SIDEPANEL_AUTOFILL` with artifact IDs) — both relay through `background.ts` as `DO_AUTOFILL` to a content script that dispatches to a per-ATS module (`greenhouse/lever/ashby/workable/smartrecruiters/generic`). Side panel additionally uploads resume/cover-letter PDFs via `DataTransfer` into `<input type="file">` elements. Profile cached 5 min in `chrome.storage.session`. Artifact lookup by current tab URL: `GET /api/artifacts/by-url?url=...`.
 
@@ -91,10 +109,10 @@ uv run ruff format src/ tests/
 - `src/ai_job_hunter/match_score.py` — scoring + `SKILL_ALIASES`
 - `src/ai_job_hunter/dashboard/backend/{main,repository,service,advisor,agent,artifacts,cache,task_queue,worker}.py`
 - `src/ai_job_hunter/dashboard/backend/agent_gateway/{gateway,legacy_chat,tool_agent,agent_tools,skills,core_access}.py` — agent routing, LangChain ReAct tool-use, slash-skill handlers
-- `src/ai_job_hunter/dashboard/frontend/src/{App.tsx, api.ts, contexts/DashboardDataContext.tsx, pages/*, components/{JobCard,RecommendJobCard,DetailDrawer,ArtifactEditor}.tsx}`
+- `src/ai_job_hunter/dashboard/frontend/src/{App.tsx, DataContext.tsx, api.ts, styles.css, kenji/{Shell,Discover,Command,Pipeline,ResumeLab,Stories,Insights,Profile,ui}.tsx}`
 - `src/chrome-extension/src/{background,content/index,content/utils,content/<ats>,popup/Popup,sidepanel/SidePanel}.ts(x)`
 - `companies.yaml` — ATS configs (source of truth)
-- `.impeccable.md` — formal design system reference ("The Navigator")
+- `DESIGN.md` — full design system (Eucalyptus & Earth Intelligence v1.0); `.impeccable.md` — Design Context brief
 
 ## Key DB tables
 
@@ -110,11 +128,17 @@ Copy `.env.example` → `.env`. Critical vars:
 | `DB_PATH` | Local SQLite fallback (default `jobs.db` in cwd) |
 | `REDIS_URL` | Dashboard cache; auto-starts a Docker Redis when pointing to localhost |
 | `OPENROUTER_API_KEY` | LLM enrichment + agent + artifacts |
-| `ENRICHMENT_MODEL` (`openai/gpt-oss-120b`), `DESCRIPTION_FORMAT_MODEL`, `AGENT_MODEL` (`openai/gpt-4o-mini`), `AGENT_STRONG_MODEL` (`openai/gpt-4o`), `ARTIFACT_MODEL` (`openai/gpt-4o`) | Per-pipeline model overrides. Agent auto-routes: simple queries use `AGENT_MODEL` (SLM); generation/analysis/long messages use `AGENT_STRONG_MODEL`. |
+| `ENRICHMENT_MODEL` (`openai/gpt-oss-120b`) | Heavy structured extraction (enrichment pipeline) |
+| `DESCRIPTION_FORMAT_MODEL` (`openai/gpt-oss-120b`) | Job description reformatting |
+| `SLM_MODEL` (`google/gemma-4-31b-it`) | Simple/fast agent queries |
+| `LLM_MODEL` (`z-ai/glm-5.1`) | Complex agent, tool use, resume/cover letter, ATS screener, interview extraction |
+| `EMBEDDING_MODEL` (`qwen/qwen3-embedding-8b`) | Vector embeddings for story↔job semantic matching |
 | `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID` | Notifications |
 | `JOB_HUNTER_TIMEZONE` | Default `America/Edmonton` |
 | `DASHBOARD_CACHE_TTL_*` | Per-endpoint Redis TTLs (seconds) |
 | `DASHBOARD_CACHE_DISABLED=1` | Bypass cache for local debugging / CI |
+
+**LLM model discipline:** Always use one of the five env vars above when making LLM calls. Do not hardcode model strings or introduce new model names. Only deviate from the existing env vars if there is a specific, justified reason (e.g. a task genuinely requires an embedding model for a chat endpoint) — and document why in a comment.
 
 ## Gotchas
 
@@ -123,40 +147,88 @@ Copy `.env.example` → `.env`. Critical vars:
 - **React-controlled inputs.** In the Chrome extension, `fillField()` in `src/chrome-extension/src/content/utils.ts` uses the native React property setter (`Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set`) + dispatches `input`/`change`/`blur`. Plain `.value =` does **not** work on React-controlled inputs.
 - **Enqueue, don't block.** Dashboard request handlers must not run scraping, enrichment, PDF export, or artifact LLM calls inline — use `task_queue` / `workspace_operation_service` and return an operation id.
 - **HTTPException inside `with _conn()`**. The anyio threadpool swallows FastAPI's `HTTPException` if it is raised inside the `with _conn() as conn:` block — it arrives at the client as a 500. Pattern: capture the error as a local variable inside the block, then raise the `HTTPException` after the `with` block exits.
+- **Agent chat lives in `DataContext`, not `Command.tsx`.** App.tsx unmounts screen components on nav (`key={screen}`), so any chat state owned by `Command` would be wiped when the user navigates away mid-request. `DataContext` owns `agentMessages` / `agentSending` / `agentError` plus an `agentUnread` flag and a `setOnAgentScreen(boolean)` callback that App calls on every screen change. When an assistant reply lands while `onAgentScreenRef.current === false`, the context flips `agentUnread = true`; the `Sidebar` consumes it to render the green pulse on the Command nav item, and entering Command clears it. If you add another agent-driven surface, route its writes through `sendAgentMessage` so the unread signal stays accurate — don't reintroduce local `useState` for messages in screen components.
 - **Profile version invalidates scores.** Bump `candidate_profile.score_version` on any profile mutation that should change ranking; `repository.recompute_match_scores()` gates on it.
+- **Match score bands are `top_band | strong | viable | low`** — not `apply`. Any literal band set that filters scored jobs must include `top_band` or the highest-scoring rows are silently excluded. Single source: `match_score.py`.
+- **`INSERT OR REPLACE INTO job_match_scores` wipes unlisted columns.** `recompute_match_scores()` does not include `reasoning_blurb` in its column list, so calling `refresh_dashboard_snapshots(recompute=True)` (the default) after writing blurbs will null them out. Paths that only touched adjacent columns must pass `recompute=False`.
+- **`_TursoConnection` API**: no `.cursor()` method. Call `conn.execute(sql, params)` directly — it returns a cursor with `.fetchone()` / `.fetchall()`. `commit()` is a no-op (auto-commit).
+- **PK column naming differs across tables**: `jobs.id`, but `job_match_scores.job_id` and `job_dashboard_snapshots.job_id`. JOINs use `j.id = ms.job_id`.
+- **Diag scripts against Turso**: must `from ai_job_hunter.env_utils import load_dotenv; load_dotenv()` and build the connection via `resolve_db_config()` + `init_db()`. Skipping `load_dotenv()` silently falls through to an empty local `jobs.db`.
 - **Snapshots, not joins.** Prefer `job_dashboard_snapshots` for list/detail reads. Inline re-joins are slow and fight the cache.
-- **Recommend page** only shows `not_applied` jobs (`RecommendPage.tsx`). Don't accidentally broaden.
+- **Discover screen** only shows `not_applied` jobs (`kenji/Discover.tsx`, calls `api.listJobs({ status: "not_applied", ... })`). Don't accidentally broaden.
 - **Artifact versioning.** `save_artifact()` auto-archives the previous active row of the same `(job_id, artifact_type)` — don't manually flip `is_active`.
 - **Daily scrape job** in CI uses `scrape --no-enrich-llm`; enrichment runs in a separate workflow 30 min later. Keep them decoupled.
 - **`init_db()` auto-migration** runs on every backend/CLI start. Adds new columns via `ALTER TABLE ... ADD COLUMN` wrapped in try/except — safe to add columns, but do not rename or drop columns this way; write a dedicated migration.
 - **Snapshot fallback.** `repository.list_jobs()` and related reads fall back to live joins when `job_dashboard_snapshots` is stale or absent. After bulk writes (scrape, re-enrich, profile mutation), enqueue a `dashboard_snapshot_refresh` task so the fast path stays fast.
 - **Tests use editable install.** `uv sync` installs the `ai_job_hunter` package in editable mode. `tests/conftest.py` also adds `src/` to `sys.path` as a fallback. Import via `from ai_job_hunter.foo import ...`.
+- **Never PUT /api/profile with test/empty data.** It overwrites real Turso cloud data immediately — no confirmation, no undo. Always send the full payload or only the fields you intend to change. Test against a local `DB_PATH` first.
+- **React named imports, not `React.` namespace.** Vite/Babel strips types but doesn't inject the `React` global. Use `import type { CSSProperties, KeyboardEvent, ChangeEvent } from "react"` — not `React.CSSProperties` etc. — in `.tsx` files outside of JSX.
+- **`EducationEntry.degree` has `min_length=1`.** Filter out empty education entries client-side before PUT /api/profile, or the backend returns 422 and the save spinner hangs.
+- **Profile completeness checks must read live state.** Pass the current form object into the check function rather than reading from a snapshot; otherwise the ring doesn't update as the user types.
 
 ## Known gaps
 
 - `types.generated.ts` does not exist until you run `npm run generate:types` against a live backend. The frontend compiles without it; hand-maintained `types.ts` covers all current shapes.
 - Artifact generation streams tokens via SSE, but the underlying LLM call is still a single blocking call on the worker — no true parallel/chunked generation yet.
 
-## Design system ("The Navigator")
+## Design Context
 
-The dashboard follows a formal, calm aesthetic. Rules below are load-bearing for any UI change.
+The full design system lives in **[DESIGN.md](./DESIGN.md)** (Eucalyptus & Earth Intelligence v1.0) — tokens, type scale, component anatomy, motion rules. The brief who/why/feel lives in **[.impeccable.md](./.impeccable.md)**. Both are load-bearing for any UI change. Read them before shipping UI.
 
-- **Fonts**: "Plus Jakarta Sans" (headings), "Inter" (body).
-- **Palette**: background `#f6fafe`; tonal surface layers (`surface_container_lowest` `#ffffff`, `_low` `#f0f4f8`, `_highest` `#dfe3e7`); violet primary `#630ed4`, secondary `#0058be`; 45° primary→secondary gradient reserved for AI highlights and primary actions.
-- **No-line rule**: avoid 1px solid borders for sectioning — use tonal shifts + spacing. Ghost borders use `outline_variant` at 20% opacity.
-- **Glass**: modals/nav use `surface_container_lowest` at 70% opacity + `20px` backdrop-blur.
-- **Shadows**: ambient only, e.g. `0 8px 32px rgba(23,28,31,0.04)`.
-- **Buttons**: primary = gradient, 12px radius, no border; secondary = `surface_container_highest` pebble; hover = 10% white overlay.
-- **Match cards**: no internal dividers; 1.5rem between title and metadata; match score = circular glass chip with inner-shadow glow.
-- **Motion**: respect `prefers-reduced-motion` globally; global `:focus-visible` rings for a11y.
-- **Dark + light**: both supported via tonal layering, not color inversion.
+### Users
 
-Design principles: systems over surfaces, information density with clarity, calm authority, performance as a feature. `Board` and dedicated job-detail pages are the visual benchmark.
+- **Primary: the operator.** Running a real job search in 15–45 min sessions, often evenings. Wants the 3–10 roles worth reading, not a firehose. Wants the agent to have done real work while they were away.
+- **Secondary: non-technical friends on a hosted instance.** Have never heard of Greenhouse/Ashby. Need the first screen to teach them what the product does.
+
+### Brand personality
+
+**Composed. Grounded. Literary.** A serene, high-end workspace — not a dashboard, not a productivity app. A well-edited magazine feature, not a feed. Italic emphasis in sage is the signature move. Never shouts, never bounces, never rewards with streaks/confetti.
+
+### Aesthetic direction
+
+Editorial minimalism in an earth palette. **Light only** by principle.
+
+- **Fonts**: Manrope (display + italic emphasis), Inter (body/UI), JetBrains Mono (machine voice — tool calls, IDs, timestamps). Type is the primary design device.
+- **Palette**: sage `#006055` (agent voice, primary CTA), muted forest `#47645e` (structure, active nav), terracotta `#82442f` (reserved for human-in-the-loop / approval moments, never decorative). Warm off-white surfaces `#f7faf7`. No pure black/white.
+- **Shape**: 8px default radius, 16px cards, 9999px pills for chips/tags/AI input. 1.5px stroke icons (~30 glyphs only — no corporate icon library).
+- **Elevation**: four tiers of warm shadows on `rgba(24,28,27, α)` — never pure black.
+- **Motion**: communicate, don't decorate. Fade-in (320ms) on screen change, 70ms stagger on first render, typing dots + pulse for active states. No bounce, no spring, no overshoot.
+
+### Design principles
+
+1. **Organic intelligence** — grown, not generated. Warm earth over cold gradients.
+2. **Less but better** — one primary CTA per view. One italic accent per paragraph. One terracotta moment per screen.
+3. **Groundedness over polish** — every résumé bullet, cover-letter phrase, match reason traces back to a story or a tool call. Show the trace.
+4. **Approval-first** — the agent announces, the user approves. Terracotta only appears foreground during pending approvals — it's a visual promise of non-autonomy.
+5. **Teach on empty** — empty states explain the screen in one sentence of body copy + one CTA. No illustrations, no onboarding carousels.
+
+### Anti-references (the interface must visibly NOT resemble)
+
+- LinkedIn / Indeed / job boards — blue-heavy, notification dopamine, infinite feed, endorsement spam.
+- Enterprise ATS (Greenhouse admin, Workday, Lever dashboards) — dense tables, gray-on-gray, compliance-committee copy.
+- Generic AI SaaS — purple-to-blue gradients, glowing orbs, "Powered by AI" badges, dark mode with cyan accents.
+
+### Accessibility
+
+Target: **WCAG 2.2 AA**. Additions that matter:
+
+- `prefers-reduced-motion: reduce` kills all animation (fade-in, stagger, typing dots, shimmer, pulse). Agent state must still be announced via `aria-live="polite"` and a static "working…" label.
+- **Color-blind safe**: no state (active/waiting/approved/pass/fail) conveyed by color alone. Pair color with icon, label, or position.
+- Focus-visible ≥ 2px outline on every interactive surface.
+- Body text contrast ≥ 4.5:1; verify on `--sc-high` and `--primary-tint` surfaces.
+- Full keyboard operability across the four-screen shell (Discover, Command, Resume Lab, Stories), including the agent composer and approval bar.
+
+### What "good" looks like
+
+On-brand: you can't tell which LLM wrote the copy; a screenshot reader asks *"what tool is that?"* not *"which AI product is that?"*; the non-technical friend understands Discover's purpose in under 10 seconds.
+
+Off-brand: a second primary CTA; terracotta used for anything other than approval; a new motion on something that didn't need one; gradient text, glass cards, or a dark-mode accent; a decorative icon above a heading.
 
 ## Additional context files
 
 - `README.md` — user-facing product pitch and workflow narrative.
-- `.impeccable.md` — formal design-system source of truth (extended Navigator spec).
+- `DESIGN.md` — Eucalyptus & Earth Intelligence v1.0, full design system (tokens, scale, component anatomy, motion, voice).
+- `.impeccable.md` — Design Context brief (users, personality, principles, anti-references, a11y).
 - `companies.yaml` — ATS configs, source of truth for sources.
 - `prompts/*.yaml` — LLM enrichment and reformatter prompts.
 - `.env.example` — full env var list with example values.

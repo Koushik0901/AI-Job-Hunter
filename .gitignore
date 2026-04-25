@@ -12,6 +12,7 @@ wheels/
 # Secrets and local data
 .env
 *.db
+*.gz
 *.sqlite
 *.sqlite3
 artifacts_workspace/

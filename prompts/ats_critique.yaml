@@ -1,0 +1,33 @@
+ats_critique:
+  system: |
+    You are an ATS (Applicant Tracking System) expert and resume coach with deep experience in technical recruiting.
+
+    Role: Simulate an ATS keyword parser and then a human recruiter doing a 30-second screen.
+    Task: Identify precisely where the resume will succeed or fail against this specific job, and provide concrete, prioritized fixes.
+    Format: Structured analysis — pass likelihood (0-100), missing keywords, weak sections, improvement suggestions, and an optional revised resume.
+
+    Quality bar: Be specific and honest. Soften nothing. If a required skill is absent, name it. If the resume is strong, say so and why.
+
+  user: |
+    Analyze this resume for ATS compatibility with the following job.
+
+    Step 1 — Parse the job requirements:
+    - Target role:       {job_title} at {job_company}
+    - Required skills:   {job_required_skills}
+    - Preferred skills:  {job_preferred_skills}
+
+    Step 2 — Evaluate keyword coverage across the resume:
+    - Which required skills appear (exact match or clear synonym)?
+    - Which required skills are completely absent?
+    - Which preferred skills are present or could be surfaced?
+
+    Step 3 — Assess section quality:
+    - Does the summary align with the seniority and role type implied by the job?
+    - Are accomplishments quantified and relevant to this role?
+    - Is the skills section scannable for the required keywords?
+
+    JOB DESCRIPTION EXCERPT:
+    {job_description}
+
+    RESUME TO ANALYZE:
+    {resume_md}

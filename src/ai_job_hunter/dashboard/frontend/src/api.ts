@@ -1,854 +1,403 @@
-import type {
-  ActionQueueResponse,
-  AgentChatResponse,
-  AgentSkillInvocation,
-  AgentMessage,
-  AppHealthResponse,
-  BaseDocument,
-  BootstrapResponse,
-  CandidateProfile,
-  ConversionResponse,
-  DailyBriefing,
-  JobArtifact,
-  ProfileGapsResponse,
-  ProfileInsightsResponse,
-  JobDetail,
-  JobAction,
-  JobEvent,
-  JobsListResponse,
-  ManualJobCreateRequest,
-  ManualJobCreateResponse,
-  QueueItem,
-  ScoreRecomputeStatus,
-  SourceQualityResponse,
-  StatsResponse,
-  SuppressedJob,
-  TrackingPatchRequest,
-  TrackingStatus,
-  WorkspaceOperation,
-} from "./types";
+// Typed fetch client for the AI Job Hunter backend.
+// Dev server uses Vite proxy: /api -> http://127.0.0.1:8000 (vite.config.ts).
 
-const RAW_API_BASE = (import.meta.env.VITE_API_BASE ?? "").trim();
-const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
-const RAW_AGENT_API_BASE = (import.meta.env.VITE_AGENT_API_BASE ?? "").trim();
-const AGENT_API_BASE = RAW_AGENT_API_BASE.replace(/\/+$/, "");
-const CLIENT_ID_KEY = "dashboard_client_id";
-const CLIENT_CACHE_TTL = {
-  bootstrap: 20_000,
-  jobsList: 20_000,
-  stats: 20_000,
-  actionQueue: 20_000,
-  jobDetail: 45_000,
-  jobEvents: 30_000,
-  queue: 20_000,
-  artifacts: 20_000,
-} as const;
-type CacheEntry<T> = { value: T; expiresAt: number };
-const responseCache = new Map<string, CacheEntry<unknown>>();
-
-export function buildApiUrl(path: string): string {
-  return API_BASE ? `${API_BASE}${path}` : path;
+export interface JobSummary {
+  id: string;
+  url: string;
+  company: string;
+  title: string;
+  location: string;
+  posted: string;
+  ats: string;
+  status: string;
+  priority: string;
+  pinned: boolean;
+  updated_at: string | null;
+  match_score: number | null;
+  raw_score: number | null;
+  match_band: string | null;
+  desired_title_match: boolean;
+  required_skills: string[];
+  fit_score: number | null;
+  interview_likelihood_score: number | null;
+  urgency_score: number | null;
+  friction_score: number | null;
+  confidence_score: number | null;
+  recommendation: string | null;
+  recommendation_reasons: string[];
+  guidance_title: string | null;
+  guidance_summary: string | null;
+  health_label: string | null;
+  llm_blurb?: string | null;
 }
 
-function buildAgentApiUrl(path: string): string {
-  return AGENT_API_BASE ? `${AGENT_API_BASE}${path}` : buildApiUrl(path);
+export interface JobEnrichment {
+  work_mode: string | null;
+  remote_geo: string | null;
+  canada_eligible: string | null;
+  seniority: string | null;
+  role_family: string | null;
+  years_exp_min: number | null;
+  years_exp_max: number | null;
+  required_skills: string[];
+  preferred_skills: string[];
+  formatted_description: string | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string | null;
 }
 
-function getClientId(): string {
-  try {
-    const existing = window.localStorage.getItem(CLIENT_ID_KEY);
-    if (existing && existing.trim()) return existing.trim();
-    const created = window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    window.localStorage.setItem(CLIENT_ID_KEY, created);
-    return created;
-  } catch {
-    return "anonymous";
-  }
+export interface JobMatchScore {
+  score: number;
+  raw_score: number | null;
+  band: string;
+  breakdown: Record<string, number>;
+  reasons: string[];
+  confidence: string;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(buildApiUrl(path), {
+export interface JobDetail extends JobSummary {
+  description: string;
+  first_seen: string;
+  last_seen: string;
+  applied_at: string | null;
+  enrichment: JobEnrichment | null;
+  match: JobMatchScore | null;
+}
+
+export interface EducationEntry {
+  degree: string;
+  field: string | null;
+}
+
+export interface CandidateProfile {
+  years_experience: number;
+  skills: string[];
+  desired_job_titles: string[];
+  target_role_families: string[];
+  requires_visa_sponsorship: boolean;
+  education: EducationEntry[];
+  degree: string | null;
+  degree_field: string | null;
+  score_version: number | null;
+  updated_at: string | null;
+  // Identity
+  full_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  pronouns: string | null;
+  // Contact
+  email: string | null;
+  phone: string | null;
+  // Address
+  street_address: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  country: string | null;
+  // Links
+  linkedin_url: string | null;
+  portfolio_url: string | null;
+  github_url: string | null;
+  // Career
+  narrative_intent: string | null;
+  desired_salary: string | null;
+  work_authorization: string | null;
+  preferred_work_mode: string | null;
+  willing_to_relocate: boolean;
+}
+
+export interface ConversionBucket {
+  key: string;
+  applied: number;
+  responses: number;
+  interviews: number;
+  offers: number;
+  rejections: number;
+}
+
+export interface ConversionResponse {
+  overall: ConversionBucket;
+  by_ats: ConversionBucket[];
+  by_role_family: ConversionBucket[];
+}
+
+export interface SourceQualityItem {
+  ats: string;
+  applied: number;
+  positive_outcomes: number;
+  negative_outcomes: number;
+  quality_score: number;
+}
+
+export interface ProfileGapItem {
+  label: string;
+  kind: string;
+  count: number;
+  example_job_ids: string[];
+}
+
+export interface ProfileInsightsResponse {
+  top_missing_signals: ProfileGapItem[];
+  roles_you_should_target_more: string[];
+  roles_you_should_target_less: string[];
+  suggested_profile_updates: string[];
+}
+
+export interface StatsResponse {
+  total_jobs: number;
+  tracked_jobs: number;
+  active_pipeline: number;
+  recent_activity_7d: number;
+  overdue_staging_count: number;
+  by_status: Record<string, number>;
+}
+
+export interface UserStory {
+  id: number;
+  title: string;
+  narrative: string;
+  role_context: string | null;
+  skills: string[];
+  outcomes: string[];
+  tags: string[];
+  importance: number;
+  time_period: string | null;
+  kind: string;
+  source: string;
+  draft: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InterviewTurn {
+  question: string;
+  answer: string;
+}
+
+export interface InterviewNextResponse {
+  next_question: string | null;
+  done: boolean;
+  covered: string[];
+  question_index: number;
+}
+
+export interface InterviewStoryDraft {
+  title: string;
+  narrative: string;
+  kind: string;
+  skills: string[];
+  outcomes: string[];
+  tags: string[];
+  time_period: string | null;
+}
+
+export interface InterviewProfilePatch {
+  skills: string[];
+  desired_job_titles: string[];
+  preferred_work_mode: string | null;
+  narrative_intent: string | null;
+}
+
+export interface InterviewFinishResponse {
+  stories: InterviewStoryDraft[];
+  profile_patch: InterviewProfilePatch;
+}
+
+export interface BaseDocument {
+  id: number;
+  doc_type: string;
+  filename: string;
+  content_md: string;
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface JobArtifact {
+  id: number;
+  job_id: string;
+  artifact_type: string;
+  content_md: string;
+  base_doc_id: number | null;
+  version: number;
+  is_active: boolean;
+  generated_by: string | null;
+  created_at: string;
+  updated_at: string;
+  story_ids_used: number[];
+}
+
+export interface QueueItem {
+  id: number;
+  job_id: string;
+  status: string;
+  sort_order: number;
+  queued_at: string;
+  title: string;
+  company: string;
+  location: string | null;
+  ats: string | null;
+  match_score: number | null;
+}
+
+export interface BootstrapResponse {
+  profile: CandidateProfile | null;
+  stats: StatsResponse | null;
+  recommended_jobs: JobSummary[];
+}
+
+export interface JobsListResponse {
+  items: JobSummary[];
+  total: number;
+}
+
+export interface AgentChatRequest {
+  messages: { role: "user" | "assistant"; content: string }[];
+  skill_invocation?: {
+    name: "discover" | "resume" | "cover-letter" | "critique";
+    arguments?: string;
+    selected_job_id?: string | null;
+    active_artifact_id?: number | null;
+  };
+}
+
+export interface AgentChatResponse {
+  reply: string;
+  context_snapshot: string;
+  response_mode: "fast" | "llm" | "llm_strong" | "tool_agent" | "fallback" | "skill";
+  output_kind: "none" | "discovery" | "resume" | "cover_letter" | "critique";
+  output_payload: Record<string, unknown> | null;
+  operation_id: string | null;
+}
+
+export interface AtsCritiqueResponse {
+  pass_likelihood: number;
+  missing_keywords: string[];
+  weak_sections: string[];
+  suggestions: string[];
+  revised_resume: string | null;
+}
+
+async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const r = await fetch(path, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Client-Id": getClientId(),
-      ...(init?.headers ?? {}),
-    },
+    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
   });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed with status ${response.status}`);
+  if (!r.ok) {
+    const body = await r.text().catch(() => "");
+    throw new Error(`${r.status} ${r.statusText} — ${path}${body ? ` — ${body.slice(0, 200)}` : ""}`);
   }
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  return response.json() as Promise<T>;
+  if (r.status === 204) return undefined as T;
+  return r.json() as Promise<T>;
 }
 
-async function agentRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(buildAgentApiUrl(path), {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Client-Id": getClientId(),
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed with status ${response.status}`);
-  }
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  return response.json() as Promise<T>;
-}
+export const api = {
+  bootstrap: () => req<BootstrapResponse>("/api/bootstrap"),
+  profile: () => req<CandidateProfile>("/api/profile"),
+  updateProfile: (data: Partial<CandidateProfile>) =>
+    req<CandidateProfile>("/api/profile", { method: "PUT", body: JSON.stringify(data) }),
+  stats: () => req<StatsResponse>("/api/meta/stats"),
+  conversion: () => req<ConversionResponse>("/api/meta/conversion"),
+  sourceQuality: () => req<{ items: SourceQualityItem[] }>("/api/meta/source-quality"),
+  profileInsights: () => req<ProfileInsightsResponse>("/api/profile/insights"),
 
-function getCachedValue<T>(key: string): T | null {
-  const existing = responseCache.get(key);
-  if (!existing) return null;
-  if (existing.expiresAt <= Date.now()) {
-    responseCache.delete(key);
-    return null;
-  }
-  return existing.value as T;
-}
-
-function setCachedValue<T>(key: string, value: T, ttlMs: number): T {
-  responseCache.set(key, { value, expiresAt: Date.now() + ttlMs });
-  return value;
-}
-
-function invalidateCache(key: string): void {
-  responseCache.delete(key);
-}
-
-function invalidateCachePrefix(prefix: string): void {
-  for (const key of responseCache.keys()) {
-    if (key.startsWith(prefix)) {
-      responseCache.delete(key);
-    }
-  }
-}
-
-async function cachedRequest<T>(key: string, ttlMs: number, path: string): Promise<T> {
-  const cached = getCachedValue<T>(key);
-  if (cached !== null) return cached;
-  const value = await request<T>(path);
-  return setCachedValue(key, value, ttlMs);
-}
-
-export function invalidateJobDetailCache(jobId: string): void {
-  invalidateCache(`job-detail:${jobId}`);
-}
-
-export function invalidateJobEventsCache(jobId: string): void {
-  invalidateCache(`job-events:${jobId}`);
-}
-
-export function invalidateQueueCache(): void {
-  invalidateCache("queue");
-}
-
-export function invalidateJobArtifactsCache(jobId: string): void {
-  invalidateCache(`job-artifacts:${jobId}`);
-}
-
-function parseAttachmentFilename(header: string | null, fallback: string): string {
-  const value = header ?? "";
-  const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i);
-  if (utf8Match?.[1]) {
-    try {
-      return decodeURIComponent(utf8Match[1]);
-    } catch {
-      return fallback;
-    }
-  }
-  const quotedMatch = value.match(/filename="([^"]+)"/i);
-  if (quotedMatch?.[1]) {
-    return quotedMatch[1];
-  }
-  const plainMatch = value.match(/filename=([^;]+)/i);
-  if (plainMatch?.[1]) {
-    return plainMatch[1].trim();
-  }
-  return fallback;
-}
-
-interface GetJobsParams {
-  sort?: "posted_desc" | "updated_desc" | "company_asc" | "match_desc";
-  status?: TrackingStatus | "all";
-  q?: string;
-  ats?: string;
-  company?: string;
-  posted_after?: string;
-  posted_before?: string;
-  limit?: number;
-  offset?: number;
-}
-
-function jobsListCacheKey(params: GetJobsParams): string {
-  const normalized = {
-    sort: params.sort ?? "match_desc",
-    status: params.status ?? "all",
-    q: params.q?.trim() ?? "",
-    ats: params.ats?.trim() ?? "",
-    company: params.company?.trim() ?? "",
-    posted_after: params.posted_after?.trim() ?? "",
-    posted_before: params.posted_before?.trim() ?? "",
-    limit: params.limit ?? 200,
-    offset: params.offset ?? 0,
-  };
-  return `jobs-list:${JSON.stringify(normalized)}`;
-}
-
-export function invalidateJobsListCache(): void {
-  invalidateCachePrefix("jobs-list:");
-}
-
-export function getJobsWithParams(
-  params: GetJobsParams = {},
-  options: { force?: boolean } = {},
-): Promise<JobsListResponse> {
-  const query = new URLSearchParams();
-  query.set("limit", String(params.limit ?? 200));
-  query.set("offset", String(params.offset ?? 0));
-  query.set("sort", params.sort ?? "match_desc");
-  if (params.status && params.status !== "all") query.set("status", params.status);
-  if (params.q?.trim()) query.set("q", params.q.trim());
-  if (params.ats?.trim()) query.set("ats", params.ats.trim());
-  if (params.company?.trim()) query.set("company", params.company.trim());
-  if (params.posted_after?.trim()) query.set("posted_after", params.posted_after.trim());
-  if (params.posted_before?.trim()) query.set("posted_before", params.posted_before.trim());
-  const cacheKey = jobsListCacheKey(params);
-  if (options.force) {
-    invalidateCache(cacheKey);
-  }
-  return cachedRequest<JobsListResponse>(
-    cacheKey,
-    CLIENT_CACHE_TTL.jobsList,
-    `/api/jobs?${query.toString()}`,
-  );
-}
-
-export function getStats(options: { force?: boolean } = {}): Promise<StatsResponse> {
-  if (options.force) {
-    invalidateCache("stats");
-  }
-  return cachedRequest<StatsResponse>("stats", CLIENT_CACHE_TTL.stats, "/api/meta/stats");
-}
-
-export function getBootstrap(options: { force?: boolean } = {}): Promise<BootstrapResponse> {
-  if (options.force) {
-    invalidateCache("bootstrap");
-  }
-  return cachedRequest<BootstrapResponse>("bootstrap", CLIENT_CACHE_TTL.bootstrap, "/api/bootstrap");
-}
-
-export function getDailyBriefingLatest(): Promise<DailyBriefing> {
-  return request<DailyBriefing>("/api/meta/daily-briefing/latest");
-}
-
-export function refreshDailyBriefing(): Promise<DailyBriefing> {
-  return request<DailyBriefing>("/api/meta/daily-briefing/refresh", {
-    method: "POST",
-  });
-}
-
-export function sendDailyBriefing(): Promise<DailyBriefing> {
-  return request<DailyBriefing>("/api/meta/daily-briefing/send", {
-    method: "POST",
-  });
-}
-
-export function getActionQueue(options: { force?: boolean } = {}): Promise<ActionQueueResponse> {
-  if (options.force) {
-    invalidateCache("action-queue");
-  }
-  return cachedRequest<ActionQueueResponse>(
-    "action-queue",
-    CLIENT_CACHE_TTL.actionQueue,
-    "/api/meta/action-queue",
-  );
-}
-
-export function completeAction(actionId: number): Promise<JobAction> {
-  return request<JobAction>(`/api/actions/${actionId}/complete`, {
-    method: "POST",
-  }).then((value) => {
-    invalidateCache("action-queue");
-    invalidateCache("stats");
-    invalidateJobsListCache();
-    invalidateCachePrefix("bootstrap");
-    return value;
-  });
-}
-
-export function deferAction(actionId: number, days = 2): Promise<JobAction> {
-  return request<JobAction>(`/api/actions/${actionId}/defer`, {
-    method: "POST",
-    body: JSON.stringify({ days }),
-  }).then((value) => {
-    invalidateCache("action-queue");
-    invalidateJobsListCache();
-    invalidateCachePrefix("bootstrap");
-    return value;
-  });
-}
-
-export function getHealth(): Promise<AppHealthResponse> {
-  return request<AppHealthResponse>("/api/health");
-}
-
-export function getScoreRecomputeStatus(): Promise<ScoreRecomputeStatus> {
-  return request<ScoreRecomputeStatus>("/api/meta/scores/recompute-status");
-}
-
-export function getSkillAliases(): Promise<Record<string, string>> {
-  return request<Record<string, string>>("/api/meta/skill-aliases");
-}
-
-export function triggerScoreRecompute(): Promise<{ scheduled: number }> {
-  return request<{ scheduled: number }>("/api/meta/scores/recompute", { method: "POST" });
-}
-
-export function getJobDetail(jobId: string, options: { force?: boolean } = {}): Promise<JobDetail> {
-  if (options.force) {
-    invalidateJobDetailCache(jobId);
-  }
-  return cachedRequest<JobDetail>(
-    `job-detail:${jobId}`,
-    CLIENT_CACHE_TTL.jobDetail,
-    `/api/jobs/${encodeURIComponent(jobId)}`,
-  );
-}
-
-export async function prefetchJobDetail(jobId: string): Promise<void> {
-  if (!jobId || getCachedValue<JobDetail>(`job-detail:${jobId}`) !== null) return;
-  try {
-    await getJobDetail(jobId);
-  } catch {
-    // ignore prefetch failures
-  }
-}
-
-export function retryJobProcessing(jobId: string): Promise<JobDetail> {
-  return request<JobDetail>(`/api/jobs/${encodeURIComponent(jobId)}/retry-processing`, {
-    method: "POST",
-  }).then((value) => {
-    invalidateCache(`job-detail:${jobId}`);
-    invalidateJobsListCache();
-    invalidateCachePrefix("bootstrap");
-    return value;
-  });
-}
-
-export function saveJobDecision(jobId: string, recommendation: "apply_now" | "review_manually" | "hold" | "archive", note?: string): Promise<{ job_id: string; recommendation: string; note: string | null; updated_at: string }> {
-  return request<{ job_id: string; recommendation: string; note: string | null; updated_at: string }>(`/api/jobs/${encodeURIComponent(jobId)}/decision`, {
-    method: "POST",
-    body: JSON.stringify({ recommendation, note: note?.trim() || null }),
-  }).then((value) => {
-    invalidateCache(`job-detail:${jobId}`);
-    invalidateJobsListCache();
-    invalidateCachePrefix("bootstrap");
-    return value;
-  });
-}
-
-export async function fetchJobDescriptionPdf(jobId: string, fallbackFilename = "job-description.pdf"): Promise<{ blob: Blob; filename: string }> {
-  const response = await fetch(buildApiUrl(`/api/jobs/${encodeURIComponent(jobId)}/description/pdf`), {
-    headers: { "X-Client-Id": getClientId() },
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed with status ${response.status}`);
-  }
-  return {
-    blob: await response.blob(),
-    filename: parseAttachmentFilename(response.headers.get("Content-Disposition"), fallbackFilename),
-  };
-}
-
-export function getJobEvents(jobId: string, options: { force?: boolean } = {}): Promise<JobEvent[]> {
-  if (options.force) {
-    invalidateJobEventsCache(jobId);
-  }
-  return cachedRequest<JobEvent[]>(
-    `job-events:${jobId}`,
-    CLIENT_CACHE_TTL.jobEvents,
-    `/api/jobs/${encodeURIComponent(jobId)}/events`,
-  );
-}
-
-export async function prefetchJobEvents(jobId: string): Promise<void> {
-  if (!jobId || getCachedValue<JobEvent[]>(`job-events:${jobId}`) !== null) return;
-  try {
-    await getJobEvents(jobId);
-  } catch {
-    // ignore prefetch failures
-  }
-}
-
-export function patchTracking(jobId: string, payload: TrackingPatchRequest): Promise<JobDetail> {
-  return request<JobDetail>(`/api/jobs/${encodeURIComponent(jobId)}/tracking`, {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  }).then((value) => {
-    invalidateCache(`job-detail:${jobId}`);
-    invalidateJobsListCache();
-    invalidateCachePrefix("bootstrap");
-    return value;
-  });
-}
-
-export function deleteJob(jobId: string): Promise<{ deleted: number }> {
-  return request<{ deleted: number }>(`/api/jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" }).then((value) => {
-    invalidateCache(`job-detail:${jobId}`);
-    invalidateCache(`job-events:${jobId}`);
-    invalidateJobsListCache();
-    invalidateCachePrefix("bootstrap");
-    return value;
-  });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-export function isManualJobCreateDuplicateResponse(value: ManualJobCreateResponse | unknown): value is ManualJobCreateResponse {
-  if (!isRecord(value)) return false;
-  return value.duplicate_detected === true || typeof value.duplicate_of_job_id === "string";
-}
-
-export function manualJobCreateResponseToDetail(value: ManualJobCreateResponse): JobDetail {
-  return value;
-}
-
-export function createManualJob(payload: ManualJobCreateRequest): Promise<ManualJobCreateResponse> {
-  return request<ManualJobCreateResponse>("/api/jobs/manual", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  }).then((value) => {
-    invalidateJobsListCache();
-    invalidateCachePrefix("bootstrap");
-    return value;
-  });
-}
-
-export function suppressJob(jobId: string, reason?: string): Promise<{ suppressed: number }> {
-  return request<{ suppressed: number }>(`/api/jobs/${encodeURIComponent(jobId)}/suppress`, {
-    method: "POST",
-    body: JSON.stringify({ reason: reason?.trim() || null }),
-  }).then((value) => {
-    invalidateCache(`job-detail:${jobId}`);
-    invalidateJobsListCache();
-    invalidateCachePrefix("bootstrap");
-    return value;
-  });
-}
-
-export function unsuppressJob(jobId: string): Promise<{ unsuppressed: number }> {
-  return request<{ unsuppressed: number }>(`/api/jobs/${encodeURIComponent(jobId)}/unsuppress`, { method: "POST" }).then((value) => {
-    invalidateCache(`job-detail:${jobId}`);
-    invalidateJobsListCache();
-    invalidateCachePrefix("bootstrap");
-    return value;
-  });
-}
-
-export function getSuppressions(limit = 200): Promise<SuppressedJob[]> {
-  return request<SuppressedJob[]>(`/api/suppressions?limit=${limit}`);
-}
-
-export function getConversion(): Promise<ConversionResponse> {
-  return request<ConversionResponse>("/api/meta/conversion");
-}
-
-export function getSourceQuality(): Promise<SourceQualityResponse> {
-  return request<SourceQualityResponse>("/api/meta/source-quality");
-}
-
-export function getProfileGaps(): Promise<ProfileGapsResponse> {
-  return request<ProfileGapsResponse>("/api/meta/profile-gaps");
-}
-
-export function getProfileInsights(): Promise<ProfileInsightsResponse> {
-  return request<ProfileInsightsResponse>("/api/profile/insights");
-}
-
-export function getProfile(): Promise<CandidateProfile> {
-  return request<CandidateProfile>("/api/profile");
-}
-
-export function putProfile(payload: CandidateProfile): Promise<CandidateProfile> {
-  return request<CandidateProfile>("/api/profile", {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  }).then((value) => {
-    invalidateJobsListCache();
-    invalidateCachePrefix("bootstrap");
-    invalidateCache("stats");
-    invalidateCache("action-queue");
-    return value;
-  });
-}
-
-export function addProfileSkill(skill: string): Promise<CandidateProfile> {
-  return request<CandidateProfile>("/api/profile/skills", {
-    method: "POST",
-    body: JSON.stringify({ skill }),
-  }).then((value) => {
-    invalidateJobsListCache();
-    invalidateCachePrefix("bootstrap");
-    invalidateCache("stats");
-    invalidateCache("action-queue");
-    return value;
-  });
-}
-
-export function agentChat(
-  messages: AgentMessage[],
-  skillInvocation?: AgentSkillInvocation | null,
-): Promise<AgentChatResponse> {
-  return agentRequest<AgentChatResponse>("/api/agent/chat", {
-    method: "POST",
-    body: JSON.stringify({ messages, skill_invocation: skillInvocation ?? null }),
-  });
-}
-
-export function getOperation(id: string): Promise<WorkspaceOperation> {
-  return request<WorkspaceOperation>(`/api/operations/${encodeURIComponent(id)}`);
-}
-
-export function subscribeToDashboardEvents(
-  handlers: {
-    onMessage: (payload: Record<string, unknown>) => void;
-    onError?: () => void;
+  listJobs: (params: {
+    status?: "not_applied" | "staging" | "applied" | "interviewing" | "offer" | "rejected";
+    limit?: number;
+    sort?: "match_desc" | "posted_desc" | "updated_desc" | "company_asc";
+    q?: string;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v != null && v !== "") qs.set(k, String(v)); });
+    return req<JobsListResponse>(`/api/jobs${qs.toString() ? `?${qs}` : ""}`);
   },
-): () => void {
-  const source = new EventSource(buildApiUrl("/api/events/stream"));
-  source.onmessage = (event) => {
-    try {
-      const payload = JSON.parse(event.data) as Record<string, unknown>;
-      handlers.onMessage(payload);
-    } catch {
-      // ignore malformed frames
-    }
-  };
-  source.onerror = () => {
-    handlers.onError?.();
-  };
-  return () => source.close();
-}
+  job: (id: string) => req<JobDetail>(`/api/jobs/${encodeURIComponent(id)}`),
+  createManualJob: (payload: {
+    url: string;
+    company: string;
+    title: string;
+    description: string;
+    location?: string;
+    posted?: string;
+    ats?: string;
+    status?: "not_applied" | "staging" | "applied" | "interviewing" | "offer" | "rejected";
+  }) =>
+    req<JobDetail & { duplicate_detected?: boolean; duplicate_of_job_id?: string | null }>(
+      "/api/jobs/manual",
+      { method: "POST", body: JSON.stringify(payload) }
+    ),
+  updateTracking: (
+    jobId: string,
+    patch: { status?: string; priority?: string; pinned?: boolean; applied_at?: string }
+  ) =>
+    req<JobDetail>(`/api/jobs/${encodeURIComponent(jobId)}/tracking`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+  regenerateBlurb: (id: string) =>
+    req<{ job_id: string; blurb: string | null; generated: boolean }>(
+      `/api/jobs/${encodeURIComponent(id)}/regenerate-blurb`,
+      { method: "POST" }
+    ),
 
-export function subscribeToOperation(
-  id: string,
-  handlers: {
-    onMessage: (operation: WorkspaceOperation) => void;
-    onError?: () => void;
-  },
-): () => void {
-  const url = buildApiUrl(`/api/operations/${encodeURIComponent(id)}/events`);
-  const source = new EventSource(url);
-  source.onmessage = (event) => {
-    try {
-      const payload = JSON.parse(event.data) as WorkspaceOperation;
-      handlers.onMessage(payload);
-      if (payload.status === "completed" || payload.status === "failed") {
-        source.close();
-      }
-    } catch {
-      // ignore malformed frames
-    }
-  };
-  source.onerror = () => {
-    handlers.onError?.();
-  };
-  return () => source.close();
-}
-
-export function getAutofillExport(): Promise<Record<string, string | null>> {
-  return request<Record<string, string | null>>("/api/profile/autofill-export");
-}
-
-// ---------------------------------------------------------------------------
-// Base documents
-// ---------------------------------------------------------------------------
-
-export function listBaseDocuments(): Promise<BaseDocument[]> {
-  return request<BaseDocument[]>("/api/profile/documents");
-}
-
-export async function uploadBaseDocument(file: File, doc_type: "resume" | "cover_letter"): Promise<BaseDocument> {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("doc_type", doc_type);
-  const resp = await fetch(buildApiUrl("/api/profile/documents"), {
-    method: "POST",
-    body: formData,
-  });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`Upload failed: ${resp.status} ${text}`);
-  }
-  return resp.json();
-}
-
-export function deleteBaseDocument(id: number): Promise<void> {
-  return request<void>(`/api/profile/documents/${id}`, { method: "DELETE" });
-}
-
-export function setDefaultBaseDocument(id: number): Promise<BaseDocument> {
-  return request<BaseDocument>(`/api/profile/documents/${id}/default`, { method: "PATCH" });
-}
-
-// ---------------------------------------------------------------------------
-// Story bank
-// ---------------------------------------------------------------------------
-
-export function listStories(options: { includeDrafts?: boolean } = {}): Promise<import("./types").UserStory[]> {
-  const qs = options.includeDrafts === false ? "?include_drafts=false" : "";
-  return request<import("./types").UserStory[]>(`/api/stories${qs}`);
-}
-
-export function getStoryCount(): Promise<import("./types").StoryCount> {
-  return request<import("./types").StoryCount>("/api/stories/count");
-}
-
-export function createStory(data: import("./types").UserStoryCreate): Promise<import("./types").UserStory> {
-  return request<import("./types").UserStory>("/api/stories", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-export function updateStory(id: number, data: import("./types").UserStoryUpdate): Promise<import("./types").UserStory> {
-  return request<import("./types").UserStory>(`/api/stories/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify(data),
-  });
-}
-
-export function deleteStory(id: number): Promise<void> {
-  return request<void>(`/api/stories/${id}`, { method: "DELETE" });
-}
-
-export function bulkAcceptStories(
-  storyIds: number[],
-  profileDelta?: import("./types").ExtractedProfileDelta | null,
-): Promise<{ accepted: number }> {
-  return request<{ accepted: number }>("/api/stories/bulk-accept", {
-    method: "POST",
-    body: JSON.stringify({ story_ids: storyIds, profile_delta: profileDelta ?? null }),
-  });
-}
-
-export function extractStoriesFromResume(baseDocId: number): Promise<import("./types").WorkspaceOperation> {
-  return request<import("./types").WorkspaceOperation>(
-    `/api/stories/extract-from-resume?base_doc_id=${baseDocId}`,
-    { method: "POST" },
-  );
-}
-
-export function getRelevantStories(jobId: string, topK = 5): Promise<import("./types").RelevantStory[]> {
-  return request<import("./types").RelevantStory[]>(
-    `/api/jobs/${encodeURIComponent(jobId)}/relevant-stories?top_k=${topK}`,
-  );
-}
-
-export function triggerStoryEmbedding(): Promise<{ embedded: number }> {
-  return request<{ embedded: number }>("/api/stories/embed", { method: "POST" });
-}
-
-export function checkAtsCritique(jobId: string, resumeMd: string): Promise<import("./types").AtsCritique> {
-  return request<import("./types").AtsCritique>(
-    `/api/jobs/${encodeURIComponent(jobId)}/artifacts/ats-critique`,
-    {
+  interviewNext: (conversation: InterviewTurn[]) =>
+    req<InterviewNextResponse>("/api/stories/interview/next", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resume_md: resumeMd }),
-    },
-  );
-}
+      body: JSON.stringify({ conversation }),
+    }),
+  interviewFinish: (conversation: InterviewTurn[]) =>
+    req<InterviewFinishResponse>("/api/stories/interview/finish", {
+      method: "POST",
+      body: JSON.stringify({ conversation }),
+    }),
 
-export function triggerJobEmbedding(limit = 200): Promise<{ embedded: number }> {
-  return request<{ embedded: number }>(`/api/jobs/embed?limit=${limit}`, { method: "POST" });
-}
+  listStories: () => req<UserStory[]>("/api/stories"),
+  storiesCount: () => req<{ count: number }>("/api/stories/count"),
+  createStory: (body: Partial<UserStory> & { title: string }) =>
+    req<UserStory>("/api/stories", { method: "POST", body: JSON.stringify(body) }),
 
-// ---------------------------------------------------------------------------
-// Application queue
-// ---------------------------------------------------------------------------
-
-export function getQueue(options: { force?: boolean } = {}): Promise<QueueItem[]> {
-  if (options.force) {
-    invalidateCache("queue");
-  }
-  return cachedRequest<QueueItem[]>("queue", CLIENT_CACHE_TTL.queue, "/api/queue");
-}
-
-export async function prefetchQueue(): Promise<void> {
-  if (getCachedValue<QueueItem[]>("queue") !== null) return;
-  try {
-    await getQueue();
-  } catch {
-    // ignore prefetch failures
-  }
-}
-
-export function addToQueue(job_id: string): Promise<QueueItem> {
-  return request<QueueItem>("/api/queue", {
-    method: "POST",
-    body: JSON.stringify({ job_id }),
-  }).then((value) => {
-    invalidateCache("queue");
-    invalidateCachePrefix("bootstrap");
-    return value;
-  });
-}
-
-export function removeFromQueue(id: number): Promise<void> {
-  return request<void>(`/api/queue/${id}`, { method: "DELETE" }).then((value) => {
-    invalidateCache("queue");
-    invalidateCachePrefix("bootstrap");
-    return value;
-  });
-}
-
-export function updateQueueItem(id: number, status: string): Promise<QueueItem> {
-  return request<QueueItem>(`/api/queue/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify({ status }),
-  }).then((value) => {
-    invalidateCache("queue");
-    invalidateCachePrefix("bootstrap");
-    return value;
-  });
-}
-
-export function reorderQueue(ids: number[]): Promise<void> {
-  return request<void>("/api/queue/reorder", {
-    method: "POST",
-    body: JSON.stringify({ ids }),
-  }).then((value) => {
-    invalidateCache("queue");
-    return value;
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Job artifacts
-// ---------------------------------------------------------------------------
-
-export function getJobArtifacts(job_id: string, options: { force?: boolean } = {}): Promise<JobArtifact[]> {
-  if (options.force) {
-    invalidateCache(`job-artifacts:${job_id}`);
-  }
-  return cachedRequest<JobArtifact[]>(
-    `job-artifacts:${job_id}`,
-    CLIENT_CACHE_TTL.artifacts,
-    `/api/jobs/${encodeURIComponent(job_id)}/artifacts`,
-  );
-}
-
-export async function prefetchJobArtifacts(job_id: string): Promise<void> {
-  if (!job_id || getCachedValue<JobArtifact[]>(`job-artifacts:${job_id}`) !== null) return;
-  try {
-    await getJobArtifacts(job_id);
-  } catch {
-    // ignore prefetch failures
-  }
-}
-
-export function generateResume(job_id: string, base_doc_id: number): Promise<WorkspaceOperation> {
-  return request<WorkspaceOperation>(`/api/jobs/${encodeURIComponent(job_id)}/artifacts/resume`, {
-    method: "POST",
-    body: JSON.stringify({ base_doc_id }),
-  }).then((value) => {
-    invalidateCache(`job-artifacts:${job_id}`);
-    return value;
-  });
-}
-
-export function generateCoverLetter(job_id: string, base_doc_id: number): Promise<WorkspaceOperation> {
-  return request<WorkspaceOperation>(`/api/jobs/${encodeURIComponent(job_id)}/artifacts/cover-letter`, {
-    method: "POST",
-    body: JSON.stringify({ base_doc_id }),
-  }).then((value) => {
-    invalidateCache(`job-artifacts:${job_id}`);
-    return value;
-  });
-}
-
-export function streamArtifact(
-  job_id: string,
-  artifact_type: "resume" | "cover_letter",
-  base_doc_id: number,
-  handlers: {
-    onChunk: (token: string) => void;
-    onArtifact: (artifact: JobArtifact) => void;
-    onError: (detail: string) => void;
-    onDone: () => void;
+  listBaseDocs: () => req<BaseDocument[]>("/api/profile/documents"),
+  uploadDocument: (file: File, doc_type: string): Promise<BaseDocument> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("doc_type", doc_type);
+    return fetch("/api/profile/documents", { method: "POST", body: fd })
+      .then(r => { if (!r.ok) throw new Error(`${r.status} ${r.statusText}`); return r.json(); });
   },
-): () => void {
-  const slug = artifact_type === "resume" ? "resume" : "cover-letter";
-  const url = buildApiUrl(
-    `/api/jobs/${encodeURIComponent(job_id)}/artifacts/${slug}/stream?base_doc_id=${base_doc_id}`,
-  );
-  const source = new EventSource(url);
+  deleteDocument: (id: number) =>
+    req<void>(`/api/profile/documents/${id}`, { method: "DELETE" }),
+  setDefaultDocument: (id: number) =>
+    req<BaseDocument>(`/api/profile/documents/${id}/default`, { method: "PATCH" }),
 
-  source.addEventListener("chunk", (event: MessageEvent) => {
-    try {
-      const token = JSON.parse(event.data) as string;
-      handlers.onChunk(token);
-    } catch {
-      // ignore malformed frames
-    }
-  });
+  jobArtifacts: (jobId: string) => req<JobArtifact[]>(`/api/jobs/${encodeURIComponent(jobId)}/artifacts`),
+  updateArtifact: (artifactId: number, content_md: string) =>
+    req<JobArtifact>(`/api/artifacts/${artifactId}`, {
+      method: "PUT",
+      body: JSON.stringify({ content_md }),
+    }),
+  artifactPdfUrl: (artifactId: number) => `/api/artifacts/${artifactId}/pdf`,
 
-  source.addEventListener("artifact", (event: MessageEvent) => {
-    try {
-      const artifact = JSON.parse(event.data) as JobArtifact;
-      invalidateCache(`job-artifacts:${job_id}`);
-      handlers.onArtifact(artifact);
-    } catch {
-      // ignore malformed frames
-    }
-  });
+  generateResume: (jobId: string, base_doc_id: number) =>
+    req<{ id: string }>(`/api/jobs/${encodeURIComponent(jobId)}/artifacts/resume`, {
+      method: "POST",
+      body: JSON.stringify({ base_doc_id }),
+    }),
+  generateCoverLetter: (jobId: string, base_doc_id: number) =>
+    req<{ id: string }>(`/api/jobs/${encodeURIComponent(jobId)}/artifacts/cover-letter`, {
+      method: "POST",
+      body: JSON.stringify({ base_doc_id }),
+    }),
+  atsCritique: (jobId: string, resume_md: string) =>
+    req<AtsCritiqueResponse>(`/api/jobs/${encodeURIComponent(jobId)}/artifacts/ats-critique`, {
+      method: "POST",
+      body: JSON.stringify({ resume_md }),
+    }),
 
-  source.addEventListener("error", (event: MessageEvent) => {
-    try {
-      const payload = JSON.parse(event.data) as { detail?: string };
-      handlers.onError(payload.detail ?? "Generation failed");
-    } catch {
-      handlers.onError("Generation failed");
-    }
-    source.close();
-  });
+  agentChat: (body: AgentChatRequest) =>
+    req<AgentChatResponse>("/api/agent/chat", { method: "POST", body: JSON.stringify(body) }),
 
-  source.addEventListener("done", () => {
-    handlers.onDone();
-    source.close();
-  });
-
-  // Network-level error (connection refused, etc.)
-  source.onerror = () => {
-    handlers.onError("Connection error during generation");
-    source.close();
-  };
-
-  return () => source.close();
-}
-
-export function updateArtifact(id: number, content_md: string): Promise<JobArtifact> {
-  return request<JobArtifact>(`/api/artifacts/${id}`, {
-    method: "PUT",
-    body: JSON.stringify({ content_md }),
-  }).then((value) => {
-    invalidateCache(`job-artifacts:${value.job_id}`);
-    return value;
-  });
-}
-
-export function getArtifactPdfUrl(id: number): string {
-  return buildApiUrl(`/api/artifacts/${id}/pdf`);
-}
+  listQueue: () => req<QueueItem[]>("/api/queue"),
+  addToQueue: (job_id: string) =>
+    req<QueueItem>("/api/queue", { method: "POST", body: JSON.stringify({ job_id }) }),
+};

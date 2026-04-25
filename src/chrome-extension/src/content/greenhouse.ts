@@ -29,12 +29,19 @@ export function fillForm(profile: AutofillProfile): FillResult {
   tryFill('input[name="job_application[phone]"]', profile.phone);
   tryFill('input[name="job_application[location]"]', profile.city);
 
-  // LinkedIn and website (custom questions)
+  // LinkedIn, GitHub, and website (custom questions — Greenhouse uses id/placeholder hints)
   const linkedinEl = document.querySelector<HTMLInputElement>('input[id*="linkedin"], input[placeholder*="linkedin" i]');
   if (linkedinEl && !linkedinEl.value && profile.linkedin_url) {
     fillField(linkedinEl, profile.linkedin_url);
     result.filled++;
     result.fields.push("linkedin");
+  }
+
+  const githubEl = document.querySelector<HTMLInputElement>('input[id*="github"], input[placeholder*="github" i], input[name*="github" i]');
+  if (githubEl && !githubEl.value && profile.github_url) {
+    fillField(githubEl, profile.github_url);
+    result.filled++;
+    result.fields.push("github");
   }
 
   const websiteEl = document.querySelector<HTMLInputElement>('input[id*="website"], input[placeholder*="website" i], input[placeholder*="portfolio" i]');

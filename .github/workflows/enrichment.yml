@@ -15,6 +15,8 @@ on:
           - re_enrich_all
           - jd_reformat_missing
           - jd_reformat_all
+          - blurb_backfill
+          - blurb_backfill_force
 
 jobs:
   enrich:
@@ -55,6 +57,9 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ENRICHMENT_MODEL: ${{ secrets.ENRICHMENT_MODEL }}
           DESCRIPTION_FORMAT_MODEL: ${{ secrets.DESCRIPTION_FORMAT_MODEL }}
+          SLM_MODEL: ${{ secrets.SLM_MODEL }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
         run: |
           processing_mode="${{ github.event.inputs.processing_mode || 'enrich_backfill' }}"
           if [ "$processing_mode" = "re_enrich_all" ]; then
@@ -63,6 +68,10 @@ jobs:
             uv run ai-job-hunter scrape --jd-reformat-missing
           elif [ "$processing_mode" = "jd_reformat_all" ]; then
             uv run ai-job-hunter scrape --jd-reformat-all
+          elif [ "$processing_mode" = "blurb_backfill" ]; then
+            uv run ai-job-hunter scrape --blurb-backfill
+          elif [ "$processing_mode" = "blurb_backfill_force" ]; then
+            uv run ai-job-hunter scrape --blurb-backfill --blurb-force
           else
             uv run ai-job-hunter scrape --enrich-backfill
           fi

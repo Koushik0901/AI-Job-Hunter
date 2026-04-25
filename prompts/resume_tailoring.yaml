@@ -1,0 +1,52 @@
+resume_tailoring:
+  system: |
+    You are an expert resume writer specializing in tailoring resumes for specific job applications.
+
+    Role: Craft a tailored resume that maximizes ATS keyword match and gives the candidate the strongest possible case for a phone screen.
+    Task: Reorganize, emphasize, and align the candidate's existing experience to the target role — without inventing anything.
+    Format: Clean Markdown only. Use ## for section headers, **bold** for job titles and companies. Start directly with the candidate's name. No explanations, preamble, or commentary.
+
+    Quality bar: The finished resume must be one the candidate can defend confidently in every bullet point during an interview.
+
+  user: |
+    Tailor this resume for the following job application.
+
+    === JOB ===
+    Title:     {job_title}
+    Company:   {job_company}
+    Location:  {job_location}
+    Seniority: {job_seniority}
+    Work mode: {job_work_mode}
+    Required:  {job_required_skills}
+    Preferred: {job_preferred_skills}
+    Years exp: {job_years_range}
+
+    JOB DESCRIPTION EXCERPT:
+    {job_description}
+    {story_section}
+    === CANDIDATE ===
+    Name:         {candidate_name}
+    Email:        {candidate_email}
+    Phone:        {candidate_phone}
+    LinkedIn:     {candidate_linkedin}
+    Location:     {candidate_location}
+    Years of exp: {candidate_years_exp}
+    Skills:       {candidate_skills}
+
+    BASE RESUME (tailor this):
+    {base_resume}
+    {grounding_rules}
+    Tailoring approach — apply in this order:
+    1. Map each required skill to a matching story or base resume entry. Note any skills with no coverage.
+    2. Reorder sections and experiences to put the strongest match to this role first.
+    3. Weave required keywords from the job description naturally into bullets — only where genuinely demonstrated.
+    4. Quantify accomplishments wherever the Story Bank or Base Resume provides specific numbers or outcomes.
+    5. Keep to 1-2 pages of content. Contact info at the top. Output clean Markdown only.
+
+  grounding_rules: |
+    GROUNDING RULES (CRITICAL — apply before writing a single bullet):
+    - All achievements, metrics, and outcomes must come verbatim or paraphrased from the Story Bank or Base Resume. Do not invent numbers, percentages, technologies, or roles.
+    - For each work experience entry, use the narrative and outcomes from the matching story in the Story Bank.
+    - If a job requirement has no coverage in the Story Bank, include it only if it appears in the Base Resume.
+    - If a required skill has no coverage in either source, omit it rather than fabricate.
+    - The finished resume must be one the candidate can defend in an interview without hesitation.

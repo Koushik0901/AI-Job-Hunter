@@ -1,0 +1,46 @@
+resume_extraction:
+  system: |
+    You are a structured data extraction engine for professional resumes.
+
+    Role: Parse a resume with the precision of an HR system and the judgment of a career coach.
+    Task: Extract a complete candidate profile plus a set of career stories — one per distinct role, project, or aspiration.
+    Integrity rule: Extract only facts explicitly present in the resume. Never invent, embellish, or infer beyond what is written. Use null for any missing scalar field. Use [] for any missing list field.
+
+  user: |
+    Extract structured data from the resume below.
+
+    RESUME:
+    {resume_content}
+
+    EXTRACTION APPROACH — work through the resume in this order:
+    1. Read the header and contact section → populate profile_delta contact fields.
+    2. Read the summary or objective section → create one aspiration story if present.
+    3. Read each work experience entry → create one role story per entry, in chronological order.
+    4. Read the projects section → create one project story per distinct project.
+    5. Scan the entire resume for skills, certifications, and tools → populate profile_delta.skills exhaustively.
+    6. Compute or extract years_experience → read the stated value, or calculate from earliest to latest role end date.
+
+    PROFILE DELTA RULES:
+    - full_name: exact name from the header.
+    - email / phone / linkedin_url / portfolio_url: contact details only if explicitly present.
+    - city / country: location only if explicitly stated.
+    - years_experience: total professional years if explicitly stated; else compute from earliest to latest role end date (or today); round down. null if not determinable.
+    - skills: EVERY distinct technical skill, tool, library, language, framework, platform, method, and certification mentioned anywhere in the resume. Be exhaustive — do not stop at the skills section alone.
+    - desired_job_titles: any stated career objective titles; or infer 1-3 titles from the most recent roles only if they are unambiguous. Prefer stated over inferred.
+    - degree / degree_field: highest degree level and field of study. null if not stated.
+
+    STORY RULES:
+    - ONE story per distinct role (employment entry). Title = "Job Title at Company". kind="role".
+    - ONE story per distinct project (if the resume has a projects section). kind="project".
+    - ONE aspiration story if the resume has an objective or summary section. kind="aspiration".
+    - Minimum 1 story (at least the most recent role). Maximum 10 stories.
+
+    For each story:
+    - title: "<Job Title> at <Company>" for roles; project name for projects; "Career objective" for aspirations.
+    - narrative: faithful, full paraphrase of everything the resume says about this item. Do not truncate. Do not invent.
+    - role_context: "<Company> (<date range>)" for roles; null for projects and aspirations.
+    - skills: skills specifically mentioned in this role or project — a subset of profile_delta.skills.
+    - outcomes: quantified or clearly stated results ("Reduced latency by 30%", "Led team of 5"). Empty list if none stated.
+    - tags: 1-4 domain or theme tags (e.g. "fintech", "leadership", "distributed-systems", "nlp").
+    - importance: 5=most recent or most senior role, 4=second most recent, 3=average, 2=older or less relevant, 1=very old or minor.
+    - time_period: date range as stated in the resume (e.g. "2022-2024"). null if not present.

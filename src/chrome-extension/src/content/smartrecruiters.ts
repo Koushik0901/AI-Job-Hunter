@@ -28,27 +28,32 @@ export function fillForm(profile: AutofillProfile): FillResult {
   tryFill('input[name="lastName"]', profile.last_name, "lastName");
   tryFill('input[name="email"]', profile.email, "email");
   tryFill('input[name="phone"]', profile.phone, "phone");
-  tryFill('input[name="phoneNumber"]', profile.phone, "phone");
+  tryFill('input[name="phoneNumber"]', profile.phone, "phoneNumber");
+  // SmartRecruiters structured address fields
+  tryFill('input[name="address.line1"]', profile.street_address, "address.line1");
+  tryFill('input[name="address.line2"]', profile.address_line2, "address.line2");
+  tryFill('input[name="address.city"]', profile.city, "address.city");
+  tryFill('input[name="address.region"]', profile.state_province, "address.region");
+  tryFill('input[name="address.postalCode"]', profile.postal_code, "address.postalCode");
 
-  // LinkedIn via label text
-  if (profile.linkedin_url) {
-    const li = findInputByLabelText("linkedin");
-    if (li && !li.value) {
-      fillField(li, profile.linkedin_url);
+  // Labels for things not in structured fields
+  function tryLabel(text: string, value: string | null | undefined, key: string) {
+    if (!value) return;
+    const el = findInputByLabelText(text);
+    if (el && !el.value) {
+      fillField(el, value);
       result.filled++;
-      result.fields.push("linkedin");
+      result.fields.push(key);
     }
   }
 
-  // Location via label text
-  if (profile.city) {
-    const loc = findInputByLabelText("location") || findInputByLabelText("city");
-    if (loc && !loc.value) {
-      fillField(loc, profile.city);
-      result.filled++;
-      result.fields.push("location");
-    }
-  }
+  tryLabel("linkedin", profile.linkedin_url, "linkedin");
+  tryLabel("github", profile.github_url, "github");
+  tryLabel("website", profile.portfolio_url, "website");
+  tryLabel("location", profile.city, "location");
+  tryLabel("city", profile.city, "city");
+  tryLabel("salary", profile.desired_salary, "salary");
+  tryLabel("compensation", profile.desired_salary, "compensation");
 
   // Supplement with generic fill for any remaining fields
   const generic = genericFill(profile);

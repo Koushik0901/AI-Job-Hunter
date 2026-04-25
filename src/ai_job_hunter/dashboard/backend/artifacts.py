@@ -15,14 +15,61 @@ import json
 import logging
 import os
 import re
+from functools import lru_cache
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
+import pydantic
+import yaml
+
 logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-_DEFAULT_ARTIFACT_MODEL = "openai/gpt-4o"
+_DEFAULT_LLM_MODEL = "z-ai/glm-5.1"
+_LLM_PLUGINS = [{"id": "response-healing"}]
+_PROMPTS_DIR = Path(__file__).resolve().parents[3].parent / "prompts"
+
+
+@lru_cache(maxsize=8)
+def _load_prompt(filename: str) -> dict:
+    path = _PROMPTS_DIR / filename
+    if not path.exists():
+        raise FileNotFoundError(f"Prompt file not found: {path}")
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    node = next((v for v in data.values() if isinstance(v, dict)), None) or data
+    return node
+
+
+def _render(template: str, variables: dict[str, str]) -> str:
+    rendered = template
+    for key, value in variables.items():
+        rendered = rendered.replace(f"{{{key}}}", value)
+    return rendered
+
+
+class _AtsCritiqueOutput(pydantic.BaseModel):
+    """Structured output for ATS resume critique."""
+    pass_likelihood: int = pydantic.Field(
+        description="Probability 0-100 that an ATS system will pass this resume through to a recruiter."
+    )
+    missing_keywords: list[str] = pydantic.Field(
+        default_factory=list,
+        description="Important keywords and skills from the job description that are absent from the resume.",
+    )
+    weak_sections: list[str] = pydantic.Field(
+        default_factory=list,
+        description="Names of resume sections that are weak, thin, or missing entirely.",
+    )
+    suggestions: list[str] = pydantic.Field(
+        default_factory=list,
+        description="3-5 specific, actionable improvements the candidate should make.",
+    )
+    revised_resume: str | None = pydantic.Field(
+        None,
+        description="Improved version of the resume in Markdown with missing keywords woven in naturally. null if no revision is needed.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -281,7 +328,9 @@ def reorder_queue(ids: list[int], conn: Any) -> None:
 
 _ARTIFACT_SELECT = """
     SELECT id, job_id, artifact_type, content_md, base_doc_id, version,
-           is_active, generated_by, created_at, updated_at, story_ids_used
+           is_active, generated_by, created_at, updated_at, story_ids_used,
+           provenance_json, ats_keyword_score, ats_screener_verdict,
+           iteration_index, apply_operation_id
     FROM job_artifacts
 """
 
@@ -309,6 +358,12 @@ def _artifact_row_to_dict(row: tuple) -> dict:
             story_ids = json.loads(row[10]) or []
         except Exception:
             story_ids = []
+    provenance: list[dict] = []
+    if len(row) > 11 and row[11]:
+        try:
+            provenance = json.loads(row[11]) or []
+        except Exception:
+            provenance = []
     return {
         "id": row[0],
         "job_id": row[1],
@@ -321,6 +376,11 @@ def _artifact_row_to_dict(row: tuple) -> dict:
         "created_at": row[8],
         "updated_at": row[9],
         "story_ids_used": story_ids,
+        "provenance": provenance,
+        "ats_keyword_score": row[12] if len(row) > 12 else None,
+        "ats_screener_verdict": row[13] if len(row) > 13 else None,
+        "iteration_index": row[14] if len(row) > 14 else None,
+        "apply_operation_id": row[15] if len(row) > 15 else None,
     }
 
 
@@ -333,14 +393,19 @@ def save_artifact(
     conn: Any,
     *,
     story_ids_used: list[int] | None = None,
+    provenance: list[dict] | None = None,
+    ats_keyword_score: int | None = None,
+    ats_screener_verdict: str | None = None,
+    iteration_index: int | None = None,
+    apply_operation_id: str | None = None,
+    make_active: bool = True,
 ) -> dict:
-    # Archive previous active artifact of same type
-    conn.execute(
-        "UPDATE job_artifacts SET is_active = 0 WHERE job_id = ? AND artifact_type = ? AND is_active = 1",
-        (job_id, artifact_type),
-    )
+    if make_active:
+        conn.execute(
+            "UPDATE job_artifacts SET is_active = 0 WHERE job_id = ? AND artifact_type = ? AND is_active = 1",
+            (job_id, artifact_type),
+        )
 
-    # Determine next version
     ver_row = conn.execute(
         "SELECT COALESCE(MAX(version), 0) FROM job_artifacts WHERE job_id = ? AND artifact_type = ?",
         (job_id, artifact_type),
@@ -349,21 +414,27 @@ def save_artifact(
 
     now = datetime.now(timezone.utc).isoformat()
     story_ids_json = json.dumps(story_ids_used or [])
+    provenance_json_str = json.dumps(provenance) if provenance is not None else None
+    is_active_flag = 1 if make_active else 0
     conn.execute(
         """
         INSERT INTO job_artifacts
             (job_id, artifact_type, content_md, base_doc_id, version, is_active,
-             generated_by, created_at, updated_at, story_ids_used)
-        VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+             generated_by, created_at, updated_at, story_ids_used,
+             provenance_json, ats_keyword_score, ats_screener_verdict,
+             iteration_index, apply_operation_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (job_id, artifact_type, content_md, base_doc_id, next_version,
-         generated_by, now, now, story_ids_json),
+        (job_id, artifact_type, content_md, base_doc_id, next_version, is_active_flag,
+         generated_by, now, now, story_ids_json,
+         provenance_json_str, ats_keyword_score, ats_screener_verdict,
+         iteration_index, apply_operation_id),
     )
     conn.commit()
 
     row = conn.execute(
-        f"{_ARTIFACT_SELECT} WHERE job_id = ? AND artifact_type = ? AND is_active = 1",
-        (job_id, artifact_type)
+        f"{_ARTIFACT_SELECT} WHERE job_id = ? AND artifact_type = ? AND version = ?",
+        (job_id, artifact_type, next_version),
     ).fetchone()
     return _artifact_row_to_dict(row)
 
@@ -429,7 +500,8 @@ def _load_profile_context(conn: Any) -> dict:
     row = conn.execute(
         """
         SELECT years_experience, skills, desired_job_titles,
-               full_name, email, phone, linkedin_url, portfolio_url, city, country
+               full_name, email, phone, linkedin_url, portfolio_url, city, country,
+               narrative_intent
         FROM candidate_profile WHERE id = 1
         """
     ).fetchone()
@@ -455,6 +527,7 @@ def _load_profile_context(conn: Any) -> dict:
         "portfolio_url": row[7] or "",
         "city": row[8] or "",
         "country": row[9] or "",
+        "narrative_intent": row[10] or "",
     }
 
 
@@ -534,7 +607,7 @@ def _build_llm() -> Any:
     api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
-    model = (os.getenv("ARTIFACT_MODEL") or _DEFAULT_ARTIFACT_MODEL).strip()
+    model = (os.getenv("LLM_MODEL") or _DEFAULT_LLM_MODEL).strip()
     try:
         from langchain_openai import ChatOpenAI
     except ImportError:
@@ -545,6 +618,7 @@ def _build_llm() -> Any:
         base_url=_OPENROUTER_BASE_URL,
         temperature=0.3,
         max_tokens=3000,
+        extra_body={"plugins": _LLM_PLUGINS},
     )
 
 
@@ -602,56 +676,32 @@ def generate_tailored_resume(
             years_range += f"-{job['years_exp_max']}"
         years_range += " years"
 
-    system = (
-        "You are an expert resume writer specializing in tailoring resumes for specific job applications. "
-        "Output ONLY the resume in clean Markdown format. Use ## for section headers, **bold** for job titles/companies. "
-        "Do not add any explanations, preamble, or commentary. Start directly with the candidate's name."
-    )
-
+    tpl = _load_prompt("resume_tailoring.yaml")
     story_section = f"\n{story_context}\n" if story_context else ""
-    grounding_rules = """
-GROUNDING RULES (CRITICAL):
-- All achievements, metrics, and outcomes must come verbatim or paraphrased from the Story Bank or Base Resume above
-- Do not invent numbers, percentages, technologies, or roles not present in the provided materials
-- For each work experience, use the narrative and outcomes from the matching story in the Story Bank
-- If a job requirement is not in the Story Bank, include it only if it appears in the Base Resume
-- The result must be a resume the candidate can confidently defend in an interview
-""" if story_context else ""
-
-    prompt = f"""Tailor this resume for the following job application.
-
-JOB DETAILS:
-- Title: {job['title']}
-- Company: {job['company']}
-- Location: {job['location']}
-- Seniority: {seniority}
-- Work mode: {job['work_mode'] or 'Not specified'}
-- Required skills: {req_skills}
-- Preferred skills: {pref_skills}
-- Years experience required: {years_range or 'Not specified'}
-
-JOB DESCRIPTION EXCERPT:
-{job['description'][:2500]}
-{story_section}
-CANDIDATE PROFILE:
-- Name: {profile.get('full_name', '')}
-- Email: {profile.get('email', '')}
-- Phone: {profile.get('phone', '')}
-- LinkedIn: {profile.get('linkedin_url', '')}
-- Location: {profile.get('city', '')}, {profile.get('country', '')}
-- Years of experience: {profile.get('years_experience', 0)}
-- Skills: {profile_skills}
-
-BASE RESUME (tailor this):
-{base_doc['content_md'][:3000]}
-{grounding_rules}
-Instructions:
-1. Reorder and emphasize experiences/skills that best match the job requirements
-2. Use keywords from the job description naturally
-3. Keep the resume to 1-2 pages worth of content
-4. Ensure contact info is at the top
-5. Output clean Markdown only"""
-
+    grounding_rules = ("\n" + tpl["grounding_rules"].strip() + "\n") if story_context else ""
+    vars_ = {
+        "job_title": str(job.get("title") or ""),
+        "job_company": str(job.get("company") or ""),
+        "job_location": str(job.get("location") or ""),
+        "job_seniority": seniority,
+        "job_work_mode": str(job.get("work_mode") or "Not specified"),
+        "job_required_skills": req_skills,
+        "job_preferred_skills": pref_skills,
+        "job_years_range": years_range or "Not specified",
+        "job_description": str(job.get("description") or "")[:2500],
+        "story_section": story_section,
+        "candidate_name": str(profile.get("full_name") or ""),
+        "candidate_email": str(profile.get("email") or ""),
+        "candidate_phone": str(profile.get("phone") or ""),
+        "candidate_linkedin": str(profile.get("linkedin_url") or ""),
+        "candidate_location": f"{profile.get('city', '')}, {profile.get('country', '')}",
+        "candidate_years_exp": str(profile.get("years_experience") or 0),
+        "candidate_skills": profile_skills,
+        "base_resume": str(base_doc.get("content_md") or "")[:3000],
+        "grounding_rules": grounding_rules,
+    }
+    system = tpl["system"].strip()
+    prompt = _render(tpl["user"], vars_)
     content_md = _call_llm(prompt, system)
     return content_md, _story_ids
 
@@ -678,51 +728,28 @@ def generate_cover_letter(
     req_skills = ", ".join(job["required_skills"][:8]) if job["required_skills"] else "Not specified"
     profile_skills = ", ".join(profile.get("skills", [])[:15]) if profile.get("skills") else "Not specified"
 
-    system = (
-        "You are an expert cover letter writer. "
-        "Output ONLY the cover letter in clean Markdown format. "
-        "Do not add explanations, preamble, or commentary. "
-        "Start with the date and address block."
-    )
-
+    tpl = _load_prompt("cover_letter.yaml")
     story_section = f"\n{story_context}\n" if story_context else ""
-    grounding_rules = """
-GROUNDING RULES (CRITICAL):
-- The body paragraphs must be grounded in the 2-3 most relevant stories from the Story Bank
-- Quote or paraphrase actual outcomes and metrics from the stories — do not invent achievements
-- The result should be a cover letter the hiring manager could fact-check against the candidate's resume
-""" if story_context else ""
-
-    prompt = f"""Write a tailored cover letter for this job application.
-
-JOB DETAILS:
-- Title: {job['title']}
-- Company: {job['company']}
-- Location: {job['location']}
-- Required skills: {req_skills}
-
-JOB DESCRIPTION EXCERPT:
-{job['description'][:1800]}
-{story_section}
-CANDIDATE PROFILE:
-- Name: {profile.get('full_name', '')}
-- Email: {profile.get('email', '')}
-- Phone: {profile.get('phone', '')}
-- LinkedIn: {profile.get('linkedin_url', '')}
-- Location: {profile.get('city', '')}, {profile.get('country', '')}
-- Years of experience: {profile.get('years_experience', 0)}
-- Skills: {profile_skills}
-
-BASE RESUME (for additional context):
-{base_doc['content_md'][:1500]}
-{grounding_rules}
-Instructions:
-1. 3-4 paragraphs: opening hook, 1-2 paragraphs on specific relevant stories, why this company/role, closing
-2. Each body paragraph should cite a real outcome or project from the Story Bank
-3. Keep it concise — no longer than 380 words
-4. Professional, direct tone
-5. Output clean Markdown only"""
-
+    grounding_rules = ("\n" + tpl["grounding_rules"].strip() + "\n") if story_context else ""
+    vars_ = {
+        "job_title": str(job.get("title") or ""),
+        "job_company": str(job.get("company") or ""),
+        "job_location": str(job.get("location") or ""),
+        "job_required_skills": req_skills,
+        "job_description": str(job.get("description") or "")[:1800],
+        "story_section": story_section,
+        "candidate_name": str(profile.get("full_name") or ""),
+        "candidate_email": str(profile.get("email") or ""),
+        "candidate_phone": str(profile.get("phone") or ""),
+        "candidate_linkedin": str(profile.get("linkedin_url") or ""),
+        "candidate_location": f"{profile.get('city', '')}, {profile.get('country', '')}",
+        "candidate_years_exp": str(profile.get("years_experience") or 0),
+        "candidate_skills": profile_skills,
+        "base_resume": str(base_doc.get("content_md") or "")[:1500],
+        "grounding_rules": grounding_rules,
+    }
+    system = tpl["system"].strip()
+    prompt = _render(tpl["user"], vars_)
     content_md = _call_llm(prompt, system)
     return content_md, _story_ids
 
@@ -752,52 +779,32 @@ async def generate_tailored_resume_astream(
             years_range += f"-{job['years_exp_max']}"
         years_range += " years"
 
+    tpl = _load_prompt("resume_tailoring.yaml")
     story_section = f"\n{story_context}\n" if story_context else ""
-    grounding_rules = (
-        "\nGROUNDING RULES (CRITICAL):\n"
-        "- All achievements, metrics, and outcomes must come from the Story Bank or Base Resume\n"
-        "- Do not invent numbers, percentages, technologies, or roles not present in the materials\n"
-    ) if story_context else ""
-
-    system = (
-        "You are an expert resume writer specializing in tailoring resumes for specific job applications. "
-        "Output ONLY the resume in clean Markdown format. Use ## for section headers, **bold** for job titles/companies. "
-        "Do not add any explanations, preamble, or commentary. Start directly with the candidate's name."
-    )
-    prompt = f"""Tailor this resume for the following job application.
-
-JOB DETAILS:
-- Title: {job['title']}
-- Company: {job['company']}
-- Location: {job['location']}
-- Seniority: {seniority}
-- Work mode: {job['work_mode'] or 'Not specified'}
-- Required skills: {req_skills}
-- Preferred skills: {pref_skills}
-- Years experience required: {years_range or 'Not specified'}
-
-JOB DESCRIPTION EXCERPT:
-{job['description'][:2500]}
-{story_section}
-CANDIDATE PROFILE:
-- Name: {profile.get('full_name', '')}
-- Email: {profile.get('email', '')}
-- Phone: {profile.get('phone', '')}
-- LinkedIn: {profile.get('linkedin_url', '')}
-- Location: {profile.get('city', '')}, {profile.get('country', '')}
-- Years of experience: {profile.get('years_experience', 0)}
-- Skills: {profile_skills}
-
-BASE RESUME (tailor this):
-{base_doc['content_md'][:3000]}
-{grounding_rules}
-Instructions:
-1. Reorder and emphasize experiences/skills that best match the job requirements
-2. Use keywords from the job description naturally
-3. Keep the resume to 1-2 pages worth of content
-4. Ensure contact info is at the top
-5. Output clean Markdown only"""
-
+    grounding_rules = ("\n" + tpl["grounding_rules"].strip() + "\n") if story_context else ""
+    vars_ = {
+        "job_title": str(job.get("title") or ""),
+        "job_company": str(job.get("company") or ""),
+        "job_location": str(job.get("location") or ""),
+        "job_seniority": seniority,
+        "job_work_mode": str(job.get("work_mode") or "Not specified"),
+        "job_required_skills": req_skills,
+        "job_preferred_skills": pref_skills,
+        "job_years_range": years_range or "Not specified",
+        "job_description": str(job.get("description") or "")[:2500],
+        "story_section": story_section,
+        "candidate_name": str(profile.get("full_name") or ""),
+        "candidate_email": str(profile.get("email") or ""),
+        "candidate_phone": str(profile.get("phone") or ""),
+        "candidate_linkedin": str(profile.get("linkedin_url") or ""),
+        "candidate_location": f"{profile.get('city', '')}, {profile.get('country', '')}",
+        "candidate_years_exp": str(profile.get("years_experience") or 0),
+        "candidate_skills": profile_skills,
+        "base_resume": str(base_doc.get("content_md") or "")[:3000],
+        "grounding_rules": grounding_rules,
+    }
+    system = tpl["system"].strip()
+    prompt = _render(tpl["user"], vars_)
     async for token in _call_llm_astream(prompt, system):
         yield token
 
@@ -819,48 +826,28 @@ async def generate_cover_letter_astream(
     req_skills = ", ".join(job["required_skills"][:8]) if job["required_skills"] else "Not specified"
     profile_skills = ", ".join(profile.get("skills", [])[:15]) if profile.get("skills") else "Not specified"
 
+    tpl = _load_prompt("cover_letter.yaml")
     story_section = f"\n{story_context}\n" if story_context else ""
-    grounding_rules = (
-        "\nGROUNDING RULES (CRITICAL):\n"
-        "- Body paragraphs must be grounded in the most relevant stories from the Story Bank\n"
-        "- Quote or paraphrase actual outcomes and metrics — do not invent achievements\n"
-    ) if story_context else ""
-
-    system = (
-        "You are an expert cover letter writer. "
-        "Output ONLY the cover letter in clean Markdown format. "
-        "Do not add explanations, preamble, or commentary. "
-        "Start with the date and address block."
-    )
-    prompt = f"""Write a tailored cover letter for this job application.
-
-JOB DETAILS:
-- Title: {job['title']}
-- Company: {job['company']}
-- Location: {job['location']}
-- Required skills: {req_skills}
-
-JOB DESCRIPTION EXCERPT:
-{job['description'][:1800]}
-{story_section}
-CANDIDATE PROFILE:
-- Name: {profile.get('full_name', '')}
-- Email: {profile.get('email', '')}
-- Phone: {profile.get('phone', '')}
-- LinkedIn: {profile.get('linkedin_url', '')}
-- Location: {profile.get('city', '')}, {profile.get('country', '')}
-- Years of experience: {profile.get('years_experience', 0)}
-- Skills: {profile_skills}
-
-BASE RESUME (for additional context):
-{base_doc['content_md'][:1500]}
-{grounding_rules}
-Instructions:
-1. 3-4 paragraphs: opening hook, 1-2 paragraphs grounded in specific stories, why this role, closing
-2. Keep it concise - no longer than 380 words
-3. Professional, direct tone
-4. Output clean Markdown only"""
-
+    grounding_rules = ("\n" + tpl["grounding_rules"].strip() + "\n") if story_context else ""
+    vars_ = {
+        "job_title": str(job.get("title") or ""),
+        "job_company": str(job.get("company") or ""),
+        "job_location": str(job.get("location") or ""),
+        "job_required_skills": req_skills,
+        "job_description": str(job.get("description") or "")[:1800],
+        "story_section": story_section,
+        "candidate_name": str(profile.get("full_name") or ""),
+        "candidate_email": str(profile.get("email") or ""),
+        "candidate_phone": str(profile.get("phone") or ""),
+        "candidate_linkedin": str(profile.get("linkedin_url") or ""),
+        "candidate_location": f"{profile.get('city', '')}, {profile.get('country', '')}",
+        "candidate_years_exp": str(profile.get("years_experience") or 0),
+        "candidate_skills": profile_skills,
+        "base_resume": str(base_doc.get("content_md") or "")[:1500],
+        "grounding_rules": grounding_rules,
+    }
+    system = tpl["system"].strip()
+    prompt = _render(tpl["user"], vars_)
     async for token in _call_llm_astream(prompt, system):
         yield token
 
@@ -880,62 +867,47 @@ def critique_resume_for_ats(job_id: str, resume_md: str, conn: Any) -> dict:
       - suggestions: list[str]
       - revised_resume: str | None
     """
-    job = _load_job_context(job_id, conn)
+    try:
+        from langchain_core.messages import HumanMessage, SystemMessage
+    except ImportError:
+        raise RuntimeError("langchain-openai is required. Run: uv add langchain-openai")
 
+    job = _load_job_context(job_id, conn)
     req_skills = ", ".join(job["required_skills"][:15]) if job["required_skills"] else "Not specified"
     pref_skills = ", ".join(job["preferred_skills"][:10]) if job["preferred_skills"] else "Not specified"
 
-    system = (
-        "You are an ATS (Applicant Tracking System) expert and resume coach. "
-        "Analyze how well a resume matches job requirements. "
-        "Return ONLY a valid JSON object with these exact fields:\n"
-        "- pass_likelihood: integer 0-100 (probability ATS will pass this resume)\n"
-        "- missing_keywords: array of strings (important keywords/skills from JD missing from resume)\n"
-        "- weak_sections: array of strings (section names that are weak or missing)\n"
-        "- suggestions: array of 3-5 specific, actionable improvement suggestions\n"
-        "- revised_resume: string (improved resume markdown with keywords woven in naturally)\n"
-        "Output ONLY valid JSON. No markdown fences, no explanations."
-    )
+    tpl = _load_prompt("ats_critique.yaml")
+    vars_ = {
+        "job_title": str(job.get("title") or ""),
+        "job_company": str(job.get("company") or ""),
+        "job_required_skills": req_skills,
+        "job_preferred_skills": pref_skills,
+        "job_description": str(job.get("description") or "")[:2000],
+        "resume_md": resume_md[:3000],
+    }
+    system = tpl["system"].strip()
+    prompt = _render(tpl["user"], vars_)
 
-    prompt = f"""Analyze this resume for ATS compatibility with the following job.
-
-JOB DETAILS:
-- Title: {job['title']}
-- Company: {job['company']}
-- Required skills: {req_skills}
-- Preferred skills: {pref_skills}
-
-JOB DESCRIPTION EXCERPT:
-{job['description'][:2000]}
-
-RESUME TO ANALYZE:
-{resume_md[:3000]}"""
-
-    raw = _call_llm(prompt, system)
-
-    # Strip markdown fences if the model added them
-    cleaned = raw.strip()
-    if cleaned.startswith("```"):
-        cleaned = re.sub(r"^```[a-z]*\n?", "", cleaned)
-        cleaned = re.sub(r"\n?```$", "", cleaned.strip())
-
+    llm = _build_llm()
+    structured = llm.with_structured_output(_AtsCritiqueOutput, method="json_schema", strict=True)
     try:
-        result = json.loads(cleaned)
+        result = structured.invoke([SystemMessage(content=system), HumanMessage(content=prompt)])
     except Exception:
-        result = {
+        logger.warning("ATS critique LLM call failed", exc_info=True)
+        return {
             "pass_likelihood": 50,
             "missing_keywords": [],
             "weak_sections": [],
-            "suggestions": ["Unable to parse critique — please try again."],
+            "suggestions": ["Unable to generate critique — please try again."],
             "revised_resume": None,
         }
 
     return {
-        "pass_likelihood": max(0, min(100, int(result.get("pass_likelihood") or 50))),
-        "missing_keywords": [str(k) for k in (result.get("missing_keywords") or [])[:20]],
-        "weak_sections": [str(s) for s in (result.get("weak_sections") or [])[:10]],
-        "suggestions": [str(s) for s in (result.get("suggestions") or [])[:10]],
-        "revised_resume": str(result["revised_resume"]) if result.get("revised_resume") else None,
+        "pass_likelihood": max(0, min(100, int(result.pass_likelihood or 50))),
+        "missing_keywords": [str(k) for k in (result.missing_keywords or [])[:20]],
+        "weak_sections": [str(s) for s in (result.weak_sections or [])[:10]],
+        "suggestions": [str(s) for s in (result.suggestions or [])[:10]],
+        "revised_resume": str(result.revised_resume) if result.revised_resume else None,
     }
 
 

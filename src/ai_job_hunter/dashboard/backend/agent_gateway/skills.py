@@ -9,6 +9,9 @@ _BUILTIN_SKILLS = {
     "cover-letter": {"output_kind": "cover_letter", "requires_selected_job": True},
     "cover_letter": {"output_kind": "cover_letter", "requires_selected_job": True},
     "critique": {"output_kind": "critique", "requires_selected_job": False},
+    # /apply is dispatched client-side; registered here so the gateway
+    # recognises the invocation and can route it to the tool_agent if needed.
+    "apply": {"output_kind": "apply", "requires_selected_job": True},
 }
 
 _SLASH_RE = re.compile(r"^/(?P<name>[a-zA-Z][\w-]*)(?:\s+(?P<arguments>.*))?$")

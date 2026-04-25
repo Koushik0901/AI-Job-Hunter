@@ -8,35 +8,28 @@ from __future__ import annotations
 
 import logging
 import os
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-_DEFAULT_TOOL_MODEL = "openai/gpt-4o"
+_DEFAULT_LLM_MODEL = "z-ai/glm-5.1"
 _MAX_TOOL_ITERATIONS = 5
+_PROMPTS_DIR = Path(__file__).resolve().parents[4].parent / "prompts"
 
-_SYSTEM_TEMPLATE = """\
-You are an AI job search assistant embedded in a personal job search dashboard called "AI Job Hunter".
-You help the user manage their job pipeline, optimize application documents, and make strategic decisions.
 
-You have access to tools:
-- search_jobs: find roles matching keywords or criteria
-- get_job_detail: deep-dive a specific job by its ID
-- get_story_match: show which of the user's professional stories best fit a job
-- check_ats_pass: analyze whether the current resume will pass ATS screening for a job
-- draft_resume: queue generation of a tailored resume for a job
-
-Current pipeline snapshot:
-{context}
-
-Guidelines:
-- Use tools proactively when the user's question involves specific jobs, ATS screening, or story alignment
-- Chain tools when useful: e.g. search_jobs then check_ats_pass on the top result
-- Be concise in your final reply — bullet points preferred for lists
-- Do not mention job IDs in your reply unless the user specifically asks; use company+title instead
-- Tone: professional, direct, encouraging
-"""
+@lru_cache(maxsize=1)
+def _load_tool_agent_system() -> str:
+    """Load the tool agent system prompt from agent_chat.yaml (cached after first load)."""
+    path = _PROMPTS_DIR / "agent_chat.yaml"
+    if not path.exists():
+        raise FileNotFoundError(f"Agent chat prompt file not found: {path}")
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return (data.get("tool_agent") or {}).get("system", "")
 
 
 def handle_tool_agent_chat(messages: list[dict[str, str]], conn: Any) -> dict[str, Any]:
@@ -70,7 +63,7 @@ def handle_tool_agent_chat(messages: list[dict[str, str]], conn: Any) -> dict[st
 
     tool_map: dict[str, BaseTool] = {t.name: t for t in tools}  # type: ignore[attr-defined]
     context = build_agent_context(conn)
-    model = (os.getenv("AGENT_STRONG_MODEL") or _DEFAULT_TOOL_MODEL).strip()
+    model = (os.getenv("LLM_MODEL") or _DEFAULT_LLM_MODEL).strip()
 
     llm = ChatOpenAI(
         model=model,
@@ -81,7 +74,7 @@ def handle_tool_agent_chat(messages: list[dict[str, str]], conn: Any) -> dict[st
     ).bind_tools(tools)
 
     # Build the message list: system + history + latest user message
-    system_msg = SystemMessage(content=_SYSTEM_TEMPLATE.format(context=context))
+    system_msg = SystemMessage(content=_load_tool_agent_system().format(context=context))
     lc_messages: list[Any] = [system_msg]
     for msg in messages:
         role = str(msg.get("role") or "user")

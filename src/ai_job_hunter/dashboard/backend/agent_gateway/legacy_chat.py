@@ -3,13 +3,17 @@ from __future__ import annotations
 import json
 import logging
 import os
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-_DEFAULT_AGENT_MODEL = "openai/gpt-4o-mini"
-_DEFAULT_AGENT_STRONG_MODEL = "openai/gpt-4o"
+_DEFAULT_SLM_MODEL = "google/gemma-4-31b-it"
+_DEFAULT_LLM_MODEL = "z-ai/glm-5.1"
 
 _STRONG_KEYWORDS = frozenset(
     [
@@ -21,22 +25,17 @@ _STRONG_KEYWORDS = frozenset(
     ]
 )
 
-_SYSTEM_TEMPLATE = """\
-You are an AI job search assistant embedded in a personal job search dashboard called "AI Job Hunter".
-You help the user manage their job pipeline, understand their match scores, and decide on next actions.
+_PROMPTS_DIR = Path(__file__).resolve().parents[4].parent / "prompts"
 
-Current pipeline snapshot:
-{context}
 
-Guidelines:
-- Be concise and actionable. Bullet points preferred for lists.
-- Reference specific companies or job titles from the snapshot when relevant.
-- Treat `rank score` as a cohort-relative ranking signal, not a literal probability or percent match.
-- Treat `fit score` as the content-fit signal against the current profile and job constraints.
-- If you don't have enough information to answer precisely, say so clearly.
-- Do not make up job listings or scores not mentioned in the context.
-- Tone: professional, direct, encouraging.
-"""
+@lru_cache(maxsize=1)
+def _load_chat_system() -> str:
+    """Load the legacy chat system prompt from agent_chat.yaml (cached after first load)."""
+    path = _PROMPTS_DIR / "agent_chat.yaml"
+    if not path.exists():
+        raise FileNotFoundError(f"Agent chat prompt file not found: {path}")
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return (data.get("legacy_chat") or {}).get("system", "")
 
 
 def build_agent_context(conn: Any) -> str:
@@ -251,8 +250,8 @@ def _route_message(prompt: str) -> str:
     lower = prompt.casefold()
     word_count = len(prompt.split())
     if word_count > 100 or any(kw in lower for kw in _STRONG_KEYWORDS):
-        return (os.getenv("AGENT_STRONG_MODEL") or _DEFAULT_AGENT_STRONG_MODEL).strip()
-    return (os.getenv("AGENT_MODEL") or _DEFAULT_AGENT_MODEL).strip()
+        return (os.getenv("LLM_MODEL") or _DEFAULT_LLM_MODEL).strip()
+    return (os.getenv("SLM_MODEL") or _DEFAULT_SLM_MODEL).strip()
 
 
 def _try_fast_agent(messages: list[dict[str, str]], conn: Any) -> dict[str, str] | None:
@@ -322,7 +321,7 @@ def handle_freeform_chat(messages: list[dict[str, str]], conn: Any) -> dict[str,
 
     latest_prompt = _latest_user_message(messages)
     model = _route_message(latest_prompt)
-    strong_default = (os.getenv("AGENT_STRONG_MODEL") or _DEFAULT_AGENT_STRONG_MODEL).strip()
+    strong_default = (os.getenv("LLM_MODEL") or _DEFAULT_LLM_MODEL).strip()
     response_mode = "llm_strong" if model == strong_default else "llm"
 
     try:
@@ -336,7 +335,7 @@ def handle_freeform_chat(messages: list[dict[str, str]], conn: Any) -> dict[str,
         }
 
     context = build_agent_context(conn)
-    system_content = _SYSTEM_TEMPLATE.format(context=context)
+    system_content = _load_chat_system().format(context=context)
 
     lc_messages: list[Any] = [SystemMessage(content=system_content)]
     for msg in messages:

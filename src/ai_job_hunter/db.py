@@ -57,6 +57,38 @@ def _add_column_if_missing(conn: Any, table: str, column: str, ddl: str) -> None
         pass
 
 
+# Bump this constant whenever match_score.py weights/logic change so existing
+# job_match_scores rows are treated as stale and recomputed. Storing it on the
+# profile row lets us detect version drift across restarts without a separate
+# meta table.
+_SCORING_ALGORITHM_VERSION = 2
+
+
+def _maybe_bump_scoring_algorithm_version(conn: Any) -> None:
+    """On init, if scoring algo version advanced, bump candidate_profile.score_version
+    so the snapshot-staleness machinery picks up the new logic."""
+    try:
+        row = conn.execute(
+            "SELECT scoring_algorithm_version, score_version FROM candidate_profile WHERE id = 1"
+        ).fetchone()
+    except Exception:
+        return
+    if not row:
+        return   # no profile yet — will be set on first insert
+    stored_algo = int(row[0] or 0)
+    if stored_algo >= _SCORING_ALGORITHM_VERSION:
+        return
+    current_version = int(row[1] or 1)
+    try:
+        conn.execute(
+            "UPDATE candidate_profile SET scoring_algorithm_version = ?, score_version = ? WHERE id = 1",
+            (_SCORING_ALGORITHM_VERSION, current_version + 1),
+        )
+        conn.commit()
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # Turso HTTP API wrapper — sqlite3-compatible interface
 # ---------------------------------------------------------------------------
@@ -380,6 +412,23 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
     _add_column_if_missing(conn, "candidate_profile", "portfolio_url", "portfolio_url TEXT")
     _add_column_if_missing(conn, "candidate_profile", "city", "city TEXT")
     _add_column_if_missing(conn, "candidate_profile", "country", "country TEXT DEFAULT 'Canada'")
+    _add_column_if_missing(conn, "candidate_profile", "narrative_intent", "narrative_intent TEXT")
+    _add_column_if_missing(conn, "candidate_profile", "first_name", "first_name TEXT")
+    _add_column_if_missing(conn, "candidate_profile", "last_name", "last_name TEXT")
+    _add_column_if_missing(conn, "candidate_profile", "street_address", "street_address TEXT")
+    _add_column_if_missing(conn, "candidate_profile", "address_line2", "address_line2 TEXT")
+    _add_column_if_missing(conn, "candidate_profile", "state_province", "state_province TEXT")
+    _add_column_if_missing(conn, "candidate_profile", "postal_code", "postal_code TEXT")
+    _add_column_if_missing(conn, "candidate_profile", "desired_salary", "desired_salary TEXT")
+    _add_column_if_missing(conn, "candidate_profile", "work_authorization", "work_authorization TEXT")
+    _add_column_if_missing(conn, "candidate_profile", "preferred_work_mode", "preferred_work_mode TEXT")
+    _add_column_if_missing(conn, "candidate_profile", "willing_to_relocate", "willing_to_relocate INTEGER NOT NULL DEFAULT 0")
+    _add_column_if_missing(conn, "candidate_profile", "github_url", "github_url TEXT")
+    _add_column_if_missing(conn, "candidate_profile", "pronouns", "pronouns TEXT")
+    _add_column_if_missing(conn, "candidate_profile", "narrative_intent_embedding", "narrative_intent_embedding BLOB")
+    _add_column_if_missing(conn, "candidate_profile", "narrative_intent_embedded_text", "narrative_intent_embedded_text TEXT")
+    _add_column_if_missing(conn, "candidate_profile", "scoring_algorithm_version", "scoring_algorithm_version INTEGER NOT NULL DEFAULT 0")
+    _maybe_bump_scoring_algorithm_version(conn)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS job_match_scores (
             job_id            TEXT UNIQUE REFERENCES jobs(id),
@@ -400,6 +449,8 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
     _add_column_if_missing(conn, "job_match_scores", "semantic_score", "semantic_score REAL")
     _add_column_if_missing(conn, "job_match_scores", "matched_story_ids", "matched_story_ids TEXT")
     _add_column_if_missing(conn, "job_match_scores", "matched_story_titles", "matched_story_titles TEXT")
+    _add_column_if_missing(conn, "job_match_scores", "reasoning_blurb", "reasoning_blurb TEXT")
+    _add_column_if_missing(conn, "job_match_scores", "reasoning_blurb_at", "reasoning_blurb_at TEXT")
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_job_match_scores_job_id ON job_match_scores(job_id)"
     )
@@ -567,6 +618,11 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
         "CREATE INDEX IF NOT EXISTS idx_job_artifacts_job_type ON job_artifacts(job_id, artifact_type)"
     )
     _add_column_if_missing(conn, "job_artifacts", "story_ids_used", "story_ids_used TEXT")
+    _add_column_if_missing(conn, "job_artifacts", "provenance_json", "provenance_json TEXT")
+    _add_column_if_missing(conn, "job_artifacts", "ats_keyword_score", "ats_keyword_score INTEGER")
+    _add_column_if_missing(conn, "job_artifacts", "ats_screener_verdict", "ats_screener_verdict TEXT")
+    _add_column_if_missing(conn, "job_artifacts", "iteration_index", "iteration_index INTEGER")
+    _add_column_if_missing(conn, "job_artifacts", "apply_operation_id", "apply_operation_id TEXT")
     try:
         rows = conn.execute(
             "SELECT url FROM jobs WHERE id IS NULL OR trim(id) = ''"
@@ -1518,7 +1574,11 @@ def get_candidate_profile(conn: Any) -> dict[str, Any]:
     row = conn.execute(
         """
         SELECT years_experience, skills, desired_job_titles, target_role_families, requires_visa_sponsorship, education, degree, degree_field, score_version, updated_at,
-               full_name, email, phone, linkedin_url, portfolio_url, city, country
+               full_name, email, phone, linkedin_url, portfolio_url, city, country, narrative_intent,
+               first_name, last_name, street_address, address_line2, state_province, postal_code,
+               desired_salary, work_authorization, preferred_work_mode, willing_to_relocate,
+               github_url, pronouns,
+               narrative_intent_embedding, narrative_intent_embedded_text
         FROM candidate_profile
         WHERE id = 1
         """
@@ -1542,6 +1602,21 @@ def get_candidate_profile(conn: Any) -> dict[str, Any]:
             "portfolio_url": None,
             "city": None,
             "country": None,
+            "narrative_intent": None,
+            "first_name": None,
+            "last_name": None,
+            "street_address": None,
+            "address_line2": None,
+            "state_province": None,
+            "postal_code": None,
+            "desired_salary": None,
+            "work_authorization": None,
+            "preferred_work_mode": None,
+            "willing_to_relocate": False,
+            "github_url": None,
+            "pronouns": None,
+            "narrative_intent_embedding": None,
+            "narrative_intent_embedded_text": None,
         }
     education = _parse_education_array(row[5])
     if not education and (row[6] or row[7]):
@@ -1569,6 +1644,21 @@ def get_candidate_profile(conn: Any) -> dict[str, Any]:
         "portfolio_url": row[14],
         "city": row[15],
         "country": row[16],
+        "narrative_intent": row[17],
+        "first_name": row[18],
+        "last_name": row[19],
+        "street_address": row[20],
+        "address_line2": row[21],
+        "state_province": row[22],
+        "postal_code": row[23],
+        "desired_salary": row[24],
+        "work_authorization": row[25],
+        "preferred_work_mode": row[26],
+        "willing_to_relocate": bool(row[27]),
+        "github_url": row[28],
+        "pronouns": row[29],
+        "narrative_intent_embedding": row[30] if len(row) > 30 else None,
+        "narrative_intent_embedded_text": row[31] if len(row) > 31 else None,
     }
 
 
@@ -1607,12 +1697,58 @@ def upsert_candidate_profile(conn: Any, profile: dict[str, Any]) -> dict[str, An
     portfolio_url = (str(profile.get("portfolio_url") or "").strip()) or None
     city = (str(profile.get("city") or "").strip()) or None
     country = (str(profile.get("country") or "").strip()) or None
+    narrative_intent = (str(profile.get("narrative_intent") or "").strip()) or None
+    first_name = (str(profile.get("first_name") or "").strip()) or None
+    last_name = (str(profile.get("last_name") or "").strip()) or None
+    street_address = (str(profile.get("street_address") or "").strip()) or None
+    address_line2 = (str(profile.get("address_line2") or "").strip()) or None
+    state_province = (str(profile.get("state_province") or "").strip()) or None
+    postal_code = (str(profile.get("postal_code") or "").strip()) or None
+    desired_salary = (str(profile.get("desired_salary") or "").strip()) or None
+    work_authorization = (str(profile.get("work_authorization") or "").strip()) or None
+    preferred_work_mode = (str(profile.get("preferred_work_mode") or "").strip()) or None
+    willing_to_relocate = bool(profile.get("willing_to_relocate", False))
+    github_url = (str(profile.get("github_url") or "").strip()) or None
+    pronouns = (str(profile.get("pronouns") or "").strip()) or None
     conn.execute(
         """
-        INSERT OR REPLACE INTO candidate_profile
+        INSERT INTO candidate_profile
         (id, years_experience, skills, desired_job_titles, target_role_families, requires_visa_sponsorship, education, degree, degree_field, score_version, updated_at,
-         full_name, email, phone, linkedin_url, portfolio_url, city, country)
-        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         full_name, email, phone, linkedin_url, portfolio_url, city, country, narrative_intent,
+         first_name, last_name, street_address, address_line2, state_province, postal_code,
+         desired_salary, work_authorization, preferred_work_mode, willing_to_relocate, github_url, pronouns)
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          years_experience=excluded.years_experience,
+          skills=excluded.skills,
+          desired_job_titles=excluded.desired_job_titles,
+          target_role_families=excluded.target_role_families,
+          requires_visa_sponsorship=excluded.requires_visa_sponsorship,
+          education=excluded.education,
+          degree=excluded.degree,
+          degree_field=excluded.degree_field,
+          score_version=excluded.score_version,
+          updated_at=excluded.updated_at,
+          full_name=excluded.full_name,
+          email=excluded.email,
+          phone=excluded.phone,
+          linkedin_url=excluded.linkedin_url,
+          portfolio_url=excluded.portfolio_url,
+          city=excluded.city,
+          country=excluded.country,
+          narrative_intent=excluded.narrative_intent,
+          first_name=excluded.first_name,
+          last_name=excluded.last_name,
+          street_address=excluded.street_address,
+          address_line2=excluded.address_line2,
+          state_province=excluded.state_province,
+          postal_code=excluded.postal_code,
+          desired_salary=excluded.desired_salary,
+          work_authorization=excluded.work_authorization,
+          preferred_work_mode=excluded.preferred_work_mode,
+          willing_to_relocate=excluded.willing_to_relocate,
+          github_url=excluded.github_url,
+          pronouns=excluded.pronouns
         """,
         (
             years_experience,
@@ -1632,6 +1768,19 @@ def upsert_candidate_profile(conn: Any, profile: dict[str, Any]) -> dict[str, An
             portfolio_url,
             city,
             country,
+            narrative_intent,
+            first_name,
+            last_name,
+            street_address,
+            address_line2,
+            state_province,
+            postal_code,
+            desired_salary,
+            work_authorization,
+            preferred_work_mode,
+            1 if willing_to_relocate else 0,
+            github_url,
+            pronouns,
         ),
     )
     conn.commit()

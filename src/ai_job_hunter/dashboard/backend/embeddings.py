@@ -1,7 +1,7 @@
 """
 embeddings.py — Vector embedding and semantic job-story matching.
 
-Embeddings are computed via OpenRouter (openai/text-embedding-3-small by default)
+Embeddings are computed via OpenRouter (qwen/qwen3-embedding-8b by default)
 and stored as packed float32 BLOBs. Semantic score blends with the keyword
 score in recompute_match_scores to produce the final ranking.
 
@@ -25,9 +25,10 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-_DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small"
+_DEFAULT_EMBEDDING_MODEL = "qwen/qwen3-embedding-8b"
 
-_SEMANTIC_WEIGHT = 0.25   # fraction blended into keyword score
+_SEMANTIC_WEIGHT = 0.65   # semantic is the primary signal; keyword adjusts around it
+_KEYWORD_ADJUSTMENT_FACTOR = 0.20  # keyword offsets semantic by ±FACTOR*(keyword-50)
 _TOP_K_STORIES = 3
 _MIN_SIMILARITY = 0.40    # stories below this are excluded from "matched" list
 
@@ -189,6 +190,60 @@ def embed_pending_stories(conn: Any) -> int:
     return count
 
 
+def ensure_narrative_intent_embedding(conn: Any) -> bool:
+    """
+    Compute and cache an embedding for the candidate's narrative_intent.
+
+    Re-embeds only when the stored text has changed (or when no embedding
+    exists yet). Requires OPENROUTER_API_KEY + EMBEDDING_MODEL. Silently
+    no-ops and returns False when prerequisites are missing so profile
+    saves never fail because of a missing embedding service.
+
+    Returns True when a new embedding was written.
+    """
+    row = conn.execute(
+        """
+        SELECT narrative_intent, narrative_intent_embedded_text, narrative_intent_embedding
+        FROM candidate_profile WHERE id = 1
+        """
+    ).fetchone()
+    if not row:
+        return False
+    intent_text = (str(row[0] or "").strip()) or None
+    last_embedded = (str(row[1] or "").strip()) or None
+    existing_blob = row[2]
+
+    if not intent_text:
+        # Profile has no intent — clear any stale embedding
+        if existing_blob is not None or last_embedded is not None:
+            conn.execute(
+                "UPDATE candidate_profile SET narrative_intent_embedding = NULL, narrative_intent_embedded_text = NULL WHERE id = 1"
+            )
+            conn.commit()
+        return False
+
+    if existing_blob is not None and last_embedded == intent_text:
+        return False   # already up to date
+
+    try:
+        vector = get_embedding(intent_text)
+    except Exception:
+        logger.warning("Failed to embed narrative_intent", exc_info=True)
+        return False
+
+    blob = encode_vector(vector)
+    conn.execute(
+        """
+        UPDATE candidate_profile
+        SET narrative_intent_embedding = ?, narrative_intent_embedded_text = ?
+        WHERE id = 1
+        """,
+        (blob, intent_text),
+    )
+    conn.commit()
+    return True
+
+
 def embed_pending_jobs(conn: Any, limit: int = 200) -> int:
     """Embed enriched jobs without embeddings. Returns count embedded."""
     model = (os.getenv("EMBEDDING_MODEL") or _DEFAULT_EMBEDDING_MODEL).strip()
@@ -259,47 +314,78 @@ def load_story_embeddings(conn: Any) -> list[dict[str, Any]]:
 def compute_semantic_match(
     job_embedding_blob: bytes | None,
     story_embeddings: list[dict[str, Any]],
+    intent_embedding: list[float] | None = None,
 ) -> tuple[float, list[int], list[str]]:
     """
-    Compute semantic score for a job given preloaded story embeddings.
+    Compute semantic score for a job against the candidate's stories and
+    (optionally) their narrative-intent statement.
 
     Returns:
         (semantic_score 0-100, top_matched_story_ids, top_matched_story_titles)
 
-    semantic_score uses the average cosine similarity of top-K matched stories,
-    scaled to 0-100. Returns (0.0, [], []) when embeddings are unavailable.
+    Score blend:
+        final = 0.7 * top-K story similarity + 0.3 * intent similarity
+        (when intent_embedding is absent, score is 100% story-based)
+
+    Falls back to 0.0 when embeddings are unavailable.
     """
-    if not job_embedding_blob or not story_embeddings:
+    if not job_embedding_blob:
         return 0.0, [], []
 
     job_vec = decode_vector(job_embedding_blob)
     if not job_vec:
         return 0.0, [], []
 
-    sims: list[tuple[float, int, str]] = []
-    for s in story_embeddings:
-        sim = cosine_similarity(job_vec, s["embedding"])
-        sims.append((sim, s["id"], s["title"]))
+    story_score = 0.0
+    top_ids: list[int] = []
+    top_titles: list[str] = []
 
-    sims.sort(key=lambda x: x[0], reverse=True)
-    top = [(sim, sid, stitle) for sim, sid, stitle in sims[:_TOP_K_STORIES] if sim >= _MIN_SIMILARITY]
+    if story_embeddings:
+        sims: list[tuple[float, int, str]] = []
+        for s in story_embeddings:
+            sim = cosine_similarity(job_vec, s["embedding"])
+            sims.append((sim, s["id"], s["title"]))
+        sims.sort(key=lambda x: x[0], reverse=True)
+        top = [(sim, sid, stitle) for sim, sid, stitle in sims[:_TOP_K_STORIES] if sim >= _MIN_SIMILARITY]
+        if top:
+            avg_sim = sum(s[0] for s in top) / len(top)
+            story_score = min(100.0, max(0.0, avg_sim * 100.0))
+            top_ids = [s[1] for s in top]
+            top_titles = [s[2] for s in top]
 
-    if not top:
+    intent_score = 0.0
+    if intent_embedding:
+        intent_sim = cosine_similarity(job_vec, intent_embedding)
+        intent_score = min(100.0, max(0.0, intent_sim * 100.0))
+
+    if intent_embedding and story_score > 0:
+        final = (0.7 * story_score) + (0.3 * intent_score)
+    elif intent_embedding:
+        # No story matches — intent alone drives the score
+        final = intent_score
+    else:
+        final = story_score
+
+    if final <= 0 and not top_ids:
         return 0.0, [], []
 
-    avg_sim = sum(s[0] for s in top) / len(top)
-    semantic_score = min(100.0, max(0.0, avg_sim * 100.0))
-    return semantic_score, [s[1] for s in top], [s[2] for s in top]
+    return final, top_ids, top_titles
 
 
 def blend_scores(keyword_score: float, semantic_score: float) -> float:
     """
-    Blend keyword score with semantic score.
-    Only blends when semantic_score > 0 (i.e. story embeddings exist and matched).
+    Semantic-first blend: semantic anchors the score, keyword provides a ±adjustment.
+
+    When stories exist and match the job (semantic_score > 0), semantic is the primary
+    signal. Keyword coverage shifts the result by up to ±_KEYWORD_ADJUSTMENT_FACTOR*50
+    points (roughly ±10 points for extreme keyword mismatches).
+
+    Falls back to pure keyword when no semantic score is available (no stories yet).
     """
     if semantic_score <= 0:
         return keyword_score
-    return (keyword_score * (1.0 - _SEMANTIC_WEIGHT)) + (semantic_score * _SEMANTIC_WEIGHT)
+    keyword_delta = (keyword_score - 50.0) * _KEYWORD_ADJUSTMENT_FACTOR
+    return max(0.0, min(100.0, semantic_score + keyword_delta))
 
 
 def get_relevant_stories_for_job(

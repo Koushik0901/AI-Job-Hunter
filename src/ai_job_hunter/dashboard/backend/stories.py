@@ -11,7 +11,12 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Literal
+
+import pydantic
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -181,52 +186,86 @@ def count_stories(conn: Any) -> dict[str, int]:
 
 
 # ---------------------------------------------------------------------------
-# LLM extraction from resume
+# LLM extraction from resume — Pydantic output models
 # ---------------------------------------------------------------------------
 
-def _call_llm_json(prompt: str, system: str) -> str:
-    """Call LLM_MODEL (complex task tier) and return raw text."""
+_RESUME_EXTRACTION_PLUGINS = [{"id": "response-healing"}]
+_PROMPTS_DIR = Path(__file__).resolve().parents[3].parent / "prompts"
+
+
+@lru_cache(maxsize=1)
+def _load_extraction_prompt() -> dict:
+    path = _PROMPTS_DIR / "resume_extraction.yaml"
+    if not path.exists():
+        raise FileNotFoundError(f"Prompt file not found: {path}")
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    node = next((v for v in data.values() if isinstance(v, dict)), None) or data
+    return node
+
+
+def _render(template: str, variables: dict[str, str]) -> str:
+    rendered = template
+    for key, value in variables.items():
+        rendered = rendered.replace(f"{{{key}}}", value)
+    return rendered
+
+
+class _ProfileDeltaOutput(pydantic.BaseModel):
+    """Structured profile information extracted from a resume."""
+    full_name: str | None = pydantic.Field(None, description="Candidate's full name from the resume header.")
+    email: str | None = pydantic.Field(None, description="Email address if present.")
+    phone: str | None = pydantic.Field(None, description="Phone number if present.")
+    linkedin_url: str | None = pydantic.Field(None, description="LinkedIn profile URL if present.")
+    portfolio_url: str | None = pydantic.Field(None, description="Portfolio or personal website URL if present.")
+    city: str | None = pydantic.Field(None, description="City from the resume location field.")
+    country: str | None = pydantic.Field(None, description="Country from the resume location field.")
+    years_experience: int | None = pydantic.Field(None, description="Total professional years — explicitly stated or computed from earliest to latest role date, rounded down. null if not determinable.")
+    skills: list[str] = pydantic.Field(default_factory=list, description="Every distinct technical skill, tool, library, language, framework, platform, method, and certification mentioned anywhere in the resume.")
+    desired_job_titles: list[str] = pydantic.Field(default_factory=list, description="Stated career objective titles, or 1-3 inferred from the most recent roles only if unambiguous.")
+    degree: Literal["high_school", "associate", "bachelor", "master", "phd"] | None = pydantic.Field(None, description="Highest degree level. null if not stated.")
+    degree_field: str | None = pydantic.Field(None, description="Field of study for the highest degree. null if not stated.")
+
+
+class _StoryOutput(pydantic.BaseModel):
+    """A single career story extracted from a resume."""
+    title: str = pydantic.Field(description="'Job Title at Company' for roles, project name for projects, 'Career objective' for aspirations.")
+    narrative: str = pydantic.Field(description="Faithful, full paraphrase of everything the resume says about this item. Do not truncate. Do not invent.")
+    role_context: str | None = pydantic.Field(None, description="'Company (date range)' for roles; null for projects and aspirations.")
+    skills: list[str] = pydantic.Field(default_factory=list, description="Skills specifically mentioned or clearly demonstrated in this role/project — a subset of profile_delta skills.")
+    outcomes: list[str] = pydantic.Field(default_factory=list, description="Quantified or clearly stated results, accomplishments, or impact. Empty if none stated.")
+    tags: list[str] = pydantic.Field(default_factory=list, description="1-4 domain/theme tags such as 'fintech', 'leadership', 'distributed-systems', 'nlp'.")
+    importance: int = pydantic.Field(description="1-5 score: 5=most recent or senior role, 4=second most recent, 3=average, 2=older/less relevant, 1=very old or minor.")
+    time_period: str | None = pydantic.Field(None, description="Date range as stated in the resume, e.g. '2022-2024'. null if not present.")
+    kind: Literal["role", "project", "aspiration", "strength"] = pydantic.Field(description="role=work experience entry, project=specific project, aspiration=career objective/summary, strength=personal trait.")
+
+
+class _ExtractFromResumeOutput(pydantic.BaseModel):
+    """Complete structured extraction from a resume document."""
+    profile_delta: _ProfileDeltaOutput = pydantic.Field(description="Profile information extracted from the resume header, summary, and contact section.")
+    stories: list[_StoryOutput] = pydantic.Field(description="One story per distinct role, project, or aspiration. Minimum 1, maximum 10.")
+
+
+def _call_llm_structured(prompt: str, system: str) -> _ExtractFromResumeOutput:
+    """Call LLM_MODEL with structured output, returning a typed _ExtractFromResumeOutput."""
     api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
-
     model = (os.getenv("LLM_MODEL") or "z-ai/glm-5.1").strip()
-
     try:
         from langchain_core.messages import HumanMessage, SystemMessage
         from langchain_openai import ChatOpenAI
     except ImportError:
         raise RuntimeError("langchain-openai is required. Run: uv add langchain-openai")
-
     llm = ChatOpenAI(
         model=model,
         api_key=api_key,
         base_url=_OPENROUTER_BASE_URL,
         temperature=0.1,
         max_tokens=4000,
+        extra_body={"plugins": _RESUME_EXTRACTION_PLUGINS},
     )
-    response = llm.invoke([SystemMessage(content=system), HumanMessage(content=prompt)])
-    return str(getattr(response, "content", "") or "").strip()
-
-
-def _clean_json_response(raw: str) -> str:
-    """Strip markdown fences if the model wrapped the JSON."""
-    text = raw.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        # Drop opening fence line and closing fence
-        inner = []
-        in_block = False
-        for line in lines:
-            if line.startswith("```") and not in_block:
-                in_block = True
-                continue
-            if line.startswith("```") and in_block:
-                break
-            if in_block:
-                inner.append(line)
-        text = "\n".join(inner).strip()
-    return text
+    structured = llm.with_structured_output(_ExtractFromResumeOutput, method="json_schema", strict=True)
+    return structured.invoke([SystemMessage(content=system), HumanMessage(content=prompt)])
 
 
 def extract_from_resume(content_md: str) -> dict:
@@ -237,123 +276,49 @@ def extract_from_resume(content_md: str) -> dict:
       profile_delta: dict matching ExtractedProfileDelta fields
       stories: list of dicts matching UserStoryCreate fields (all with draft=True, source='resume_extracted')
     """
-    system = (
-        "You are a structured data extraction engine. "
-        "Output exactly one JSON object — starting with { and ending with }. "
-        "Zero text, markdown fences, or explanation before or after the JSON. "
-        "Extract only facts explicitly present in the resume. Never invent, embellish, or infer. "
-        "Use null for any missing scalar field. Use [] for any missing list field."
-    )
+    tpl = _load_extraction_prompt()
+    system = tpl["system"].strip()
+    prompt = _render(tpl["user"], {"resume_content": content_md[:6000]})
+    result = _call_llm_structured(prompt, system)
 
-    prompt = f"""Extract structured data from the resume below.
-
-RESUME:
-{content_md[:6000]}
-
-===OUTPUT SCHEMA===
-Output ONLY this JSON object — exactly these two top-level keys:
-
-{{
-  "profile_delta": {{
-    "full_name":          string or null,
-    "email":              string or null,
-    "phone":              string or null,
-    "linkedin_url":       string or null,
-    "portfolio_url":      string or null,
-    "city":               string or null,
-    "country":            string or null,
-    "years_experience":   integer or null,
-    "skills":             ["string", ...],
-    "desired_job_titles": ["string", ...],
-    "degree":             "high_school"|"associate"|"bachelor"|"master"|"phd" or null,
-    "degree_field":       string or null
-  }},
-  "stories": [
-    {{
-      "title":        string,
-      "narrative":    string,
-      "role_context": string or null,
-      "skills":       ["string", ...],
-      "outcomes":     ["string", ...],
-      "tags":         ["string", ...],
-      "importance":   integer 1-5,
-      "time_period":  string or null,
-      "kind":         "role"|"project"|"aspiration"|"strength"
-    }}
-  ]
-}}
-
-===EXTRACTION RULES===
-
-profile_delta:
-- full_name: The candidate's full name from the header.
-- email/phone/linkedin_url/portfolio_url: Contact details only if present.
-- city/country: Location if stated.
-- years_experience: Total professional years if explicitly stated; else compute from earliest to latest role end date (or today); round down. null if not determinable.
-- skills: Every distinct technical skill, tool, library, language, framework, platform, method, and certification mentioned anywhere in the resume. Be exhaustive.
-- desired_job_titles: Any stated career objective titles, or infer 1-3 titles from the most recent roles only if they are clear.
-- degree / degree_field: Highest degree level and field of study. Use null if not stated.
-
-stories (create one story per item below):
-1. ONE story per distinct ROLE / EMPLOYMENT entry. Use the job title + company as the title. The narrative must faithfully paraphrase what the resume says — do NOT invent. Include every bullet point or responsibility described in that role. kind="role".
-2. ONE story per distinct PROJECT if the resume has a projects section. kind="project".
-3. If the resume contains an objective or summary section, create ONE aspiration story capturing it. kind="aspiration".
-
-For each story:
-- title: "<Job Title> at <Company>" for roles, project name for projects, "Career objective" for aspirations.
-- narrative: A faithful, full paraphrase of everything the resume says about this item. Do not truncate. Do not invent.
-- role_context: "<Company> (<date range>)" for roles; null for aspirations.
-- skills: Skills specifically mentioned or clearly demonstrated in this role/project — a subset of profile_delta.skills.
-- outcomes: Quantified or clearly stated results, accomplishments, or impact ("Reduced latency by 30%", "Led team of 5 engineers"). Empty list if none stated.
-- tags: 1-4 domain/theme tags (e.g. "fintech", "leadership", "distributed-systems", "nlp").
-- importance: 5 = most recent or most senior role; 4 = second most recent; 3 = average; 2 = older/less relevant; 1 = very old or minor.
-- time_period: Date range as stated in the resume, e.g. "2022-2024". null if not present.
-
-Minimum 1 story (at least the most recent role). Maximum 10 stories.
-===END SCHEMA==="""
-
-    raw = _call_llm_json(prompt, system)
-    cleaned = _clean_json_response(raw)
-
-    try:
-        data = json.loads(cleaned)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"LLM returned non-JSON response during resume extraction: {exc}\n\nRaw: {raw[:500]}"
-        ) from exc
-
-    # Normalise profile_delta
-    profile_delta = data.get("profile_delta") or {}
-    if not isinstance(profile_delta, dict):
-        profile_delta = {}
-
-    # Normalise stories and stamp them as draft resume-extracted
-    raw_stories = data.get("stories") or []
-    if not isinstance(raw_stories, list):
-        raw_stories = []
+    # Convert Pydantic object → dicts, stamping stories as draft resume-extracted
+    pd = result.profile_delta
+    profile_delta = {
+        "full_name": pd.full_name,
+        "email": pd.email,
+        "phone": pd.phone,
+        "linkedin_url": pd.linkedin_url,
+        "portfolio_url": pd.portfolio_url,
+        "city": pd.city,
+        "country": pd.country,
+        "years_experience": pd.years_experience,
+        "skills": [str(x) for x in (pd.skills or []) if x],
+        "desired_job_titles": [str(x) for x in (pd.desired_job_titles or []) if x],
+        "degree": pd.degree,
+        "degree_field": pd.degree_field,
+    }
 
     stories: list[dict] = []
-    for s in raw_stories:
-        if not isinstance(s, dict):
-            continue
-        title = str(s.get("title") or "").strip()
+    for s in result.stories:
+        title = (s.title or "").strip()
         if not title:
             continue
-        stories.append(
-            {
-                "title": title,
-                "narrative": str(s.get("narrative") or "").strip(),
-                "role_context": s.get("role_context") or None,
-                "skills": [str(x) for x in (s.get("skills") or []) if x],
-                "outcomes": [str(x) for x in (s.get("outcomes") or []) if x],
-                "tags": [str(x) for x in (s.get("tags") or []) if x],
-                "importance": max(1, min(5, int(s.get("importance") or 3))),
-                "time_period": s.get("time_period") or None,
-                "kind": str(s.get("kind") or "role"),
-                "source": "resume_extracted",
-                "draft": True,
-            }
-        )
+        kind = s.kind or "role"
+        if kind not in ("role", "project", "aspiration", "strength"):
+            kind = "role"
+        stories.append({
+            "title": title,
+            "narrative": (s.narrative or "").strip(),
+            "role_context": s.role_context or None,
+            "skills": [str(x) for x in (s.skills or []) if x],
+            "outcomes": [str(x) for x in (s.outcomes or []) if x],
+            "tags": [str(x) for x in (s.tags or []) if x],
+            "importance": max(1, min(5, int(s.importance or 3))),
+            "time_period": s.time_period or None,
+            "kind": kind,
+            "source": "resume_extracted",
+            "draft": True,
+        })
 
     return {"profile_delta": profile_delta, "stories": stories}
 

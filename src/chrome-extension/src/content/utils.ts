@@ -59,10 +59,17 @@ export function genericFill(profile: AutofillProfile): FillResult {
     [["full name", "your name", "name"], profile.full_name],
     [["email", "e-mail"], profile.email],
     [["phone", "mobile", "telephone"], profile.phone],
-    [["linkedin", "linkedin url", "linkedin profile"], profile.linkedin_url],
-    [["portfolio", "website", "personal website", "personal site"], profile.portfolio_url],
+    [["street address", "address line 1", "address 1", "street"], profile.street_address],
+    [["address line 2", "address 2", "apt", "suite", "unit"], profile.address_line2],
     [["city", "current city"], profile.city],
+    [["state", "province", "state / province", "state/province", "region"], profile.state_province],
+    [["zip", "postal code", "zip code", "postcode"], profile.postal_code],
     [["country"], profile.country],
+    [["linkedin", "linkedin url", "linkedin profile"], profile.linkedin_url],
+    [["github", "github url", "github profile"], profile.github_url],
+    [["portfolio", "website", "personal website", "personal site"], profile.portfolio_url],
+    [["salary", "desired salary", "expected salary", "salary expectation", "compensation", "target salary"], profile.desired_salary],
+    [["work authorization", "work auth", "authorization to work", "employment eligibility"], profile.work_authorization],
   ];
 
   for (const [keywords, value] of fieldMap) {

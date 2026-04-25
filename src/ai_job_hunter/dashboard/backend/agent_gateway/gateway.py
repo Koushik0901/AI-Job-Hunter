@@ -4,7 +4,7 @@ import re
 from typing import Any
 
 from .core_access import CoreActionClient, CoreReadClient
-from .legacy_chat import build_agent_context, handle_freeform_chat
+from .legacy_chat import build_agent_context
 from .skills import resolve_skill_invocation
 from .tool_agent import handle_tool_agent_chat
 
@@ -263,6 +263,29 @@ def handle_agent_chat(
             active_artifact_id=active_artifact_id,
             context_snapshot=context_snapshot,
         )
+
+    if name == "apply":
+        # /apply is orchestrated client-side via POST /api/jobs/{id}/apply.
+        # If the backend receives the skill invocation anyway (e.g. from tool_agent),
+        # return an advisory reply so the user knows what happened.
+        job_label = ""
+        if selected_job_id:
+            row = reads.conn.execute(
+                "SELECT title, company FROM jobs WHERE id = ?", (selected_job_id,)
+            ).fetchone()
+            if row:
+                job_label = f" for {row[1]} — {row[0]}"
+        return {
+            "reply": (
+                f"Starting the full /apply pipeline{job_label}. "
+                "Watch the progress canvas on the right — it will update step by step."
+            ),
+            "context_snapshot": context_snapshot,
+            "response_mode": "skill",
+            "output_kind": "apply",
+            "output_payload": {"job_id": selected_job_id},
+            "operation_id": None,
+        }
 
     return _build_no_output(
         "That skill is not available yet.",

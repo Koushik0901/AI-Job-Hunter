@@ -68,6 +68,17 @@ def _invalidate_after_task(
                 job_id=job_id or None,
                 operation_id=operation_id,
             )
+        if kind == "apply_orchestrate":
+            job_id = str(params.get("job_id") or "")
+            if job_id:
+                cache.invalidate_job_detail(job_id)
+            cache.invalidate_for_assistant_change()
+            cache.publish_dashboard_event(
+                "refresh",
+                "artifacts",
+                job_id=job_id or None,
+                operation_id=operation_id,
+            )
         if kind == "resume_extract":
             cache.publish_dashboard_event(
                 "refresh",
@@ -79,6 +90,11 @@ def _invalidate_after_task(
 
 
 def _run_artifact_generate(params: dict[str, Any]) -> dict[str, Any]:
+    from ai_job_hunter.dashboard.backend.structured_artifacts import (
+        generate_resume_structured,
+        generate_cover_letter_structured,
+    )
+
     job_id = str(params.get("job_id") or "")
     artifact_type = str(params.get("artifact_type") or "")
     base_doc_id = int(params.get("base_doc_id") or 0)
@@ -87,21 +103,19 @@ def _run_artifact_generate(params: dict[str, Any]) -> dict[str, Any]:
         row = conn.execute("SELECT id FROM jobs WHERE id = ?", (job_id,)).fetchone()
         if not row:
             raise ValueError("Job not found")
-        model = (os.getenv("ARTIFACT_MODEL") or "openai/gpt-4o").strip()
-
-        # Load story context once for both generation and save
-        story_context, story_ids = artifact_svc.load_story_context_for_generation(job_id, conn)
+        model = (os.getenv("LLM_MODEL") or "z-ai/glm-5.1").strip()
 
         if artifact_type == "resume":
-            content_md, story_ids = artifact_svc.generate_tailored_resume(
-                job_id, base_doc_id, conn, story_context=story_context, story_ids_used=story_ids
+            content_md, provenance, story_ids = generate_resume_structured(
+                job_id, base_doc_id, conn
             )
         elif artifact_type == "cover_letter":
-            content_md, story_ids = artifact_svc.generate_cover_letter(
-                job_id, base_doc_id, conn, story_context=story_context, story_ids_used=story_ids
+            content_md, provenance, story_ids = generate_cover_letter_structured(
+                job_id, base_doc_id, conn
             )
         else:
             raise ValueError("Unsupported artifact type")
+
         artifact = artifact_svc.save_artifact(
             job_id,
             artifact_type,
@@ -110,6 +124,10 @@ def _run_artifact_generate(params: dict[str, Any]) -> dict[str, Any]:
             model,
             conn,
             story_ids_used=story_ids,
+            provenance=provenance,
+        )
+        grounded = sum(
+            1 for p in provenance if (p.get("source_type") or "ungrounded") != "ungrounded"
         )
         return {
             "job_id": job_id,
@@ -117,6 +135,8 @@ def _run_artifact_generate(params: dict[str, Any]) -> dict[str, Any]:
             "artifact_id": int(artifact.get("id") or 0),
             "version": int(artifact.get("version") or 0),
             "stories_grounded": len(story_ids),
+            "bullets_grounded": grounded,
+            "bullets_total": len(provenance),
         }
     finally:
         conn.close()
@@ -157,6 +177,27 @@ def _run_resume_extract(params: dict[str, Any]) -> dict[str, Any]:
         conn.close()
 
 
+def _run_apply_orchestrate(params: dict[str, Any], operation_id: str) -> dict[str, Any]:
+    from ai_job_hunter.dashboard.backend.agent_gateway.orchestrators.apply import (
+        run_apply_orchestrator,
+    )
+
+    job_id = str(params.get("job_id") or "")
+    if not job_id:
+        raise ValueError("job_id is required")
+    resume_base = params.get("resume_base_doc_id")
+    cover_base = params.get("cover_letter_base_doc_id")
+
+    summary = run_apply_orchestrator(
+        job_id,
+        operation_id,
+        _conn,
+        resume_base_doc_id=int(resume_base) if resume_base else None,
+        cover_letter_base_doc_id=int(cover_base) if cover_base else None,
+    )
+    return summary
+
+
 def _run_embed_stories(params: dict[str, Any]) -> dict[str, Any]:
     from ai_job_hunter.dashboard.backend.embeddings import embed_pending_jobs, embed_pending_stories
     conn = _conn()
@@ -168,7 +209,9 @@ def _run_embed_stories(params: dict[str, Any]) -> dict[str, Any]:
         conn.close()
 
 
-def execute_task(kind: str, params: dict[str, Any]) -> dict[str, Any]:
+def execute_task(
+    kind: str, params: dict[str, Any], operation_id: str | None = None
+) -> dict[str, Any]:
     if kind == "artifact_generate":
         return _run_artifact_generate(params)
     if kind == "dashboard_snapshot_refresh":
@@ -177,13 +220,17 @@ def execute_task(kind: str, params: dict[str, Any]) -> dict[str, Any]:
         return _run_resume_extract(params)
     if kind == "embed_stories":
         return _run_embed_stories(params)
+    if kind == "apply_orchestrate":
+        if not operation_id:
+            raise ValueError("apply_orchestrate requires operation_id")
+        return _run_apply_orchestrate(params, operation_id)
     raise ValueError(f"Unsupported task kind: {kind}")
 
 
 def run_operation(operation_id: str, kind: str, params: dict[str, Any]) -> dict[str, Any]:
     _mark_operation(operation_id, status="running")
     try:
-        summary = execute_task(kind, params)
+        summary = execute_task(kind, params, operation_id=operation_id)
         _mark_operation(operation_id, status="completed", summary=summary)
         _invalidate_after_task(kind, params, operation_id)
         return summary

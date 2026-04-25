@@ -153,7 +153,49 @@ def _run_workspace_operation_body(conn: Any, kind: str, params: dict[str, Any], 
         return _run_enrich(conn, params, console, force=True)
     if kind == "jd_reformat":
         return _run_jd_reformat(conn, params, console)
+    if kind == "blurb_backfill":
+        return _run_blurb_backfill(conn, params, console)
     raise ValueError(f"Unsupported workspace operation kind: {kind}")
+
+
+def _run_blurb_backfill(conn: Any, params: dict[str, Any], console: Console) -> dict[str, Any]:
+    """Generate LLM 'Kenji's read' blurbs for the top-N viable unapplied jobs.
+
+    Cheap, idempotent, skippable on missing OPENROUTER_API_KEY. Does not touch
+    scoring or enrichment — purely narrative post-processing.
+    """
+    from ai_job_hunter.dashboard.backend import reasoning_blurb
+    force = bool(params.get("force", False))
+    top_n = int(params.get("top_n") or 150)
+    console.print(
+        f"[bold]Blurb backfill:[/bold] scanning top {top_n} viable unapplied "
+        f"(force={'yes' if force else 'no'})"
+    )
+    try:
+        written = reasoning_blurb.generate_blurbs(
+            conn, job_ids=None, force=force, top_n=top_n
+        )
+    except Exception as error:
+        console.print(f"[red]Blurb backfill failed:[/red] {error}")
+        raise
+    # Snapshots cache the full job item (including llm_blurb) in payload_json.
+    # Refresh ALL snapshots for this profile_version so jobs already blurbed in
+    # earlier runs (but with stale payloads) also surface the llm_blurb field.
+    try:
+        from ai_job_hunter.dashboard.backend.repository import refresh_dashboard_snapshots
+        # recompute=False: we only wrote reasoning_blurb. Recomputing scores
+        # would INSERT OR REPLACE the rows and wipe the blurbs we just wrote.
+        refresh_dashboard_snapshots(conn, recompute=False)
+        console.print("[dim]Dashboard snapshots refreshed.[/dim]")
+    except Exception as snap_error:
+        console.print(f"[yellow]Snapshot refresh after blurb backfill failed:[/yellow] {snap_error}")
+    _invalidate_dashboard_views()
+    return {
+        "blurbs_generated": len(written),
+        "force": force,
+        "top_n": top_n,
+        "finished_at": now_iso(),
+    }
 
 
 def _run_scrape(conn: Any, params: dict[str, Any], console: Console) -> dict[str, Any]:
@@ -163,7 +205,7 @@ def _run_scrape(conn: Any, params: dict[str, Any], console: Console) -> dict[str
 
     openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
     openrouter_model = env_or_default("ENRICHMENT_MODEL", "openai/gpt-oss-120b")
-    description_format_model = env_or_default("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-20b:paid")
+    description_format_model = env_or_default("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-120b")
     sort_by = str(params.get("sort_by") or "match")
     console.print(f"[bold]Scraping {len(companies)} enabled company sources[/bold]")
     jobs = scrape_all(
@@ -179,7 +221,18 @@ def _run_scrape(conn: Any, params: dict[str, Any], console: Console) -> dict[str
     url_to_enrichment = load_enrichments_for_urls(conn, [str(job.get("url") or "") for job in jobs if str(job.get("url") or "")])
     for job in jobs:
         enrichment = url_to_enrichment.get(str(job.get("url") or ""), {})
-        match = compute_match_score({"title": job.get("title", ""), "enrichment": enrichment}, profile)
+        # Semantic score is computed later by recompute_match_scores once job
+        # embeddings exist; at scrape-time we score without it (neutral 55).
+        match = compute_match_score(
+            {
+                "title": job.get("title", ""),
+                "enrichment": enrichment,
+                "semantic_score": None,
+                "posted": job.get("posted"),
+                "first_seen": job.get("first_seen"),
+            },
+            profile,
+        )
         job["match_score"] = match["score"]
         job["match_band"] = match["band"]
 
@@ -256,7 +309,7 @@ def _run_enrich(conn: Any, params: dict[str, Any], console: Console, *, force: b
     if not openrouter_api_key:
         raise RuntimeError("OPENROUTER_API_KEY is not configured.")
     openrouter_model = env_or_default("ENRICHMENT_MODEL", "openai/gpt-oss-120b")
-    description_format_model = env_or_default("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-20b:paid")
+    description_format_model = env_or_default("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-120b")
     jobs_to_enrich = load_unenriched_jobs(conn, force=force)
     console.print(f"[bold]Enrichment queue:[/bold] {len(jobs_to_enrich)} job(s)")
     try:
@@ -280,6 +333,32 @@ def _run_enrich(conn: Any, params: dict[str, Any], console: Console, *, force: b
                 conn,
                 urls=[str(job.get("url") or "") for job in jobs_to_enrich if str(job.get("url") or "").strip()],
             )
+            # Generate per-job editorial blurbs for the top viable unapplied cards.
+            # Cheap (SLM) and non-fatal — failures must not break enrichment.
+            try:
+                from ai_job_hunter.dashboard.backend import reasoning_blurb
+                written = reasoning_blurb.generate_blurbs(conn, job_ids=None, force=False)
+                if written:
+                    console.print(
+                        f"[bold]Kenji's read blurbs:[/bold] generated {len(written)}"
+                    )
+                    # Snapshots cache llm_blurb in payload_json; refresh affected rows
+                    # so the dashboard actually shows the new blurbs. recompute=False
+                    # so the snapshot refresh doesn't INSERT OR REPLACE the blurbs away.
+                    try:
+                        dashboard_repository.refresh_dashboard_snapshots(
+                            conn, job_ids=list(written.keys()), recompute=False
+                        )
+                    except Exception as snap_err:
+                        logger.warning(
+                            "snapshot refresh after blurb generation failed: %s",
+                            snap_err,
+                            exc_info=True,
+                        )
+            except Exception as blurb_error:
+                logger.warning(
+                    "reasoning_blurb generation failed: %s", blurb_error, exc_info=True
+                )
             _set_processing_state_for_jobs(
                 conn,
                 jobs_to_enrich,
@@ -313,7 +392,7 @@ def _run_jd_reformat(conn: Any, params: dict[str, Any], console: Console) -> dic
     if not openrouter_api_key:
         raise RuntimeError("OPENROUTER_API_KEY is not configured.")
     missing_only = bool(params.get("missing_only", True))
-    description_format_model = env_or_default("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-20b:paid")
+    description_format_model = env_or_default("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-120b")
     jobs_to_process = load_jobs_for_jd_reformat(conn, missing_only=missing_only)
     console.print(f"[bold]JD reformat queue:[/bold] {len(jobs_to_process)} job(s)")
     try:

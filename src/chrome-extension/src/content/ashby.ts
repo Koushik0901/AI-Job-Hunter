@@ -27,11 +27,28 @@ export function fillForm(profile: AutofillProfile): FillResult {
   tryLabel("last name", profile.last_name);
   tryLabel("email", profile.email);
   tryLabel("phone", profile.phone);
-  tryLabel("linkedin", profile.linkedin_url);
-  tryLabel("website", profile.portfolio_url);
-  tryLabel("portfolio", profile.portfolio_url);
+  // Address
+  tryLabel("street address", profile.street_address);
+  tryLabel("address line 1", profile.street_address);
+  tryLabel("address line 2", profile.address_line2);
   tryLabel("city", profile.city);
   tryLabel("location", profile.city);
+  tryLabel("state", profile.state_province);
+  tryLabel("province", profile.state_province);
+  tryLabel("zip", profile.postal_code);
+  tryLabel("postal code", profile.postal_code);
+  tryLabel("country", profile.country);
+  // Links
+  tryLabel("linkedin", profile.linkedin_url);
+  tryLabel("github", profile.github_url);
+  tryLabel("website", profile.portfolio_url);
+  tryLabel("portfolio", profile.portfolio_url);
+  // Career
+  tryLabel("salary", profile.desired_salary);
+  tryLabel("desired salary", profile.desired_salary);
+  tryLabel("compensation", profile.desired_salary);
+  tryLabel("work authorization", profile.work_authorization);
+  tryLabel("authorized to work", profile.work_authorization);
 
   const generic = genericFill(profile);
   result.filled += generic.filled;

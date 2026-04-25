@@ -19,6 +19,7 @@ class RecommendationMixin(BaseModel):
     guidance_reasons: list[str] = Field(default_factory=list)
     next_best_action: str | None = None
     health_label: str | None = None
+    llm_blurb: str | None = None
 
 
 class JobProcessingState(BaseModel):
@@ -160,12 +161,25 @@ class CandidateProfile(BaseModel):
     score_version: int | None = None
     updated_at: str | None = None
     full_name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
     email: str | None = None
     phone: str | None = None
     linkedin_url: str | None = None
     portfolio_url: str | None = None
+    github_url: str | None = None
     city: str | None = None
+    state_province: str | None = None
+    postal_code: str | None = None
     country: str | None = None
+    street_address: str | None = None
+    address_line2: str | None = None
+    narrative_intent: str | None = None
+    desired_salary: str | None = None
+    work_authorization: str | None = None
+    preferred_work_mode: str | None = None
+    willing_to_relocate: bool = False
+    pronouns: str | None = None
 
 
 class BaseDocument(BaseModel):
@@ -206,6 +220,11 @@ class JobArtifact(BaseModel):
 
 class GenerateArtifactRequest(BaseModel):
     base_doc_id: int
+
+
+class ApplyOrchestrateRequest(BaseModel):
+    resume_base_doc_id: int | None = None
+    cover_letter_base_doc_id: int | None = None
 
 
 class UpdateArtifactRequest(BaseModel):
@@ -505,6 +524,48 @@ class UserStoryUpdate(BaseModel):
     time_period: str | None = Field(default=None, max_length=100)
     kind: str | None = Field(default=None, pattern="^(role|project|aspiration|strength)$")
     draft: bool | None = None
+
+
+class InterviewTurn(BaseModel):
+    question: str
+    answer: str
+
+
+class InterviewNextRequest(BaseModel):
+    conversation: list[InterviewTurn] = Field(default_factory=list)
+
+
+class InterviewNextResponse(BaseModel):
+    next_question: str | None = None
+    done: bool = False
+    covered: list[str] = Field(default_factory=list)
+    question_index: int = 0
+
+
+class InterviewStoryDraft(BaseModel):
+    title: str
+    narrative: str
+    kind: str = "role"
+    skills: list[str] = Field(default_factory=list)
+    outcomes: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    time_period: str | None = None
+
+
+class InterviewProfilePatch(BaseModel):
+    skills: list[str] = Field(default_factory=list)
+    desired_job_titles: list[str] = Field(default_factory=list)
+    preferred_work_mode: str | None = None
+    narrative_intent: str | None = None
+
+
+class InterviewFinishRequest(BaseModel):
+    conversation: list[InterviewTurn]
+
+
+class InterviewFinishResponse(BaseModel):
+    stories: list[InterviewStoryDraft] = Field(default_factory=list)
+    profile_patch: InterviewProfilePatch = Field(default_factory=InterviewProfilePatch)
 
 
 class ExtractedProfileDelta(BaseModel):

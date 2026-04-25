@@ -28,7 +28,7 @@ export function fillForm(profile: AutofillProfile): FillResult {
   tryQa("phone", profile.phone);
   tryQa("org", undefined); // current company — skip
   tryQa("linkedin", profile.linkedin_url);
-  tryQa("twitter", undefined);
+  tryQa("twitter", undefined); // skip
 
   // Website / portfolio
   const websiteEl = document.querySelector<HTMLInputElement>('[data-qa="website"], [placeholder*="website" i], [placeholder*="portfolio" i]');
@@ -36,6 +36,14 @@ export function fillForm(profile: AutofillProfile): FillResult {
     fillField(websiteEl, profile.portfolio_url);
     result.filled++;
     result.fields.push("website");
+  }
+
+  // GitHub (Lever sometimes adds as custom question)
+  const githubEl = document.querySelector<HTMLInputElement>('[data-qa="github"], input[placeholder*="github" i], input[id*="github"]');
+  if (githubEl && !githubEl.value && profile.github_url) {
+    fillField(githubEl, profile.github_url);
+    result.filled++;
+    result.fields.push("github");
   }
 
   const generic = genericFill(profile);

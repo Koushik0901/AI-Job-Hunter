@@ -33,6 +33,23 @@ def register(subparsers) -> None:
         help="Reformat job descriptions for all enriched rows (enrichment_status=ok), then exit",
     )
     parser.add_argument("--sort-by", choices=("match", "posted"), default="match", help="Display ordering for scraped jobs")
+    parser.add_argument(
+        "--blurb-backfill",
+        action="store_true",
+        help="Generate LLM 'Kenji's read' blurbs for the top viable unapplied jobs missing them, then exit",
+    )
+    parser.add_argument(
+        "--blurb-force",
+        action="store_true",
+        help="With --blurb-backfill: regenerate even if a blurb already exists",
+    )
+    parser.add_argument(
+        "--blurb-top-n",
+        type=int,
+        default=150,
+        metavar="N",
+        help="With --blurb-backfill: cap the number of jobs to blurb (default: 150)",
+    )
 
 
 def _resolve_db():
@@ -52,7 +69,7 @@ def run(args) -> None:
     console = Console(stderr=True)
     if not (os.getenv("DESCRIPTION_FORMAT_MODEL") or "").strip():
         console.print(
-            f"[yellow]DESCRIPTION_FORMAT_MODEL missing/empty; using default: {env_or_default('DESCRIPTION_FORMAT_MODEL', 'openai/gpt-oss-20b:paid')}[/yellow]"
+            f"[yellow]DESCRIPTION_FORMAT_MODEL missing/empty; using default: {env_or_default('DESCRIPTION_FORMAT_MODEL', 'openai/gpt-oss-120b')}[/yellow]"
         )
 
     try:
@@ -66,6 +83,20 @@ def run(args) -> None:
             console.print(
                 f"[bold]{'JD reformat missing' if args.jd_reformat_missing else 'JD reformat all'}:[/bold] "
                 f"{int(summary.get('jobs_processed', 0) or 0)} job(s) processed in {db_label}"
+            )
+            conn.close()
+            return
+
+        if args.blurb_backfill:
+            summary = execute_workspace_operation(
+                conn,
+                "blurb_backfill",
+                {"force": bool(args.blurb_force), "top_n": int(args.blurb_top_n)},
+                console=console,
+            )
+            console.print(
+                f"[bold]Blurb backfill:[/bold] generated "
+                f"{int(summary.get('blurbs_generated', 0) or 0)} blurb(s) in {db_label}"
             )
             conn.close()
             return

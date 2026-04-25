@@ -341,18 +341,18 @@ def _make_chain(
     if provider_cfg:
         provider_cfg["allow_fallbacks"] = True
 
-    extra: dict = {}
+    extra_body: dict = {"plugins": [{"id": "response-healing"}]}
     if provider_cfg:
-        extra["extra_body"] = {"provider": provider_cfg}
+        extra_body["provider"] = provider_cfg
 
     llm = ChatOpenAI(
         model=model,
         api_key=api_key,
         base_url=_OPENROUTER_BASE_URL,
         temperature=0,
-        **extra,
+        extra_body=extra_body,
     )
-    return llm.with_structured_output(JobEnrichment)
+    return llm.with_structured_output(JobEnrichment, method="json_schema", strict=True)
 
 
 def _make_text_llm(
