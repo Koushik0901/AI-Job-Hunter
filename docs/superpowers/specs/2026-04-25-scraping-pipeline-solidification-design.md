@@ -22,22 +22,36 @@ The failure mode is unknown, so we treat diagnosis as its own step (a throwaway 
 
 ## Section 1 — Triage
 
-A script at `scripts/triage_fetchers.py`. Calls each fetcher against a known-good slug, prints HTTP outcome + field names in the first record + job count. Nothing is saved, nothing is modified.
+A script at `scripts/triage_fetchers.py`. Reads `company_sources` from the DB, samples up to 10 companies per ATS, probes them all concurrently via the existing `probe_service` infrastructure, and prints the results. Nothing is saved, nothing is modified.
 
-**Known-good slugs:**
+**Sampling:** For each ATS provider, select up to 10 rows at random from `company_sources` (all rows if fewer than 10 exist for that ATS). The sample is re-randomised on each run so repeated runs give wider coverage over time.
 
-| ATS | Slug | Basis |
-|---|---|---|
-| greenhouse | `stripe` | large board, always hiring |
-| lever | `lever` | Lever's own jobs board — self-referential, always live |
-| ashby | `ashby` | same |
-| workable | `valsoft-corp` | in existing `test_probe_service_live.py` |
-| smartrecruiters | `Visa` | in existing live test |
-| recruitee | `recruitee` | self-referential — substitute with first company in `company_sources` if slug is invalid |
-| teamtailor | `teamtailor` | self-referential — substitute with first company in `company_sources` if slug is invalid |
-| hn | — | no slug; checks thread lookup only |
+**Output:** One flat Rich table, sorted by ATS then company name:
 
-Output: plain table — ATS, slug, status (`OK` / `ERROR` / `EMPTY`), job count, and for errors: exception class + message.
+| ATS | Company | Slug | Status | Jobs | Note |
+|---|---|---|---|---|---|
+| ashby | Cohere | cohere | OK | 12 | |
+| ashby | Notion | notion | OK | 8 | |
+| ashby | Properly | properly | EMPTY | 0 | |
+| lever | AltaML | altaml | ERROR | — | HTTPError 404 |
+| lever | Aisera | aisera | OK | 5 | |
+| ... | | | | | |
+
+**Status colour coding:** green `OK` (≥1 job), yellow `EMPTY` (probe succeeded, 0 jobs), red `ERROR` (network/HTTP failure — short exception class + message in Note column).
+
+**Summary block** after the table — one line per ATS:
+
+```
+greenhouse   18 OK  ·  2 empty  ·  0 errors  of 10 sampled
+lever         6 OK  ·  1 empty  ·  3 errors  of 10 sampled
+ashby         9 OK  ·  1 empty  ·  0 errors  of 10 sampled
+workable      4 OK  ·  2 empty  ·  4 errors  of 10 sampled
+...
+```
+
+This gives an error-rate per ATS at a glance — the primary output we need to decide which fetchers to fix first.
+
+**HN** has no slug; the triage checks thread lookup only and reports a single OK/ERROR row.
 
 ---
 
@@ -74,7 +88,7 @@ The title/location filter is the most common silent drop. Fix is in `companies.y
 
 ### Fixture recording
 
-Script at `scripts/record_fixtures.py`. Calls each fetcher's underlying HTTP layer against the known-good slugs and saves raw responses to `tests/fixtures/`. File naming: `<ats>_<slug>.(json|html)`. HTML for scrapers (Ashby, Teamtailor); JSON for API-based fetchers. Re-record at any time by re-running the script — it overwrites in place.
+Script at `scripts/record_fixtures.py`. For each ATS, uses one confirmed-OK slug (chosen from the triage output — the first company that returned ≥1 job) to hit the real API and saves the raw response to `tests/fixtures/`. File naming: `<ats>_<slug>.(json|html)`. HTML for scrapers (Ashby, Teamtailor); JSON for API-based fetchers. Re-record at any time by re-running the script — it overwrites in place. The chosen slug is printed to stdout so it's reproducible.
 
 ### Test structure
 
@@ -90,13 +104,13 @@ tests/
   test_fetchers_recruitee.py
   test_fetchers_teamtailor.py
   fixtures/
-    greenhouse_stripe.json
-    lever_lever.json
-    ashby_ashby.html
-    workable_valsoft-corp.json
-    smartrecruiters_Visa.json
-    recruitee_recruitee.json
-    teamtailor_teamtailor.html
+    greenhouse_<slug>.json     ← slug determined at record time
+    lever_<slug>.json
+    ashby_<slug>.html
+    workable_<slug>.json
+    smartrecruiters_<slug>.json
+    recruitee_<slug>.json
+    teamtailor_<slug>.html
 ```
 
 Each test monkeypatches `requests.get` / `requests.post` to return a `_FakeResponse` loaded from the fixture file — same pattern as the existing Workable test. No network required at test time.
