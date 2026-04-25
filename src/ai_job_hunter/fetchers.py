@@ -102,12 +102,28 @@ def _extract_json_array_from_html(html_text: str, key: str) -> list[dict[str, An
     return payload if isinstance(payload, list) else []
 
 
+def _fetch_ashby_via_api(org_slug: str) -> list[dict[str, Any]] | None:
+    """Try Ashby's public JSON posting API. Returns None on any failure."""
+    url = f"https://api.ashbyhq.com/posting-api/job-board/{org_slug}"
+    try:
+        resp = requests.get(url, timeout=30)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        return [j for j in data.get("jobPostings", []) if isinstance(j, dict)]
+    except Exception:
+        return None
+
+
 @retry_with_backoff(max_attempts=3)
 def fetch_ashby(org_slug: str) -> list[dict[str, Any]]:
-    url = f"https://jobs.ashbyhq.com/{org_slug}"
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
-    jobs = _extract_json_array_from_html(resp.text, "jobPostings")
+    jobs = _fetch_ashby_via_api(org_slug)
+    if jobs is None:
+        url = f"https://jobs.ashbyhq.com/{org_slug}"
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        jobs = _extract_json_array_from_html(resp.text, "jobPostings")
+
     for job in jobs:
         if not isinstance(job, dict):
             continue
