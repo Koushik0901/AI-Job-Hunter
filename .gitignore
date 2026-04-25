@@ -53,3 +53,21 @@ src/dashboard/backend/latex_templates/**/*.synctex.gz
 # Eval results (large JSON files, not tracked)
 eval/results/
 node_modules/
+
+# Temporary handoff / documentation
+.kenji-handoff/
+
+# Screenshots and test artifacts
+screenshot-*.png
+pipeline-*.png
+
+# MCP configuration
+.mcp.json
+
+# Root-level package files (use frontend/chrome-extension package.json instead)
+/package.json
+/package-lock.json
+
+# ATS response fixtures (recorded locally, not committed)
+tests/fixtures/*.json
+tests/fixtures/*.html
