@@ -85,3 +85,26 @@ def test_normalize_lever_handles_missing_categories() -> None:
     assert result["location"] == ""
     assert result["posted"] == ""
     assert result["url"].startswith("https://")
+
+
+# --- fixture integration test ---
+
+def test_fetch_lever_fixture(monkeypatch) -> None:
+    fixture_files = list((Path(__file__).parent / "fixtures").glob("lever_*.json"))
+    if not fixture_files:
+        pytest.skip("No lever fixture -- run scripts/record_fixtures.py first")
+    data = json.loads(fixture_files[0].read_text(encoding="utf-8"))
+    slug = fixture_files[0].stem.split("_", 1)[1]
+
+    def fake_get(url: str, headers: dict | None = None, timeout: int = 30) -> _FakeResponse:
+        return _FakeResponse(data)
+
+    monkeypatch.setattr("ai_job_hunter.fetchers.requests.get", fake_get)
+    results = fetch_lever(slug)
+
+    assert len(results) > 0, "Expected at least one job from fixture"
+    normalized = [normalize_lever(r, "FixtureTest") for r in results]
+    for n in normalized:
+        assert all(k in n for k in ("company", "title", "location", "url", "posted", "ats"))
+        assert n["url"].startswith("https://")
+        assert n["ats"] == "lever"

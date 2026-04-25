@@ -66,3 +66,25 @@ def test_normalize_recruitee_string_location() -> None:
     result = normalize_recruitee(raw, "Acme")
 
     assert result["location"] == "Vancouver, BC, Canada"
+
+
+# --- fixture integration test ---
+
+def test_fetch_recruitee_fixture(monkeypatch) -> None:
+    fixture_files = list((Path(__file__).parent / "fixtures").glob("recruitee_*.json"))
+    if not fixture_files:
+        pytest.skip("No recruitee fixture -- run scripts/record_fixtures.py first")
+    data = json.loads(fixture_files[0].read_text(encoding="utf-8"))
+    slug = fixture_files[0].stem.split("_", 1)[1]
+
+    def fake_get(url: str, timeout: int = 30) -> _FakeResponse:
+        return _FakeResponse(data)
+
+    monkeypatch.setattr("ai_job_hunter.fetchers.requests.get", fake_get)
+    results = fetch_recruitee(slug)
+
+    assert len(results) > 0, "Expected at least one job from fixture"
+    normalized = [normalize_recruitee(r, "FixtureTest") for r in results]
+    for n in normalized:
+        assert all(k in n for k in ("company", "title", "location", "url", "posted", "ats"))
+        assert n["ats"] == "recruitee"

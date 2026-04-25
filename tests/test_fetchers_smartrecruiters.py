@@ -66,3 +66,26 @@ def test_normalize_smartrecruiters_remote_prepended() -> None:
 
     assert result["location"].startswith("Remote")
     assert "Toronto" in result["location"]
+
+
+# --- fixture integration test ---
+
+def test_fetch_smartrecruiters_fixture(monkeypatch) -> None:
+    fixture_files = list((Path(__file__).parent / "fixtures").glob("smartrecruiters_*.json"))
+    if not fixture_files:
+        pytest.skip("No smartrecruiters fixture -- run scripts/record_fixtures.py first")
+    data = json.loads(fixture_files[0].read_text(encoding="utf-8"))
+    slug = fixture_files[0].stem.split("_", 1)[1]
+
+    def fake_get(url: str, params: Any = None, timeout: int = 30) -> _FakeResponse:
+        return _FakeResponse(data)
+
+    monkeypatch.setattr("ai_job_hunter.fetchers.requests.get", fake_get)
+    results = fetch_smartrecruiters(slug)
+
+    assert len(results) > 0, "Expected at least one job from fixture"
+    normalized = [normalize_smartrecruiters(r, "FixtureTest") for r in results]
+    for n in normalized:
+        assert all(k in n for k in ("company", "title", "location", "url", "posted", "ats"))
+        assert n["url"].startswith("https://")
+        assert n["ats"] == "smartrecruiters"

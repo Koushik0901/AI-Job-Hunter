@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 
 from ai_job_hunter.fetchers import fetch_workable
 from ai_job_hunter.fetchers import fetch_workable_description
@@ -128,3 +129,31 @@ def test_normalize_workable_extracts_required_fields() -> None:
     assert result["url"] == "https://apply.workable.com/acme/j/ABC123"
     assert result["ats"] == "workable"
     assert result["posted"] == "2026-01-15"
+
+
+def test_fetch_workable_fixture(monkeypatch) -> None:
+    from ai_job_hunter.fetchers import normalize_workable
+    fixture_files = list((Path(__file__).parent / "fixtures").glob("workable_*.json"))
+    if not fixture_files:
+        pytest.skip("No workable fixture -- run scripts/record_fixtures.py first")
+    data = json.loads(fixture_files[0].read_text(encoding="utf-8"))
+    slug = fixture_files[0].stem.split("_", 1)[1]
+
+    # Workable uses POST -- return fixture on first call, then empty page to stop pagination
+    call_count = [0]
+
+    def fake_post(url: str, json: Any, headers: Any = None, timeout: int = 30) -> _FakeResponse:
+        call_count[0] += 1
+        if call_count[0] == 1:
+            payload = {**data, "nextPage": ""}  # strip pagination to avoid loop
+            return _FakeResponse(payload)
+        return _FakeResponse({"results": [], "nextPage": ""})
+
+    monkeypatch.setattr("ai_job_hunter.fetchers.requests.post", fake_post)
+    results = fetch_workable(slug)
+
+    assert len(results) > 0, "Expected at least one job from fixture"
+    normalized = [normalize_workable(r, "FixtureTest") for r in results]
+    for n in normalized:
+        assert all(k in n for k in ("company", "title", "location", "url", "posted", "ats"))
+        assert n["ats"] == "workable"

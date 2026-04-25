@@ -64,3 +64,26 @@ def test_normalize_greenhouse_handles_missing_location() -> None:
 
     assert result["location"] == ""
     assert result["posted"] == ""
+
+
+# --- fixture integration test ---
+
+def test_fetch_greenhouse_fixture(monkeypatch) -> None:
+    fixture_files = list((Path(__file__).parent / "fixtures").glob("greenhouse_*.json"))
+    if not fixture_files:
+        pytest.skip("No greenhouse fixture -- run scripts/record_fixtures.py first")
+    data = json.loads(fixture_files[0].read_text(encoding="utf-8"))
+    slug = fixture_files[0].stem.split("_", 1)[1]
+
+    def fake_get(url: str, timeout: int = 30) -> _FakeResponse:
+        return _FakeResponse(data)
+
+    monkeypatch.setattr("ai_job_hunter.fetchers.requests.get", fake_get)
+    results = fetch_greenhouse(slug)
+
+    assert len(results) > 0, "Expected at least one job from fixture"
+    normalized = [normalize_greenhouse(r, "FixtureTest") for r in results]
+    for n in normalized:
+        assert all(k in n for k in ("company", "title", "location", "url", "posted", "ats"))
+        assert n["url"].startswith("https://")
+        assert n["ats"] == "greenhouse"

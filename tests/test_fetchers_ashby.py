@@ -111,3 +111,29 @@ def test_normalize_ashby_falls_back_to_location_field() -> None:
            "jobPostingUrl": "https://jobs.ashbyhq.com/acme/1"}
     result = normalize_ashby(raw, "Acme")
     assert result["location"] == "Remote"
+
+
+# --- fixture integration test ---
+
+def test_fetch_ashby_fixture(monkeypatch) -> None:
+    fixture_files = list((Path(__file__).parent / "fixtures").glob("ashby_*.html"))
+    if not fixture_files:
+        pytest.skip("No ashby fixture -- run scripts/record_fixtures.py first")
+    fixture_text = fixture_files[0].read_text(encoding="utf-8")
+    slug = fixture_files[0].stem.split("_", 1)[1]
+
+    def fake_get(url: str, timeout: int = 30) -> _FakeResponse:
+        if "api.ashbyhq.com" in url:
+            # Return non-200 to force HTML fallback (fixture is HTML)
+            return _FakeResponse({}, status_code=404)
+        return _FakeResponse(fixture_text)
+
+    monkeypatch.setattr("ai_job_hunter.fetchers.requests.get", fake_get)
+    results = fetch_ashby(slug)
+
+    assert len(results) > 0, "Expected at least one job from fixture"
+    normalized = [normalize_ashby(r, "FixtureTest") for r in results]
+    for n in normalized:
+        assert all(k in n for k in ("company", "title", "location", "url", "posted", "ats"))
+        assert n["url"].startswith("https://")
+        assert n["ats"] == "ashby"
