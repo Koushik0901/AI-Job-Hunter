@@ -63,7 +63,11 @@ def fetch_greenhouse(board_token: str) -> list[dict[str, Any]]:
 @retry_with_backoff(max_attempts=3)
 def fetch_lever(company_name: str) -> list[dict[str, Any]]:
     url = f"https://api.lever.co/v0/postings/{company_name}"
-    resp = requests.get(url, timeout=30)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/html;q=0.9, */*;q=0.8",
+    }
+    resp = requests.get(url, headers=headers, timeout=30)
     resp.raise_for_status()
     data = resp.json()
     return data if isinstance(data, list) else []
