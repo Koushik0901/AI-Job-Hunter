@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 
@@ -22,7 +24,7 @@ class _FakeResponse:
 def test_fetch_workable_follows_next_page_token(monkeypatch) -> None:
     calls: list[dict[str, Any]] = []
 
-    def fake_post(url: str, json: dict[str, Any], timeout: int) -> _FakeResponse:
+    def fake_post(url: str, json: dict[str, Any], headers: dict | None = None, timeout: int = 30) -> _FakeResponse:
         calls.append({"url": url, "json": json, "timeout": timeout})
         token = json.get("token")
         if not token:
@@ -86,3 +88,24 @@ def test_fetch_workable_description_uses_v2_job_endpoint(monkeypatch) -> None:
     assert description == "AI team role"
     assert seen["url"] == "https://apply.workable.com/api/v2/accounts/example-company/jobs/ABC123"
     assert seen["timeout"] == 30
+
+
+def test_fetch_workable_sends_required_headers(monkeypatch) -> None:
+    """fetch_workable must include Origin, Referer, and User-Agent headers."""
+    captured: dict = {}
+
+    def fake_post(url: str, json: Any, headers: dict | None = None,
+                  timeout: int = 30) -> _FakeResponse:
+        captured["headers"] = dict(headers or {})
+        return _FakeResponse(
+            {"total": 1, "results": [{"shortcode": "X1", "title": "AI Eng"}], "nextPage": ""}
+        )
+
+    monkeypatch.setattr("ai_job_hunter.fetchers.requests.post", fake_post)
+    fetch_workable("example-co")
+
+    assert "Origin" in captured["headers"], "Missing Origin header"
+    assert captured["headers"]["Origin"] == "https://apply.workable.com"
+    assert "Referer" in captured["headers"], "Missing Referer header"
+    assert captured["headers"]["Referer"] == "https://apply.workable.com/example-co/"
+    assert "User-Agent" in captured["headers"], "Missing User-Agent header"

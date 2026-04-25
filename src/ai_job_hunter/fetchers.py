@@ -116,6 +116,12 @@ def fetch_ashby(org_slug: str) -> list[dict[str, Any]]:
 @retry_with_backoff(max_attempts=3)
 def fetch_workable(account_slug: str) -> list[dict[str, Any]]:
     url = f"https://apply.workable.com/api/v3/accounts/{account_slug}/jobs"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+        "Origin": "https://apply.workable.com",
+        "Referer": f"https://apply.workable.com/{account_slug}/",
+        "Accept": "application/json, text/html;q=0.9, */*;q=0.8",
+    }
     jobs: list[dict[str, Any]] = []
     seen_shortcodes: set[str] = set()
     token: str | None = None
@@ -124,7 +130,7 @@ def fetch_workable(account_slug: str) -> list[dict[str, Any]]:
         payload: dict[str, str] = {}
         if token:
             payload["token"] = token
-        resp = requests.post(url, json=payload, timeout=30)
+        resp = requests.post(url, json=payload, headers=headers, timeout=30)
         resp.raise_for_status()
         data = resp.json() if resp.content else {}
         page_jobs = data.get("results", []) if isinstance(data, dict) else []
