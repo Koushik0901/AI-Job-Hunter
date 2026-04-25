@@ -57,3 +57,31 @@ def test_fetch_lever_sends_user_agent(monkeypatch) -> None:
 
     assert "User-Agent" in captured["headers"], "Missing User-Agent header"
     assert len(result) == 1
+
+
+# --- normalizer tests ---
+
+def test_normalize_lever_extracts_required_fields() -> None:
+    raw = {
+        "text": "Machine Learning Engineer",
+        "hostedUrl": "https://jobs.lever.co/acme/abc-123",
+        "createdAt": 1700000000000,
+        "categories": {"location": "Remote, Canada"},
+    }
+    result = normalize_lever(raw, "Acme")
+
+    assert result["company"] == "Acme"
+    assert result["title"] == "Machine Learning Engineer"
+    assert result["location"] == "Remote, Canada"
+    assert result["url"] == "https://jobs.lever.co/acme/abc-123"
+    assert result["ats"] == "lever"
+    assert result["posted"] == "2023-11-14"
+
+
+def test_normalize_lever_handles_missing_categories() -> None:
+    raw = {"text": "Data Scientist", "hostedUrl": "https://jobs.lever.co/acme/xyz", "createdAt": None}
+    result = normalize_lever(raw, "Acme")
+
+    assert result["location"] == ""
+    assert result["posted"] == ""
+    assert result["url"].startswith("https://")

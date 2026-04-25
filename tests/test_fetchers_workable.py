@@ -109,3 +109,22 @@ def test_fetch_workable_sends_required_headers(monkeypatch) -> None:
     assert "Referer" in captured["headers"], "Missing Referer header"
     assert captured["headers"]["Referer"] == "https://apply.workable.com/example-co/"
     assert "User-Agent" in captured["headers"], "Missing User-Agent header"
+
+
+def test_normalize_workable_extracts_required_fields() -> None:
+    from ai_job_hunter.fetchers import normalize_workable
+    raw = {
+        "shortcode": "ABC123",
+        "title": "AI Engineer",
+        "_location_str": "Toronto, Ontario, Canada",
+        "absolute_url": "https://apply.workable.com/acme/j/ABC123",
+        "published": "2026-01-15T10:00:00Z",
+    }
+    result = normalize_workable(raw, "Acme")
+
+    assert result["company"] == "Acme"
+    assert result["title"] == "AI Engineer"
+    assert result["location"] == "Toronto, Ontario, Canada"
+    assert result["url"] == "https://apply.workable.com/acme/j/ABC123"
+    assert result["ats"] == "workable"
+    assert result["posted"] == "2026-01-15"

@@ -84,3 +84,30 @@ def test_fetch_ashby_falls_back_to_html_when_api_fails(monkeypatch) -> None:
     result = fetch_ashby("test-org")
 
     assert any(r.get("title") == "Data Scientist" for r in result)
+
+
+# --- normalizer tests ---
+
+def test_normalize_ashby_extracts_required_fields() -> None:
+    raw = {
+        "id": "abc123",
+        "title": "Data Scientist",
+        "locationName": "Vancouver, BC",
+        "publishedDate": "2026-01-15",
+        "jobPostingUrl": "https://jobs.ashbyhq.com/acme/abc123",
+    }
+    result = normalize_ashby(raw, "Acme")
+
+    assert result["company"] == "Acme"
+    assert result["title"] == "Data Scientist"
+    assert result["location"] == "Vancouver, BC"
+    assert result["url"] == "https://jobs.ashbyhq.com/acme/abc123"
+    assert result["ats"] == "ashby"
+    assert result["posted"] == "2026-01-15"
+
+
+def test_normalize_ashby_falls_back_to_location_field() -> None:
+    raw = {"title": "ML Eng", "location": "Remote", "publishedDate": "2026-01-15",
+           "jobPostingUrl": "https://jobs.ashbyhq.com/acme/1"}
+    result = normalize_ashby(raw, "Acme")
+    assert result["location"] == "Remote"
