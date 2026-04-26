@@ -15,28 +15,34 @@ _ROWS = [
 ]
 
 
-def _make_ok_response(jobs: int = 3) -> MagicMock:
+def _make_response_for_ats(ats_name: str, jobs: int = 3) -> MagicMock:
+    """Build a mock response whose body satisfies each ATS's success_test."""
     r = MagicMock()
     r.status_code = 200
-    r.json.return_value = {"jobs": [{"id": i} for i in range(jobs)]}
-    r.text = '{"jobs": []}'
     r.url = ""
+    if ats_name == "lever":
+        r.json.return_value = [{"id": i} for i in range(jobs)]
+        r.text = '[{"id": 0}]'
+    else:
+        r.json.return_value = {"jobs": [{"id": i} for i in range(jobs)]}
+        r.text = '{"jobs": []}'
     return r
 
 
 def test_probe_company_sources_all_returns_one_result_per_enabled_row() -> None:
     with patch("ai_job_hunter.services.probe_service._send_probe_request") as mock_send:
-        mock_send.return_value = _make_ok_response(3)
+        mock_send.side_effect = lambda method, url, ats_name: _make_response_for_ats(ats_name, 3)
         results = probe_company_sources_all(_ROWS)
 
     assert len(results) == 2  # disabled row excluded by default
     assert all("probe_status" in r for r in results)
     assert all("probe_jobs" in r for r in results)
+    assert all(r["probe_status"] == "OK" for r in results)
 
 
 def test_probe_company_sources_all_include_disabled() -> None:
     with patch("ai_job_hunter.services.probe_service._send_probe_request") as mock_send:
-        mock_send.return_value = _make_ok_response(1)
+        mock_send.side_effect = lambda method, url, ats_name: _make_response_for_ats(ats_name, 1)
         results = probe_company_sources_all(_ROWS, include_disabled=True)
 
     assert len(results) == 3
@@ -44,7 +50,7 @@ def test_probe_company_sources_all_include_disabled() -> None:
 
 def test_probe_company_sources_all_ats_filter() -> None:
     with patch("ai_job_hunter.services.probe_service._send_probe_request") as mock_send:
-        mock_send.return_value = _make_ok_response(2)
+        mock_send.side_effect = lambda method, url, ats_name: _make_response_for_ats(ats_name, 2)
         results = probe_company_sources_all(_ROWS, ats_filter="greenhouse")
 
     assert len(results) == 1  # only enabled greenhouse row
