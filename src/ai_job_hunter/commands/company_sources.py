@@ -37,6 +37,9 @@ def register(subparsers) -> None:
     )
     p_imp.add_argument("--dry-run", action="store_true")
 
+    p_disc = sub.add_parser("discover", help="Discover new sources via Brave Search API")
+    p_disc.add_argument("--dry-run", action="store_true", dest="dry_run")
+
     p_all = sub.add_parser("check-all", help="Probe all configured sources and report coverage")
     p_all.add_argument(
         "--include-disabled",
@@ -189,6 +192,12 @@ def run(args) -> None:
             import_career_ops(conn, dry_run=args.dry_run)
         else:
             import_companies(conn, dry_run=args.dry_run)
+        conn.close()
+        return
+
+    if args.sources_cmd == "discover":
+        from ai_job_hunter.services.company_source_service import run_discover
+        run_discover(conn, dry_run=getattr(args, "dry_run", False))
         conn.close()
         return
 

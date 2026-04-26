@@ -300,6 +300,125 @@ def import_career_ops(conn: Any, dry_run: bool = False) -> None:
     )
 
 
+def run_discover(conn: Any, dry_run: bool = False) -> None:
+    """Discover new company sources via Brave Search using the candidate profile."""
+    import os
+
+    from ai_job_hunter.db import get_candidate_profile
+    from ai_job_hunter.services.discovery_service import (
+        brave_search,
+        build_discovery_queries,
+        normalize_url,
+    )
+    from ai_job_hunter.services.probe_service import _ATS_PROBES, probe_company_sources_all
+
+    console = Console()
+
+    api_key = os.getenv("BRAVE_SEARCH_API_KEY", "")
+    if not api_key:
+        console.print(
+            "[yellow]BRAVE_SEARCH_API_KEY not set -- skipping discovery.[/yellow]"
+        )
+        return
+
+    profile = get_candidate_profile(conn)
+    queries = build_discovery_queries(profile)
+    if not queries:
+        console.print(
+            "[yellow]No desired_job_titles in profile. "
+            "Complete your profile to enable source discovery.[/yellow]"
+        )
+        return
+
+    console.print(f"[dim]Running {len(queries)} Brave queries...[/dim]")
+
+    existing = list_company_sources(conn, enabled_only=False)
+    existing_keys = {(r["ats_type"], str(r.get("slug", "")).lower()) for r in existing}
+    probe_map = {ats_name: url_tmpl for ats_name, url_tmpl, _, _ in _ATS_PROBES}
+
+    seen: set[tuple[str, str]] = set()
+    candidates: list[tuple[str, str]] = []
+
+    for query in queries:
+        for url in brave_search(query, api_key):
+            result = normalize_url(url)
+            if result is None:
+                continue
+            ats_type, slug = result
+            key = (ats_type, slug.lower())
+            if key in existing_keys or key in seen or ats_type not in probe_map:
+                continue
+            seen.add(key)
+            candidates.append((ats_type, slug))
+
+    if not candidates:
+        console.print("[dim]No new sources found.[/dim]")
+        return
+
+    console.print(f"[dim]Probing {len(candidates)} new candidate(s)...[/dim]")
+
+    candidate_rows = [
+        {
+            "name": slug.replace("-", " ").title(),
+            "ats_type": ats_type,
+            "slug": slug,
+            "ats_url": probe_map[ats_type].format(slug=slug),
+            "enabled": 1,
+        }
+        for ats_type, slug in candidates
+    ]
+
+    results = probe_company_sources_all(candidate_rows)
+    ok = [r for r in results if r["probe_status"] == "OK"]
+
+    table = Table(
+        title=f"sources discover -- {len(ok)} new source(s) found",
+        show_header=True,
+    )
+    table.add_column("Name", style="cyan")
+    table.add_column("ATS", style="green")
+    table.add_column("Slug")
+    table.add_column("Jobs", justify="right")
+    table.add_column("Action")
+
+    for r in sorted(results, key=lambda x: (x["ats_type"], x["slug"].lower())):
+        if r["probe_status"] == "OK":
+            action = "[dim]dry-run[/dim]" if dry_run else "[green]added[/green]"
+        elif r["probe_status"] == "EMPTY":
+            action = "[yellow]skipped (empty)[/yellow]"
+        else:
+            action = "[dim]failed[/dim]"
+        table.add_row(
+            safe_text(r["name"]),
+            r["ats_type"],
+            r["slug"],
+            str(r["probe_jobs"]),
+            action,
+        )
+    console.print(table)
+
+    skipped = len([r for r in results if r["probe_status"] == "EMPTY"])
+    failed = len([r for r in results if r["probe_status"] not in ("OK", "EMPTY")])
+    console.print(
+        f"[bold]Summary:[/bold] {len(ok)} added, {skipped} skipped (empty), {failed} failed"
+    )
+
+    if dry_run:
+        console.print("[yellow]Dry run -- not writing to DB[/yellow]")
+        return
+
+    for r in ok:
+        upsert_company_source(
+            conn,
+            name=r["name"],
+            ats_type=r["ats_type"],
+            ats_url=r["ats_url"],
+            slug=r["slug"],
+            enabled=True,
+            source="discovery",
+        )
+
+
 def fetch_import_candidates(console: Console | None = None) -> list[tuple[str, str, str, str]]:
     all_candidates: list[tuple[str, str, str, str]] = []
     for source_label, source_url in IMPORT_SOURCES:
