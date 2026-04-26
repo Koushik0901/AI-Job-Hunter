@@ -1,0 +1,43 @@
+name: Source Discovery
+
+on:
+  schedule:
+    - cron: "0 18 * * 0"   # Sundays 18:00 UTC
+  workflow_dispatch:
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DASHBOARD_CACHE_DISABLED: "1"
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Check required secrets
+        env:
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+        run: |
+          missing=0
+          for name in TURSO_URL TURSO_AUTH_TOKEN; do
+            if [ -z "${!name}" ]; then
+              echo "::error title=Missing secret::$name is required"
+              missing=1
+            fi
+          done
+          exit "$missing"
+          if [ -z "$BRAVE_SEARCH_API_KEY" ]; then
+            echo "::warning::BRAVE_SEARCH_API_KEY not set -- discover will exit early"
+          fi
+
+      - name: Run source discovery
+        env:
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+        run: uv run ai-job-hunter sources discover
