@@ -104,6 +104,7 @@ from ai_job_hunter.dashboard.backend.utils import (
     resolve_db_config,
 )
 from ai_job_hunter.env_utils import env_or_default as _env_or_default
+from ai_job_hunter import settings_service
 
 load_dotenv()
 
@@ -2252,6 +2253,59 @@ def trigger_job_embedding(limit: int = Query(default=200, ge=1, le=1000)) -> dic
         except RuntimeError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"embedded": count}
+
+
+# --- Settings ---
+
+@app.get("/api/settings")
+def get_settings():
+    return settings_service.get_all_masked()
+
+
+@app.put("/api/settings")
+def put_settings(body: dict[str, str]):
+    unknown = set(body) - settings_service.KNOWN_KEYS
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"Unknown settings keys: {sorted(unknown)}")
+    for key, value in body.items():
+        settings_service.set(key, value)
+    return settings_service.get_all_masked()
+
+
+@app.post("/api/settings/telegram/test")
+def test_telegram_connection():
+    token = settings_service.get("TELEGRAM_TOKEN")
+    chat_id = settings_service.get("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        raise HTTPException(
+            status_code=400,
+            detail="TELEGRAM_TOKEN and TELEGRAM_CHAT_ID must be configured before testing.",
+        )
+    try:
+        from ai_job_hunter import notify
+        notify.send_telegram(token, chat_id, "Kenji settings test -- connection is working.")
+        return {"ok": True}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@app.get("/api/settings/openrouter/validate")
+def validate_openrouter_key():
+    api_key = settings_service.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="OPENROUTER_API_KEY is not configured.")
+    try:
+        import requests as req_lib
+        resp = req_lib.get(
+            "https://openrouter.ai/api/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        models = resp.json().get("data", [])
+        return {"valid": True, "model_count": len(models)}
+    except Exception as exc:
+        return {"valid": False, "error": str(exc)}
 
 
 def _bump_score_version(conn: Any) -> None:
