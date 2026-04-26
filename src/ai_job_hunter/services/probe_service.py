@@ -146,6 +146,58 @@ def check_company(slug: str) -> None:
         )
 
 
+def probe_company_sources_all(
+    rows: list[dict],
+    *,
+    include_disabled: bool = False,
+    ats_filter: str | None = None,
+) -> list[dict]:
+    """Probe company_sources rows concurrently. Returns a status dict per probed row.
+
+    Each result dict is the original row plus three keys:
+      probe_status: "OK" | "EMPTY" | "ERROR"
+      probe_jobs:   int  (0 on ERROR)
+      probe_note:   str  (empty on OK/EMPTY, error message on ERROR)
+    """
+    probe_map = {
+        ats_name: (url_tmpl, method, success_test)
+        for ats_name, url_tmpl, method, success_test in _ATS_PROBES
+    }
+
+    filtered = [
+        r for r in rows
+        if (include_disabled or r.get("enabled"))
+        and (ats_filter is None or r.get("ats_type") == ats_filter)
+        and r.get("ats_type") in probe_map
+    ]
+
+    def _probe_one(row: dict) -> dict:
+        ats = row["ats_type"]
+        slug = row["slug"]
+        url_tmpl, method, success_test = probe_map[ats]
+        url = url_tmpl.format(slug=slug)
+        try:
+            resp = _send_probe_request(method, url, ats)
+            if success_test(resp):
+                jobs = probe_job_count(resp, ats)
+                status = "OK" if jobs else "EMPTY"
+                return {**row, "probe_status": status, "probe_jobs": jobs, "probe_note": ""}
+            return {**row, "probe_status": "ERROR", "probe_jobs": 0,
+                    "probe_note": f"HTTP {resp.status_code}"}
+        except Exception as exc:
+            note = f"{type(exc).__name__}: {str(exc)[:60]}"
+            return {**row, "probe_status": "ERROR", "probe_jobs": 0, "probe_note": note}
+
+    results: list[dict] = []
+    with ThreadPoolExecutor(max_workers=20) as ex:
+        futures = {ex.submit(_probe_one, row): row for row in filtered}
+        for fut in as_completed(futures):
+            results.append(fut.result())
+
+    results.sort(key=lambda r: (r.get("ats_type", ""), r.get("name", "").lower()))
+    return results
+
+
 def probe_all(slugs: list[str], url_templates: dict[str, str]) -> list[dict[str, Any]]:
     """Probe all ATS for all slugs concurrently, returning canonical hit rows."""
     allowed_ats = set(url_templates)

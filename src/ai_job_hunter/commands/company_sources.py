@@ -30,6 +30,20 @@ def register(subparsers) -> None:
     p_imp = sub.add_parser("import", help="Import sources from GitHub lists")
     p_imp.add_argument("--dry-run", action="store_true")
 
+    p_all = sub.add_parser("check-all", help="Probe all configured sources and report coverage")
+    p_all.add_argument(
+        "--include-disabled",
+        action="store_true",
+        dest="include_disabled",
+        help="Also probe disabled sources",
+    )
+    p_all.add_argument(
+        "--ats",
+        dest="ats_filter",
+        metavar="NAME",
+        help="Filter to one ATS provider (e.g. lever)",
+    )
+
 
 def _resolve_db(path_override: str | None):
     turso_url = os.getenv("TURSO_URL", "")
@@ -42,6 +56,73 @@ def _resolve_db(path_override: str | None):
 
 
 def run(args) -> None:
+    if args.sources_cmd == "check-all":
+        from collections import Counter
+
+        from ai_job_hunter.db import list_company_sources as _list_sources
+        from ai_job_hunter.services.probe_service import probe_company_sources_all
+        from ai_job_hunter.services.scrape_service import safe_text
+
+        db_url, db_token = _resolve_db(args.db)
+        conn = init_db(db_url, db_token)
+        all_rows = _list_sources(conn, enabled_only=False)
+        conn.close()
+
+        ats_filter = getattr(args, "ats_filter", None)
+        include_disabled = getattr(args, "include_disabled", False)
+        results = probe_company_sources_all(
+            all_rows,
+            include_disabled=include_disabled,
+            ats_filter=ats_filter,
+        )
+
+        console = Console()
+        if not results:
+            console.print("[yellow]No sources matched the filter.[/yellow]")
+            return
+
+        table = Table(
+            title=f"Source health check -- {len(results)} probed",
+            show_header=True,
+        )
+        table.add_column("Company")
+        table.add_column("ATS", style="cyan")
+        table.add_column("Status")
+        table.add_column("Jobs", justify="right")
+        table.add_column("URL", style="dim", no_wrap=False)
+        table.add_column("Note", style="dim")
+
+        _STATUS_STYLE = {"OK": "bold green", "EMPTY": "yellow", "ERROR": "bold red"}
+        for r in results:
+            style = _STATUS_STYLE.get(r["probe_status"], "")
+            jobs_str = str(r["probe_jobs"]) if r["probe_status"] in ("OK", "EMPTY") else "-"
+            table.add_row(
+                safe_text(r["name"]),
+                r["ats_type"],
+                f"[{style}]{r['probe_status']}[/{style}]",
+                jobs_str,
+                r.get("ats_url", ""),
+                r.get("probe_note", ""),
+            )
+        console.print(table)
+        console.print()
+
+        by_ats: dict[str, list[dict]] = {}
+        for r in results:
+            by_ats.setdefault(r["ats_type"], []).append(r)
+
+        for ats in sorted(by_ats):
+            counts = Counter(r["probe_status"] for r in by_ats[ats])
+            total = len(by_ats[ats])
+            console.print(
+                f"  [cyan]{ats:<14}[/cyan] "
+                f"[green]{counts.get('OK', 0)} OK[/green]  .  "
+                f"[yellow]{counts.get('EMPTY', 0)} empty[/yellow]  .  "
+                f"[red]{counts.get('ERROR', 0)} errors[/red]  "
+                f"of {total}"
+            )
+        return
+
     if args.sources_cmd == "check":
         console = Console()
         result = probe_company_sources(args.slug, extra_slugs=[args.slug])
