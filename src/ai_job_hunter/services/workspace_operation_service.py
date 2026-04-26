@@ -24,6 +24,7 @@ from ai_job_hunter.dashboard.backend.cache import get_dashboard_cache
 from ai_job_hunter.dashboard.backend import repository as dashboard_repository
 from ai_job_hunter.enrich import run_description_reformat_pipeline, run_enrichment_pipeline
 from ai_job_hunter.env_utils import env_or_default, now_iso
+from ai_job_hunter import settings_service
 from ai_job_hunter.match_score import compute_match_score
 from ai_job_hunter.services.scrape_service import scrape_all
 
@@ -203,9 +204,9 @@ def _run_scrape(conn: Any, params: dict[str, Any], console: Console) -> dict[str
     if not companies:
         raise RuntimeError("No enabled company sources found. Add or enable company sources first.")
 
-    openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
-    openrouter_model = env_or_default("ENRICHMENT_MODEL", "openai/gpt-oss-120b")
-    description_format_model = env_or_default("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-120b")
+    openrouter_api_key = settings_service.get("OPENROUTER_API_KEY")
+    openrouter_model = settings_service.get("ENRICHMENT_MODEL")
+    description_format_model = settings_service.get("DESCRIPTION_FORMAT_MODEL")
     sort_by = str(params.get("sort_by") or "match")
     console.print(f"[bold]Scraping {len(companies)} enabled company sources[/bold]")
     jobs = scrape_all(
@@ -305,11 +306,11 @@ def _run_scrape(conn: Any, params: dict[str, Any], console: Console) -> dict[str
 
 
 def _run_enrich(conn: Any, params: dict[str, Any], console: Console, *, force: bool) -> dict[str, Any]:
-    openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
+    openrouter_api_key = settings_service.get("OPENROUTER_API_KEY")
     if not openrouter_api_key:
         raise RuntimeError("OPENROUTER_API_KEY is not configured.")
-    openrouter_model = env_or_default("ENRICHMENT_MODEL", "openai/gpt-oss-120b")
-    description_format_model = env_or_default("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-120b")
+    openrouter_model = settings_service.get("ENRICHMENT_MODEL")
+    description_format_model = settings_service.get("DESCRIPTION_FORMAT_MODEL")
     jobs_to_enrich = load_unenriched_jobs(conn, force=force)
     console.print(f"[bold]Enrichment queue:[/bold] {len(jobs_to_enrich)} job(s)")
     try:
@@ -388,11 +389,11 @@ def _run_enrich(conn: Any, params: dict[str, Any], console: Console, *, force: b
 
 
 def _run_jd_reformat(conn: Any, params: dict[str, Any], console: Console) -> dict[str, Any]:
-    openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
+    openrouter_api_key = settings_service.get("OPENROUTER_API_KEY")
     if not openrouter_api_key:
         raise RuntimeError("OPENROUTER_API_KEY is not configured.")
     missing_only = bool(params.get("missing_only", True))
-    description_format_model = env_or_default("DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-120b")
+    description_format_model = settings_service.get("DESCRIPTION_FORMAT_MODEL")
     jobs_to_process = load_jobs_for_jd_reformat(conn, missing_only=missing_only)
     console.print(f"[bold]JD reformat queue:[/bold] {len(jobs_to_process)} job(s)")
     try:
