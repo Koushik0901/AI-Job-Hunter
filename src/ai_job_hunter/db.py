@@ -724,6 +724,13 @@ def init_db(db_url: str, auth_token: str = "") -> Any:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_user_stories_kind ON user_stories(kind)"
     )
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS user_settings (
+            key        TEXT PRIMARY KEY,
+            value      TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
     conn.commit()
     return conn
 
