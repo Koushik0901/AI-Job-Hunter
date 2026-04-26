@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 import requests
+import yaml
 from rich.console import Console
 from rich.table import Table
 
@@ -147,6 +148,65 @@ def parse_companies_from_markdown(text: str) -> list[tuple[str, str, str]]:
             name_m = re.search(r"\[([^\]]{1,60})\]", ctx)
             name = name_m.group(1).strip() if name_m else slug.replace("-", " ").title()
             results.append((name, ats_type, slug))
+    return results
+
+
+_CO_GH_API_RE = re.compile(r"boards-api\.greenhouse\.io/v1/boards/([A-Za-z0-9_-]+)/jobs")
+_CO_ASHBY_RE = re.compile(r"jobs\.ashbyhq\.com/([A-Za-z0-9_-]+)")
+_CO_LEVER_RE = re.compile(r"jobs\.lever\.co/([A-Za-z0-9_-]+)")
+
+
+def parse_career_ops_portals(yaml_text: str) -> list[tuple[str, str, str]]:
+    """Parse career-ops portals.example.yml into (name, ats_type, slug) triples.
+
+    Skips entries with no detectable ATS URL (branded pages, websearch-only).
+    Deduplicates by (ats_type, slug.lower()).
+    """
+    try:
+        data = yaml.safe_load(yaml_text)
+    except yaml.YAMLError:
+        return []
+
+    companies = data.get("tracked_companies", []) if isinstance(data, dict) else []
+    results: list[tuple[str, str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    for entry in companies:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name", "")).strip()
+        if not name:
+            continue
+
+        api_url = str(entry.get("api", "") or "")
+        careers_url = str(entry.get("careers_url", "") or "")
+
+        slug: str | None = None
+        ats_type: str | None = None
+
+        m = _CO_GH_API_RE.search(api_url)
+        if m:
+            slug, ats_type = m.group(1), "greenhouse"
+
+        if not slug:
+            m = _CO_ASHBY_RE.search(careers_url)
+            if m:
+                slug, ats_type = m.group(1), "ashby"
+
+        if not slug:
+            m = _CO_LEVER_RE.search(careers_url)
+            if m:
+                slug, ats_type = m.group(1), "lever"
+
+        if not slug or not ats_type:
+            continue
+
+        key = (ats_type, slug.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        results.append((name, ats_type, slug))
+
     return results
 
 
