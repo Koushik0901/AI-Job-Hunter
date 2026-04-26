@@ -24,6 +24,7 @@ export function Sidebar({ screen, setScreen, unread }: { screen: Screen; setScre
     { id: "resume",    label: "Resume Lab",   icon: "doc" },
     { id: "stories",   label: "User Stories", icon: "book",    count: stories.length },
     { id: "insights",  label: "Insights",     icon: "sliders" },
+    { id: "settings",  label: "Settings",     icon: "settings" },
   ];
 
   const displayName = profile?.full_name || "You";
@@ -84,16 +85,6 @@ export function Sidebar({ screen, setScreen, unread }: { screen: Screen; setScre
         </div>
         <Icon name="settings" size={14}
           style={{ color: screen === "profile" ? "var(--primary)" : "var(--outline)" } as CSSProperties}/>
-      </button>
-      <button
-        onClick={() => setScreen("settings")}
-        className={"sidebar-footer" + (screen === "settings" ? " active" : "")}
-        title="Settings"
-        aria-label="Open settings"
-        aria-current={screen === "settings" ? "page" : undefined}
-        style={{ padding: "8px 12px", justifyContent: "center", gap: 0 }}>
-        <Icon name="settings" size={14}
-          style={{ color: screen === "settings" ? "var(--primary)" : "var(--outline)" } as CSSProperties}/>
       </button>
     </aside>
   );
