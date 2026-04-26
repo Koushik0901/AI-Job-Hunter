@@ -40,21 +40,23 @@ endpoints to do "add a company" or "pause this source" via tool calls.
 
 ## (3) Settings screen — integrations, models, API keys
 
-**Priority: P1 — unblocks non-technical users and hosted-instance friends.** The
-`.impeccable.md` secondary-user persona ("non-technical friends on a hosted instance")
-cannot edit `.env`. Also unlocks the agent's "configure Telegram / set model" tool
-calls in (4) by giving them a real backend to write to. Parallelizable with (2) —
-different surface area, no blocking dependency.
+**Status: Backend complete. Frontend stub live (Settings nav item → raw JSON view).**
 
-Let the user configure the stuff that currently lives in `.env` through the UI.
+Backend delivered: `user_settings` DB table, `settings_crypto.py` (Fernet encryption), `settings_service.py` (60s cache + env fallback), `GET /api/settings`, `PUT /api/settings`, `POST /api/settings/telegram/test`, `GET /api/settings/openrouter/validate`. All `os.getenv()` calls for model names and API keys migrated to `settings_service.get()` across 11 backend files. Spec: `docs/superpowers/specs/2026-04-25-settings-screen-design.md`.
 
-**Scope:**
-- Telegram (or alternative messaging: Discord, Slack, email) — connect flow, test-send button
-- OpenRouter API key input with validation
-- Model pickers for `ENRICHMENT_MODEL`, `DESCRIPTION_FORMAT_MODEL`, `SLM_MODEL`, `LLM_MODEL`, `EMBEDDING_MODEL` (populated from OpenRouter `/models` endpoint)
-- Timezone picker (`JOB_HUNTER_TIMEZONE`)
-- Secure storage: encrypt API keys at rest in DB, never return in GET responses (mask)
-- Backend: secrets table + getter that falls back to env var if DB row absent
+### Sub-task (3a) — Settings screen full frontend implementation
+
+**Status: deferred.** Stub `Settings.tsx` exists at `src/ai_job_hunter/dashboard/frontend/src/kenji/Settings.tsx` — renders raw JSON from `GET /api/settings` for backend verification.
+
+Full implementation needed:
+- Integrations section: Telegram bot token + chat ID fields, test-send button wired to `POST /api/settings/telegram/test`
+- API Keys section: OpenRouter key input, validate button wired to `GET /api/settings/openrouter/validate`
+- Models section: 5 model pickers (`LLM_MODEL`, `SLM_MODEL`, `ENRICHMENT_MODEL`, `DESCRIPTION_FORMAT_MODEL`, `EMBEDDING_MODEL`) — 3 curated preset chips + "Custom…" free-text fallback
+- Preferences section: timezone picker (`JOB_HUNTER_TIMEZONE`)
+- Global save bar: `PUT /api/settings` with changed keys only; 60s cache note ("takes effect within 60 s")
+- Design: single scrollable page, section blocks, design system tokens throughout
+
+Design mockups: `docs/superpowers/specs/2026-04-25-settings-screen-design.md`
 
 ## (4) Truly agentic Command page
 
