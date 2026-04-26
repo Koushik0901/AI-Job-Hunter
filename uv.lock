@@ -18,6 +18,7 @@ name = "ai-job-hunter"
 version = "3.0.0"
 source = { editable = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "dotenv" },
     { name = "fastapi" },
     { name = "fpdf2" },
@@ -41,6 +42,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=42.0" },
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "fastapi", specifier = ">=0.117.1" },
     { name = "fpdf2", specifier = ">=2.8.7" },
