@@ -5,6 +5,7 @@ import os
 from typing import Any
 
 from ai_job_hunter.db import update_workspace_operation
+from ai_job_hunter import settings_service
 from ai_job_hunter.dashboard.backend import artifacts as artifact_svc
 from ai_job_hunter.dashboard.backend import repository
 from ai_job_hunter.dashboard.backend import stories as story_svc
@@ -103,7 +104,7 @@ def _run_artifact_generate(params: dict[str, Any]) -> dict[str, Any]:
         row = conn.execute("SELECT id FROM jobs WHERE id = ?", (job_id,)).fetchone()
         if not row:
             raise ValueError("Job not found")
-        model = (os.getenv("LLM_MODEL") or "z-ai/glm-5.1").strip()
+        model = settings_service.get("LLM_MODEL").strip()
 
         if artifact_type == "resume":
             content_md, provenance, story_ids = generate_resume_structured(

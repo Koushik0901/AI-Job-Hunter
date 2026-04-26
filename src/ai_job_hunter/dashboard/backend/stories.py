@@ -18,6 +18,8 @@ from typing import Any, Literal
 import pydantic
 import yaml
 
+from ai_job_hunter import settings_service
+
 logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -247,10 +249,10 @@ class _ExtractFromResumeOutput(pydantic.BaseModel):
 
 def _call_llm_structured(prompt: str, system: str) -> _ExtractFromResumeOutput:
     """Call LLM_MODEL with structured output, returning a typed _ExtractFromResumeOutput."""
-    api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    api_key = settings_service.get("OPENROUTER_API_KEY").strip()
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
-    model = (os.getenv("LLM_MODEL") or "z-ai/glm-5.1").strip()
+    model = settings_service.get("LLM_MODEL").strip()
     try:
         from langchain_core.messages import HumanMessage, SystemMessage
         from langchain_openai import ChatOpenAI

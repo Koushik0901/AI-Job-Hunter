@@ -22,6 +22,8 @@ import urllib.request
 from datetime import datetime, timezone
 from typing import Any
 
+from ai_job_hunter import settings_service
+
 logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -122,11 +124,11 @@ def job_to_text(enrichment: dict) -> str:
 
 def get_embedding(text: str, model: str | None = None) -> list[float]:
     """Call OpenRouter embedding endpoint. Returns float list."""
-    api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    api_key = settings_service.get("OPENROUTER_API_KEY").strip()
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
 
-    embedding_model = (model or os.getenv("EMBEDDING_MODEL") or _DEFAULT_EMBEDDING_MODEL).strip()
+    embedding_model = (model or settings_service.get("EMBEDDING_MODEL")).strip()
     payload = json.dumps({"model": embedding_model, "input": text[:8000]}).encode()
     req = urllib.request.Request(
         f"{_OPENROUTER_BASE_URL}/embeddings",
@@ -154,7 +156,7 @@ def get_embedding(text: str, model: str | None = None) -> list[float]:
 
 def embed_pending_stories(conn: Any) -> int:
     """Embed accepted stories that have no embedding yet. Returns count embedded."""
-    model = (os.getenv("EMBEDDING_MODEL") or _DEFAULT_EMBEDDING_MODEL).strip()
+    model = settings_service.get("EMBEDDING_MODEL").strip()
     rows = conn.execute(
         """
         SELECT id, title, narrative, role_context, skills, outcomes, tags
@@ -246,7 +248,7 @@ def ensure_narrative_intent_embedding(conn: Any) -> bool:
 
 def embed_pending_jobs(conn: Any, limit: int = 200) -> int:
     """Embed enriched jobs without embeddings. Returns count embedded."""
-    model = (os.getenv("EMBEDDING_MODEL") or _DEFAULT_EMBEDDING_MODEL).strip()
+    model = settings_service.get("EMBEDDING_MODEL").strip()
     rows = conn.execute(
         """
         SELECT e.job_id, e.role_family, e.seniority, e.formatted_description,

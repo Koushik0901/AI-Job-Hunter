@@ -321,7 +321,7 @@ def _background_finalize_manual_job(job_id: str, url: str) -> None:
                 exc_info=True,
             )
 
-        openrouter_api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+        openrouter_api_key = settings_service.get("OPENROUTER_API_KEY").strip()
         job_url = url
         if not job_url:
             detail = repository.get_job_detail(conn, job_id)
@@ -341,10 +341,8 @@ def _background_finalize_manual_job(job_id: str, url: str) -> None:
                     ],
                     conn,
                     openrouter_api_key,
-                    _env_or_default("ENRICHMENT_MODEL", "openai/gpt-oss-120b"),
-                    _env_or_default(
-                        "DESCRIPTION_FORMAT_MODEL", "openai/gpt-oss-120b"
-                    ),
+                    settings_service.get("ENRICHMENT_MODEL"),
+                    settings_service.get("DESCRIPTION_FORMAT_MODEL"),
                     None,
                 )
         if job_url:
@@ -1323,8 +1321,8 @@ def refresh_daily_briefing(response: Response) -> DailyBriefing:
 @app.post("/api/meta/daily-briefing/send", response_model=DailyBriefing)
 def send_daily_briefing(response: Response) -> DailyBriefing:
     _set_no_store(response)
-    token = (os.getenv("TELEGRAM_TOKEN") or "").strip()
-    chat_id = (os.getenv("TELEGRAM_CHAT_ID") or "").strip()
+    token = settings_service.get("TELEGRAM_TOKEN").strip()
+    chat_id = settings_service.get("TELEGRAM_CHAT_ID").strip()
     if not token or not chat_id:
         raise HTTPException(status_code=503, detail="Telegram not configured")
     conn = _conn()
@@ -1738,7 +1736,7 @@ async def _artifact_stream(artifact_type: str, job_id: str, base_doc_id: int):
                 yield f"event: chunk\ndata: {json.dumps(token, ensure_ascii=True)}\n\n"
 
         content_md = "".join(chunks).strip()
-        model = (os.getenv("LLM_MODEL") or "z-ai/glm-5.1").strip()
+        model = settings_service.get("LLM_MODEL").strip()
         with _conn() as conn:
             artifact = artifact_svc.save_artifact(
                 job_id, artifact_type, content_md, base_doc_id, model, conn,
@@ -2101,11 +2099,10 @@ _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
 def _interview_call_llm(system: str, prompt: str) -> _InterviewNextOutput:
-    import os
-    api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    api_key = settings_service.get("OPENROUTER_API_KEY").strip()
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
-    model = (os.getenv("SLM_MODEL") or "google/gemma-4-31b-it").strip()
+    model = settings_service.get("SLM_MODEL").strip()
     try:
         from langchain_openai import ChatOpenAI
         from langchain_core.messages import HumanMessage, SystemMessage
@@ -2124,11 +2121,10 @@ def _interview_call_llm(system: str, prompt: str) -> _InterviewNextOutput:
 
 
 def _interview_call_llm_strong(system: str, prompt: str) -> _InterviewFinishOutput:
-    import os
-    api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    api_key = settings_service.get("OPENROUTER_API_KEY").strip()
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
-    model = (os.getenv("LLM_MODEL") or "z-ai/glm-5.1").strip()
+    model = settings_service.get("LLM_MODEL").strip()
     try:
         from langchain_openai import ChatOpenAI
         from langchain_core.messages import HumanMessage, SystemMessage

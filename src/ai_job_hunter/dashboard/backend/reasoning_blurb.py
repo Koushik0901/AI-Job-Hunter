@@ -23,6 +23,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Any
 
+from ai_job_hunter import settings_service
+
 logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -62,10 +64,10 @@ Output only the sentence. No preamble."""
 
 
 def _build_slm() -> Any:
-    api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    api_key = settings_service.get("OPENROUTER_API_KEY").strip()
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
-    model = (os.getenv("SLM_MODEL") or _DEFAULT_SLM_MODEL).strip()
+    model = settings_service.get("SLM_MODEL").strip()
     try:
         from langchain_openai import ChatOpenAI
     except ImportError as exc:
@@ -308,7 +310,7 @@ def generate_blurbs(
 
     Safe to call without OPENROUTER_API_KEY — returns {} and logs a warning.
     """
-    api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    api_key = settings_service.get("OPENROUTER_API_KEY").strip()
     if not api_key:
         logger.warning("reasoning_blurb: OPENROUTER_API_KEY not set, skipping")
         return {}

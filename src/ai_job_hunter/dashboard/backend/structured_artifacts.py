@@ -34,6 +34,7 @@ import pydantic
 import yaml
 
 from ai_job_hunter.dashboard.backend import artifacts as artifact_svc
+from ai_job_hunter import settings_service
 
 logger = logging.getLogger(__name__)
 
@@ -110,10 +111,10 @@ class _CoverLetterStructuredOutput(pydantic.BaseModel):
 
 def _call_llm_structured(prompt: str, system: str, output_model: type, max_tokens: int = 4000) -> Any:
     """Call LLM_MODEL with structured output, returning a typed Pydantic object."""
-    api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    api_key = settings_service.get("OPENROUTER_API_KEY").strip()
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
-    model = (os.getenv("LLM_MODEL") or _DEFAULT_LLM_MODEL).strip()
+    model = settings_service.get("LLM_MODEL").strip()
     try:
         from langchain_core.messages import HumanMessage, SystemMessage
         from langchain_openai import ChatOpenAI

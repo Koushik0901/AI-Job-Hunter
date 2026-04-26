@@ -9,6 +9,8 @@ from typing import Any
 
 import yaml
 
+from ai_job_hunter import settings_service
+
 logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -250,8 +252,8 @@ def _route_message(prompt: str) -> str:
     lower = prompt.casefold()
     word_count = len(prompt.split())
     if word_count > 100 or any(kw in lower for kw in _STRONG_KEYWORDS):
-        return (os.getenv("LLM_MODEL") or _DEFAULT_LLM_MODEL).strip()
-    return (os.getenv("SLM_MODEL") or _DEFAULT_SLM_MODEL).strip()
+        return settings_service.get("LLM_MODEL").strip()
+    return settings_service.get("SLM_MODEL").strip()
 
 
 def _try_fast_agent(messages: list[dict[str, str]], conn: Any) -> dict[str, str] | None:
@@ -311,7 +313,7 @@ def handle_freeform_chat(messages: list[dict[str, str]], conn: Any) -> dict[str,
     if fast is not None:
         return fast
 
-    api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    api_key = settings_service.get("OPENROUTER_API_KEY").strip()
     if not api_key:
         return {
             "reply": "The agent is not configured — set OPENROUTER_API_KEY in your environment to enable it.",
@@ -321,7 +323,7 @@ def handle_freeform_chat(messages: list[dict[str, str]], conn: Any) -> dict[str,
 
     latest_prompt = _latest_user_message(messages)
     model = _route_message(latest_prompt)
-    strong_default = (os.getenv("LLM_MODEL") or _DEFAULT_LLM_MODEL).strip()
+    strong_default = settings_service.get("LLM_MODEL").strip()
     response_mode = "llm_strong" if model == strong_default else "llm"
 
     try:

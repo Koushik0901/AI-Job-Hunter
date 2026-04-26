@@ -14,6 +14,8 @@ from typing import Any
 
 import yaml
 
+from ai_job_hunter import settings_service
+
 logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -39,7 +41,7 @@ def handle_tool_agent_chat(messages: list[dict[str, str]], conn: Any) -> dict[st
     """
     from .legacy_chat import build_agent_context, handle_freeform_chat
 
-    api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    api_key = settings_service.get("OPENROUTER_API_KEY").strip()
     if not api_key:
         return handle_freeform_chat(messages, conn)
 
@@ -63,7 +65,7 @@ def handle_tool_agent_chat(messages: list[dict[str, str]], conn: Any) -> dict[st
 
     tool_map: dict[str, BaseTool] = {t.name: t for t in tools}  # type: ignore[attr-defined]
     context = build_agent_context(conn)
-    model = (os.getenv("LLM_MODEL") or _DEFAULT_LLM_MODEL).strip()
+    model = settings_service.get("LLM_MODEL").strip()
 
     llm = ChatOpenAI(
         model=model,

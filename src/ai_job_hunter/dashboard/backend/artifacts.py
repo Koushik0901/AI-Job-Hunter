@@ -24,6 +24,8 @@ from urllib.parse import urlparse, urlunparse
 import pydantic
 import yaml
 
+from ai_job_hunter import settings_service
+
 logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -604,10 +606,10 @@ def load_story_context_for_generation(job_id: str, conn: Any) -> tuple[str, list
 
 
 def _build_llm() -> Any:
-    api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    api_key = settings_service.get("OPENROUTER_API_KEY").strip()
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
-    model = (os.getenv("LLM_MODEL") or _DEFAULT_LLM_MODEL).strip()
+    model = settings_service.get("LLM_MODEL").strip()
     try:
         from langchain_openai import ChatOpenAI
     except ImportError:
