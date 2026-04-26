@@ -30,10 +30,10 @@ jobs:
               missing=1
             fi
           done
-          exit "$missing"
           if [ -z "$BRAVE_SEARCH_API_KEY" ]; then
             echo "::warning::BRAVE_SEARCH_API_KEY not set -- discover will exit early"
           fi
+          exit "$missing"
 
       - name: Run source discovery
         env:
