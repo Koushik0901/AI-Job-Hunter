@@ -2282,11 +2282,26 @@ def test_telegram_connection():
             detail="TELEGRAM_TOKEN and TELEGRAM_CHAT_ID must be configured before testing.",
         )
     try:
-        from ai_job_hunter import notify
-        notify.send_telegram(token, chat_id, "Kenji settings test -- connection is working.")
+        import requests as req_lib
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        resp = req_lib.post(
+            url,
+            json={
+                "chat_id": chat_id,
+                "text": "Kenji settings test -- connection is working.",
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
         return {"ok": True}
+    except req_lib.HTTPError as exc:
+        logger.warning("Telegram test send failed: %s", exc)
+        return {"ok": False, "error": f"HTTP {exc.response.status_code}"}
     except Exception as exc:
-        return {"ok": False, "error": str(exc)}
+        logger.warning("Telegram test send failed: %s", exc)
+        return {"ok": False, "error": "Connection failed -- check server logs."}
 
 
 @app.get("/api/settings/openrouter/validate")

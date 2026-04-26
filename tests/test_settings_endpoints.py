@@ -74,21 +74,31 @@ def test_telegram_test_success(client):
     def mock_get(key, default=""):
         return {"TELEGRAM_TOKEN": "123:ABC", "TELEGRAM_CHAT_ID": "456789"}.get(key, default)
 
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+
     with patch("ai_job_hunter.settings_service.get", side_effect=mock_get), \
-         patch("ai_job_hunter.notify.send_telegram") as mock_send:
+         patch("requests.post", return_value=mock_resp) as mock_post:
         resp = client.post("/api/settings/telegram/test")
 
     assert resp.status_code == 200
     assert resp.json() == {"ok": True}
-    mock_send.assert_called_once_with("123:ABC", "456789", "Kenji settings test -- connection is working.")
+    call_args = mock_post.call_args
+    assert call_args[0][0].endswith("/sendMessage")
+    assert call_args[1]["json"]["text"] == "Kenji settings test -- connection is working."
 
 
 def test_telegram_test_send_failure_returns_ok_false(client):
     def mock_get(key, default=""):
         return {"TELEGRAM_TOKEN": "bad-token", "TELEGRAM_CHAT_ID": "456"}.get(key, default)
 
+    import requests as req_lib
+    mock_err_resp = MagicMock()
+    mock_err_resp.status_code = 401
+    http_error = req_lib.HTTPError(response=mock_err_resp)
+
     with patch("ai_job_hunter.settings_service.get", side_effect=mock_get), \
-         patch("ai_job_hunter.notify.send_telegram", side_effect=Exception("HTTP 401")):
+         patch("requests.post", side_effect=http_error):
         resp = client.post("/api/settings/telegram/test")
 
     assert resp.status_code == 200
