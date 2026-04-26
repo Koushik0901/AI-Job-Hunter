@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from ai_job_hunter.services.discovery_service import build_discovery_queries, normalize_url
+import requests
+from unittest.mock import MagicMock, patch
+
+from ai_job_hunter.services.discovery_service import (
+    brave_search,
+    build_discovery_queries,
+    normalize_url,
+)
 
 
 def test_normalize_url_greenhouse_boards_api():
@@ -107,3 +114,44 @@ def test_build_discovery_queries_empty_titles():
 
 def test_build_discovery_queries_missing_titles_key():
     assert build_discovery_queries({}) == []
+
+
+def test_brave_search_returns_urls():
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status.return_value = None
+    mock_resp.json.return_value = {
+        "web": {
+            "results": [
+                {"url": "https://jobs.ashbyhq.com/cohere"},
+                {"url": "https://jobs.lever.co/mistral"},
+            ]
+        }
+    }
+    with patch("ai_job_hunter.services.discovery_service.requests.get", return_value=mock_resp) as mock_get:
+        urls = brave_search("site:jobs.ashbyhq.com ML Engineer", "test-key", count=10)
+
+    assert urls == [
+        "https://jobs.ashbyhq.com/cohere",
+        "https://jobs.lever.co/mistral",
+    ]
+    call_kwargs = mock_get.call_args
+    assert call_kwargs.kwargs["headers"]["X-Subscription-Token"] == "test-key"
+    assert call_kwargs.kwargs["params"]["q"] == "site:jobs.ashbyhq.com ML Engineer"
+    assert call_kwargs.kwargs["params"]["count"] == 10
+
+
+def test_brave_search_handles_http_error():
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status.side_effect = requests.HTTPError("401")
+    with patch("ai_job_hunter.services.discovery_service.requests.get", return_value=mock_resp):
+        urls = brave_search("any query", "bad-key")
+    assert urls == []
+
+
+def test_brave_search_handles_missing_web_key():
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status.return_value = None
+    mock_resp.json.return_value = {}
+    with patch("ai_job_hunter.services.discovery_service.requests.get", return_value=mock_resp):
+        urls = brave_search("any query", "key")
+    assert urls == []
