@@ -27,7 +27,14 @@ def register(subparsers) -> None:
     p_chk = sub.add_parser("check", help="Probe ATS boards for a slug")
     p_chk.add_argument("slug")
 
-    p_imp = sub.add_parser("import", help="Import sources from GitHub lists")
+    p_imp = sub.add_parser("import", help="Import sources from GitHub lists or career-ops")
+    p_imp.add_argument(
+        "source",
+        nargs="?",
+        choices=["career-ops"],
+        default=None,
+        help="Specific source: 'career-ops'. Omit to run all GitHub list imports.",
+    )
     p_imp.add_argument("--dry-run", action="store_true")
 
     p_all = sub.add_parser("check-all", help="Probe all configured sources and report coverage")
@@ -177,7 +184,11 @@ def run(args) -> None:
         return
 
     if args.sources_cmd == "import":
-        import_companies(conn, dry_run=args.dry_run)
+        if getattr(args, "source", None) == "career-ops":
+            from ai_job_hunter.services.company_source_service import import_career_ops
+            import_career_ops(conn, dry_run=args.dry_run)
+        else:
+            import_companies(conn, dry_run=args.dry_run)
         conn.close()
         return
 

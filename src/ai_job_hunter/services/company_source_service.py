@@ -210,6 +210,96 @@ def parse_career_ops_portals(yaml_text: str) -> list[tuple[str, str, str]]:
     return results
 
 
+_CAREER_OPS_PORTALS_URL = (
+    "https://raw.githubusercontent.com/santifer/career-ops/main/templates/portals.example.yml"
+)
+
+
+def import_career_ops(conn: Any, dry_run: bool = False) -> None:
+    """Fetch career-ops portals.example.yml, probe new companies, upsert confirmed hits."""
+    from ai_job_hunter.services.probe_service import _ATS_PROBES, probe_company_sources_all
+
+    console = Console()
+    console.print(f"[dim]Fetching career-ops portals from {_CAREER_OPS_PORTALS_URL}[/dim]")
+
+    try:
+        resp = requests.get(_CAREER_OPS_PORTALS_URL, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        console.print(f"[red]Failed to fetch career-ops portals: {e}[/red]")
+        return
+
+    candidates = parse_career_ops_portals(resp.text)
+    console.print(f"[dim]Parsed {len(candidates)} companies from career-ops[/dim]")
+
+    existing = list_company_sources(conn, enabled_only=False)
+    existing_keys = {(r["ats_type"], str(r.get("slug", "")).lower()) for r in existing}
+
+    probe_map = {ats_name: url_tmpl for ats_name, url_tmpl, _, _ in _ATS_PROBES}
+    new_rows = [
+        {
+            "name": name,
+            "ats_type": ats_type,
+            "slug": slug,
+            "ats_url": probe_map[ats_type].format(slug=slug),
+            "enabled": 1,
+        }
+        for name, ats_type, slug in candidates
+        if (ats_type, slug.lower()) not in existing_keys and ats_type in probe_map
+    ]
+
+    already_present = len(candidates) - len(new_rows)
+    console.print(
+        f"[dim]{already_present} already in DB, probing {len(new_rows)} new candidates...[/dim]"
+    )
+
+    if not new_rows:
+        console.print("[green]All career-ops companies already in DB.[/green]")
+        return
+
+    results = probe_company_sources_all(new_rows, include_disabled=True)
+    ok = [r for r in results if r["probe_status"] == "OK"]
+
+    table = Table(
+        title=f"career-ops import -- {len(ok)} confirmed of {len(results)} probed",
+        show_header=True,
+    )
+    table.add_column("Name", style="cyan")
+    table.add_column("ATS", style="green")
+    table.add_column("Slug")
+    table.add_column("Jobs", justify="right")
+    table.add_column("Status")
+    _STATUS_STYLE = {"OK": "bold green", "EMPTY": "yellow", "ERROR": "dim red"}
+    for r in sorted(results, key=lambda x: (x["ats_type"], x["name"].lower())):
+        style = _STATUS_STYLE.get(r["probe_status"], "")
+        table.add_row(
+            safe_text(r["name"]),
+            r["ats_type"],
+            r["slug"],
+            str(r["probe_jobs"]),
+            f"[{style}]{r['probe_status']}[/{style}]",
+        )
+    console.print(table)
+
+    if dry_run:
+        console.print("[yellow]Dry run -- not writing to DB[/yellow]")
+        return
+
+    for r in ok:
+        upsert_company_source(
+            conn,
+            name=r["name"],
+            ats_type=r["ats_type"],
+            ats_url=r["ats_url"],
+            slug=r["slug"],
+            enabled=True,
+            source="career-ops-import",
+        )
+    console.print(
+        f"[bold green]Done.[/bold green] Added {len(ok)} new source(s) from career-ops"
+    )
+
+
 def fetch_import_candidates(console: Console | None = None) -> list[tuple[str, str, str, str]]:
     all_candidates: list[tuple[str, str, str, str]] = []
     for source_label, source_url in IMPORT_SOURCES:
