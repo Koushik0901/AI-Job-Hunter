@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from ai_job_hunter.services.discovery_service import normalize_url
 
 
