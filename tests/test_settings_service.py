@@ -9,12 +9,14 @@ def reset_service():
     import ai_job_hunter.settings_service as ss
     import ai_job_hunter.settings_crypto as sc
     ss._cache.clear()
-    ss._conn = None
+    if hasattr(ss._local, "conn"):
+        del ss._local.conn
     sc._fernet = None
     sc._WARNED = False
     yield
     ss._cache.clear()
-    ss._conn = None
+    if hasattr(ss._local, "conn"):
+        del ss._local.conn
 
 
 def _mock_conn(db_value=None):
@@ -95,6 +97,7 @@ def test_set_stores_plaintext_for_non_secret(monkeypatch):
         "INSERT OR REPLACE INTO user_settings (key, value, updated_at) VALUES (?, ?, ?)",
         ("LLM_MODEL", "openai/gpt-4o", "2026-04-25T00:00:00"),
     )
+    conn.commit.assert_called_once()
 
 
 def test_set_encrypts_secret_keys(monkeypatch):
@@ -139,6 +142,11 @@ def test_set_rejects_unknown_key():
 
 def test_get_all_masked_masks_secrets(monkeypatch):
     monkeypatch.delenv("SETTINGS_ENCRYPTION_KEY", raising=False)
+    from ai_job_hunter import settings_service as ss
+    for key in ss.MODEL_DEFAULTS:
+        monkeypatch.delenv(key, raising=False)
+    for key in ss.SECRET_KEYS:
+        monkeypatch.delenv(key, raising=False)
 
     def fake_execute(sql, params=None):
         cursor = MagicMock()

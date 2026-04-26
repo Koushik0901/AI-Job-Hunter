@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import time
 from typing import Any
 
@@ -26,20 +27,20 @@ KNOWN_KEYS: frozenset[str] = SECRET_KEYS | frozenset(MODEL_DEFAULTS)
 
 _CACHE_TTL: float = 60.0
 _cache: dict[str, tuple[str, float]] = {}
-_conn: Any = None
+_local = threading.local()
 
 
 def _get_conn() -> Any:
-    global _conn
-    if _conn is not None:
-        return _conn
+    conn = getattr(_local, "conn", None)
+    if conn is not None:
+        return conn
     from ai_job_hunter.env_utils import load_dotenv
     from ai_job_hunter.db import init_db
     load_dotenv()
     db_url = os.getenv("DB_PATH", "jobs.db")
     auth_token = os.getenv("TURSO_AUTH_TOKEN", "")
-    _conn = init_db(db_url, auth_token)
-    return _conn
+    _local.conn = init_db(db_url, auth_token)
+    return _local.conn
 
 
 def _db_read(key: str) -> str | None:
@@ -74,10 +75,12 @@ def set(key: str, value: str) -> None:
     from ai_job_hunter import settings_crypto
     from ai_job_hunter.env_utils import now_iso
     stored = settings_crypto.encrypt(value) if key in SECRET_KEYS else value
-    _get_conn().execute(
+    conn = _get_conn()
+    conn.execute(
         "INSERT OR REPLACE INTO user_settings (key, value, updated_at) VALUES (?, ?, ?)",
         (key, stored, now_iso()),
     )
+    conn.commit()
     _cache.pop(key, None)
 
 
