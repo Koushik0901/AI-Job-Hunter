@@ -1,11 +1,9 @@
-import os
 import pytest
 
 
 @pytest.fixture(autouse=True)
 def reset_crypto():
     """Reset module-level cache between tests."""
-    import importlib
     import ai_job_hunter.settings_crypto as sc
     sc._fernet = None
     sc._WARNED = False
@@ -38,6 +36,14 @@ def test_encrypt_decrypt_different_values(monkeypatch):
 def test_passthrough_without_key(monkeypatch):
     monkeypatch.delenv("SETTINGS_ENCRYPTION_KEY", raising=False)
 
+    import ai_job_hunter.settings_crypto as sc
+    plaintext = "my-secret"
+    assert sc.encrypt(plaintext) == plaintext
+    assert sc.decrypt(plaintext) == plaintext
+
+
+def test_encrypt_passthrough_with_invalid_key(monkeypatch):
+    monkeypatch.setenv("SETTINGS_ENCRYPTION_KEY", "not-a-valid-fernet-key")
     import ai_job_hunter.settings_crypto as sc
     plaintext = "my-secret"
     assert sc.encrypt(plaintext) == plaintext

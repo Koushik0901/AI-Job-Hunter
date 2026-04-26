@@ -31,6 +31,7 @@ def _get_fernet() -> object | None:
         return _fernet
     except Exception as exc:
         logger.error("SETTINGS_ENCRYPTION_KEY is invalid: %s", exc)
+        _WARNED = True
         return None
 
 
