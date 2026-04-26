@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from urllib.parse import urlparse
 
@@ -86,5 +87,6 @@ def brave_search(query: str, api_key: str, count: int = 10) -> list[str]:
         data = resp.json()
         results = data.get("web", {}).get("results", [])
         return [r["url"] for r in results if "url" in r]
-    except Exception:
+    except Exception as exc:
+        logging.getLogger(__name__).warning("brave_search failed: %s", exc)
         return []

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from typing import Any
 
@@ -302,8 +303,6 @@ def import_career_ops(conn: Any, dry_run: bool = False) -> None:
 
 def run_discover(conn: Any, dry_run: bool = False) -> None:
     """Discover new company sources via Brave Search using the candidate profile."""
-    import os
-
     from ai_job_hunter.db import get_candidate_profile
     from ai_job_hunter.services.discovery_service import (
         brave_search,
@@ -399,8 +398,9 @@ def run_discover(conn: Any, dry_run: bool = False) -> None:
 
     skipped = len([r for r in results if r["probe_status"] == "EMPTY"])
     failed = len([r for r in results if r["probe_status"] not in ("OK", "EMPTY")])
+    action_word = "would add" if dry_run else "added"
     console.print(
-        f"[bold]Summary:[/bold] {len(ok)} added, {skipped} skipped (empty), {failed} failed"
+        f"[bold]Summary:[/bold] {len(ok)} {action_word}, {skipped} skipped (empty), {failed} failed"
     )
 
     if dry_run:
