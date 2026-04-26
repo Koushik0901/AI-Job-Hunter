@@ -8,6 +8,7 @@ import { Stories } from "./kenji/Stories";
 import { Pipeline } from "./kenji/Pipeline";
 import { Profile } from "./kenji/Profile";
 import { Insights } from "./kenji/Insights";
+import { Settings } from "./kenji/Settings";
 import type { JobSummary } from "./api";
 import { useData } from "./DataContext";
 
@@ -30,7 +31,7 @@ export function App() {
 
   useEffect(() => {
     const s = localStorage.getItem("kenji-screen") as Screen | null;
-    if (s && ["discover", "command", "pipeline", "resume", "stories", "insights", "profile"].includes(s)) setScreen(s);
+    if (s && ["discover", "command", "pipeline", "resume", "stories", "insights", "profile", "settings"].includes(s)) setScreen(s);
   }, []);
   useEffect(() => { localStorage.setItem("kenji-screen", screen); }, [screen]);
 
@@ -99,6 +100,7 @@ export function App() {
           {screen === "stories" && <Stories/>}
           {screen === "insights" && <Insights/>}
           {screen === "profile" && <Profile/>}
+          {screen === "settings" && <Settings />}
         </div>
       </div>
 

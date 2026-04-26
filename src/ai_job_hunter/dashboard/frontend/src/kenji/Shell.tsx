@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { BrandMark, Icon } from "./ui";
 import { useData } from "../DataContext";
 
-export type Screen = "discover" | "command" | "pipeline" | "resume" | "stories" | "insights" | "profile";
+export type Screen = "discover" | "command" | "pipeline" | "resume" | "stories" | "insights" | "profile" | "settings";
 
 function initialsOf(name: string | null | undefined): string {
   if (!name) return "··";
@@ -85,6 +85,16 @@ export function Sidebar({ screen, setScreen, unread }: { screen: Screen; setScre
         <Icon name="settings" size={14}
           style={{ color: screen === "profile" ? "var(--primary)" : "var(--outline)" } as CSSProperties}/>
       </button>
+      <button
+        onClick={() => setScreen("settings")}
+        className={"sidebar-footer" + (screen === "settings" ? " active" : "")}
+        title="Settings"
+        aria-label="Open settings"
+        aria-current={screen === "settings" ? "page" : undefined}
+        style={{ padding: "8px 12px", justifyContent: "center", gap: 0 }}>
+        <Icon name="settings" size={14}
+          style={{ color: screen === "settings" ? "var(--primary)" : "var(--outline)" } as CSSProperties}/>
+      </button>
     </aside>
   );
 }
@@ -105,6 +115,7 @@ export function TopBar({ screen, targetCompany, targetRole }: { screen: Screen; 
     stories:  { crumb: "workspace / stories",   title: <>Who <span style={{color:"var(--primary)"}}>{firstName}</span> actually is</> },
     insights: { crumb: "workspace / insights",  title: <>Pipeline, <span style={{color:"var(--primary)"}}>read clearly</span></> },
     profile:  { crumb: "workspace / profile",   title: <>{firstName}, <span style={{color:"var(--primary)"}}>your career identity</span></> },
+    settings: { crumb: "workspace / settings",  title: <>App <span style={{color:"var(--primary)"}}>settings</span></> },
   };
   const t = titles[screen];
   return (
