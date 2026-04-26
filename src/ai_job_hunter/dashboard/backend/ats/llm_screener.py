@@ -12,7 +12,6 @@ not the cheap one.
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path

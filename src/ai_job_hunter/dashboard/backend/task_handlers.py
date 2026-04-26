@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 from ai_job_hunter.db import update_workspace_operation

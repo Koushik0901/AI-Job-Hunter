@@ -23,7 +23,7 @@ from ai_job_hunter.db import (
 from ai_job_hunter.dashboard.backend.cache import get_dashboard_cache
 from ai_job_hunter.dashboard.backend import repository as dashboard_repository
 from ai_job_hunter.enrich import run_description_reformat_pipeline, run_enrichment_pipeline
-from ai_job_hunter.env_utils import env_or_default, now_iso
+from ai_job_hunter.env_utils import now_iso
 from ai_job_hunter import settings_service
 from ai_job_hunter.match_score import compute_match_score
 from ai_job_hunter.services.scrape_service import scrape_all

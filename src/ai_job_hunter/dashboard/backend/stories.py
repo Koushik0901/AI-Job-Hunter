@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path

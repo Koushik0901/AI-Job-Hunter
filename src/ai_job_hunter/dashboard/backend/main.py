@@ -103,7 +103,6 @@ from ai_job_hunter.dashboard.backend.utils import (
     now_iso,
     resolve_db_config,
 )
-from ai_job_hunter.env_utils import env_or_default as _env_or_default
 from ai_job_hunter import settings_service
 
 load_dotenv()

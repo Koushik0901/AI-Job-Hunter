@@ -7,7 +7,6 @@ Falls back to legacy_chat if LangChain is unavailable or the model call fails.
 from __future__ import annotations
 
 import logging
-import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import struct
 import urllib.error
 import urllib.request
@@ -27,7 +26,6 @@ from ai_job_hunter import settings_service
 logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-_DEFAULT_EMBEDDING_MODEL = "qwen/qwen3-embedding-8b"
 
 _SEMANTIC_WEIGHT = 0.65   # semantic is the primary signal; keyword adjusts around it
 _KEYWORD_ADJUSTMENT_FACTOR = 0.20  # keyword offsets semantic by ±FACTOR*(keyword-50)
